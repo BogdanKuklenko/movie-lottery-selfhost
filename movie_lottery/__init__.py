@@ -24,8 +24,8 @@ def create_app():
 
     db.init_app(app)
     
-    # Инициализируем Migrate здесь
-    migrate = Migrate(app, db)
+    # Инициализируем Migrate
+    Migrate(app, db)
 
     with app.app_context():
         from .routes.main_routes import main_bp
@@ -34,7 +34,7 @@ def create_app():
         app.register_blueprint(main_bp)
         app.register_blueprint(api_bp)
 
-        # УДАЛЯЕМ db.create_all(), ТЕПЕРЬ ВСЕМ УПРАВЛЯЕТ ALEMBIC
+        # Импортируем модели, чтобы Alembic их видел
         from . import models
         
         return app
