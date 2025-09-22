@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             } else {
-                modal.renderError('Информация о победителе еще не доступна.');
+                modal.renderWaitingModal(lotteryData);
             }
         } catch (error) {
             modal.renderError(error.message);
@@ -238,10 +238,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     handleOpenModal(lotteryId);
                 }
             }
-        } else if (!card.classList.contains('waiting-card')) {
+        } else if (lotteryId) {
             handleOpenModal(lotteryId);
-        } else {
-            showToast('Эта лотерея еще не разыграна.', 'info');
         }
     });
 
