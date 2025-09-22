@@ -1,0 +1,15 @@
+/* F:\GPT\movie-lottery V2\movie_lottery\static\css\style.css */
+
+/* --- БАЗОВЫЕ СТИЛИ --- */
+@import url('base/_variables.css'); /* Переменные */
+@import url('base/_base.css');      /* Глобальные стили (body, scrollbar) */
+
+/* --- СТИЛИ КОМПОНЕНТОВ --- */
+@import url('components/_buttons.css');    /* Все кнопки */
+@import url('components/_cards.css');      /* Карточки фильмов в галерее */
+@import url('components/_indicators.css'); /* Индикатор статуса торрента */
+@import url('components/_modal.css');      /* Модальное окно */
+@import url('components/_slider.css');     /* Ползунок удаления */
+@import url('components/_toast.css');      /* Всплывающие уведомления */
+@import url('components/_widget.css');     /* Виджет статуса загрузок */
+@import url('components/_other.css');      /* Остальные misc стили */

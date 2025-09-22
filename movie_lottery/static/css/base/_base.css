@@ -1,0 +1,168 @@
+/* F:\GPT\movie-lottery V2\movie_lottery\static\css\base\_base.css */
+
+html {
+  box-sizing: border-box;
+}
+*, *:before, *:after {
+  box-sizing: inherit;
+}
+
+body {
+    font-family: 'Montserrat', sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    margin: 0;
+    padding: 20px;
+    overflow-x: hidden;
+}
+
+/* Класс для отключения вертикального скролла */
+body.no-scroll {
+    overflow: hidden;
+}
+
+/* СТИЛИ ДЛЯ СКРОЛЛБАРА */
+body::-webkit-scrollbar, .modal-content::-webkit-scrollbar {
+  width: 8px;
+}
+body::-webkit-scrollbar-track, .modal-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+body::-webkit-scrollbar-thumb, .modal-content::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+body::-webkit-scrollbar-thumb:hover, .modal-content::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.4);
+}
+
+.container {
+    width: 100%;
+    max-width: 700px;
+    background-color: var(--card-bg-color);
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    text-align: center;
+    position: relative;
+    z-index: 1;
+    margin: 0 auto;
+}
+
+header {
+    margin-bottom: 30px;
+    position: relative;
+    z-index: 1;
+}
+header h1 {
+    color: var(--primary-color);
+    margin-bottom: 10px;
+    transition: font-size 0.3s;
+}
+header p {
+    color: #adb5bd;
+}
+
+.nav-links {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+/* Стили для фоновых изображений */
+.background-rotator { 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100vw; 
+    height: 100vh; 
+    z-index: 0; 
+    overflow: hidden; 
+}
+.bg-image { 
+    position: absolute; 
+    width: 20vw; 
+    min-width: 150px; 
+    max-width: 250px; 
+    height: auto; 
+    aspect-ratio: 2 / 3; 
+    background-size: cover; 
+    background-position: center; 
+    border-radius: 8px; 
+    box-shadow: 0 10px 25px rgba(0,0,0,0.6); 
+    filter: blur(5px) brightness(0.5); 
+    opacity: 0; 
+    transform: var(--final-transform, scale(1)); 
+}
+
+@keyframes fall-in { 
+    from { 
+        transform: translateY(-100vh) rotate(-540deg) scale(2); 
+        opacity: 0; 
+    } 
+    to { 
+        transform: var(--final-transform); 
+        opacity: 1; 
+    } 
+}
+.bg-image.falling { 
+    animation: fall-in 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; 
+}
+
+/* Общие стили для галерей */
+.gallery-body { 
+    padding: 0; 
+}
+.gallery-header { 
+    padding: 20px; 
+    text-align: center; 
+    position: relative; 
+    z-index: 1; 
+}
+.gallery-actions {
+    margin-top: 15px;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.history-gallery { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); 
+    gap: 8px; 
+    padding: 8px; 
+    position: relative; 
+    z-index: 1; 
+}
+
+/* Общие анимации */
+.loader { 
+    border: 4px solid #f3f3f3; 
+    border-top: 4px solid var(--primary-color); 
+    border-radius: 50%; 
+    width: 40px; 
+    height: 40px; 
+    animation: spin 1s linear infinite; 
+    margin: 10px auto; 
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+@keyframes zoomIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+@keyframes reveal { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+/* Медиа-запросы */
+@media (max-width: 700px) {
+    body { padding: 5px; }
+    .container { padding: 15px; }
+    header h1 { font-size: 1.8em; }
+    .input-group { flex-direction: column; }
+    .input-group button { width: 100%; }
+    .link-box { flex-direction: column; }
+    .link-box input, .link-box .copy-btn { width: 100%; margin-left: 0; }
+    .roulette img { height: 140px; }
+    .history-gallery { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 5px; padding: 5px; }
+    .modal-content { width: 100%; height: 100%; max-width: 100%; max-height: 100%; border-radius: 0; padding: 20px 15px; }
+}

@@ -1,0 +1,94 @@
+/* F:\GPT\movie-lottery V2\movie_lottery\static\css\components\_other.css */
+
+.input-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+input[type="text"] {
+    flex-grow: 1;
+    padding: 12px 15px;
+    border: 2px solid var(--secondary-color);
+    border-radius: 8px;
+    background-color: #2b2b2b;
+    color: var(--text-color);
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.3s;
+}
+input[type="text"]:focus {
+    border-color: var(--primary-color);
+}
+
+.link-box { 
+    margin-bottom: 10px; 
+    text-align: left; 
+    display: flex; 
+    flex-wrap: wrap; 
+    gap: 10px; 
+}
+.link-box label { 
+    display: block; 
+    margin-bottom: 5px; 
+    color: #adb5bd; 
+    width: 100%; 
+}
+.link-box input { 
+    flex-grow: 1; 
+    min-width: 150px; 
+}
+.link-box .copy-btn { 
+    flex-shrink: 0; 
+}
+
+.play-container {
+    padding: 10px;
+}
+.play-container p { 
+    font-size: 1.2em; 
+}
+
+.settings-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+    color: #adb5bd;
+}
+
+/* СТИЛИ РУЛЕТКИ */
+.roulette-container {
+    width: 100%;
+    overflow-x: scroll;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    position: relative;
+    -webkit-mask-image: linear-gradient(to right, transparent, black 20%, black 80%, transparent);
+    mask-image: linear-gradient(to right, transparent, black 20%, black 80%, transparent);
+}
+.roulette-container::-webkit-scrollbar {
+    display: none;
+}
+
+.roulette {
+    display: flex;
+    gap: 15px;
+}
+
+.roulette img {
+    height: 180px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    filter: blur(4px);
+    transform: scale(0.9);
+    opacity: 0.7;
+    transition: filter 0.5s ease-out, transform 0.5s ease-out, opacity 0.5s ease-out;
+    user-select: none;
+    pointer-events: none;
+}
+.roulette img.winner {
+    filter: blur(0);
+    transform: scale(1.1);
+    opacity: 1;
+}

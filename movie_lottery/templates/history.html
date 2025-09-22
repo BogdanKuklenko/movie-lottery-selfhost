@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кино-лотерея: История</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body class="gallery-body">
+
+    <div class="background-rotator"></div>
+
+    <header class="gallery-header">
+        <h1>История</h1>
+        <div class="gallery-actions">
+            <a href="{{ url_for('index') }}" class="nav-button">&larr; Вернуться к созданию</a>
+            <a href="{{ url_for('library') }}" class="nav-button">Библиотека</a>
+        </div>
+    </header>
+
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+        <symbol id="icon-download" viewBox="0 0 24 24">
+            <path d="M12 4v10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="m7.5 10.5 4.5 4.5 4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M5 18.5h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="icon-search" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <path d="m16 16 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-delete" viewBox="0 0 24 24">
+            <path d="M6 6 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+    </svg>
+
+    <div class="history-gallery">
+        {% for lottery in lotteries %}
+            {% if lottery.result_name %}
+                {% set winner_movie = lottery.movies|selectattr('name', 'equalto', lottery.result_name)|first %}
+                {% set has_identifier = winner_movie and winner_movie.kinopoisk_id in identifiers and identifiers[winner_movie.kinopoisk_id] is not none %}
+
+                <div class="gallery-item {% if winner_movie.is_on_client %}has-torrent-on-client{% endif %}"
+                     data-lottery-id="{{ lottery.id }}"
+                     data-kinopoisk-id="{{ winner_movie.kinopoisk_id if winner_movie else '' }}"
+                     data-movie-name="{{ lottery.result_name|e }}"
+                     data-movie-year="{{ lottery.result_year or '' }}"
+                     data-movie-poster="{{ (lottery.result_poster or '')|e }}"
+                     data-movie-description="{{ (winner_movie.description|default('', true)|replace('\n', ' '))|e if winner_movie else '' }}"
+                     data-movie-rating="{{ '%.1f'|format(winner_movie.rating_kp) if winner_movie and winner_movie.rating_kp is not none else '' }}"
+                     data-movie-genres="{{ (winner_movie.genres|default('', true))|e if winner_movie else '' }}"
+                     data-movie-countries="{{ (winner_movie.countries|default('', true))|e if winner_movie else '' }}"
+                     data-has-magnet="{{ 'true' if has_identifier else 'false' }}"
+                     data-magnet-link="{{ identifiers[winner_movie.kinopoisk_id].magnet_link|e if has_identifier else '' }}"
+                     data-is-on-client="{{ 'true' if winner_movie.is_on_client else 'false' }}"
+                     data-torrent-hash="{{ winner_movie.torrent_hash|e if winner_movie.torrent_hash else '' }}">
+                    
+                    <div class="torrent-status-indicator"></div>
+
+                    <div class="action-buttons">
+                        <button type="button" class="icon-button download-button" title="Скачать фильм" aria-label="Скачать фильм">
+                            <svg class="icon-svg icon-download" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <use href="#icon-download"></use>
+                            </svg>
+                        </button>
+                        <button type="button" class="icon-button search-button" title="Искать торрент" aria-label="Искать торрент">
+                            <svg class="icon-svg icon-search" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <use href="#icon-search"></use>
+                            </svg>
+                        </button>
+                        <button type="button" class="icon-button delete-button" title="Удалить лотерею" aria-label="Удалить лотерею">
+                            <svg class="icon-svg icon-delete" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <use href="#icon-delete"></use>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="date-badge" data-date="{{ lottery.created_at.isoformat() }}"></div>
+                    <img src="{{ lottery.result_poster or 'https://via.placeholder.com/200x300.png?text=No+Image' }}" alt="{{ lottery.result_name|e }}">
+                </div>
+            {% else %}
+                <div class="gallery-item waiting-card" data-lottery-id="{{ lottery.id }}">
+                    <div class="action-buttons">
+                         <button type="button" class="icon-button delete-button" title="Удалить лотерею" aria-label="Удалить лотерею">
+                            <svg class="icon-svg icon-delete" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <use href="#icon-delete"></use>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="waiting-content">
+                        <div class="loader-small"></div>
+                        <span>Ожидает<br>розыгрыша</span>
+                    </div>
+                    <div class="date-badge" data-date="{{ lottery.created_at.isoformat() }}"></div>
+                </div>
+            {% endif %}
+        {% else %}
+            <p class="no-history">История пока пуста.</p>
+        {% endfor %}
+    </div>
+
+    <div id="history-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <div></div> </div>
+    </div>
+
+    <div id="torrent-status-widget" class="status-widget" style="display: none;">
+        <div class="widget-header">
+            <h4>Статус загрузки</h4>
+            <button id="widget-toggle-btn" class="widget-toggle-btn">&mdash;</button>
+        </div>
+        <div id="widget-body" class="widget-body">
+            <p class="widget-empty">Активных загрузок нет.</p>
+            <div id="widget-downloads"></div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/pages/history.js') }}"></script>
+    
+    <script>
+        var backgroundPhotos = {{ background_photos|tojson|safe }};
+    </script>
+    <script src="{{ url_for('static', filename='js/background.js') }}"></script>
+</body>
+</html>

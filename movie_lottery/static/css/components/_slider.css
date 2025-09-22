@@ -1,0 +1,88 @@
+/* F:\GPT\movie-lottery V2\movie_lottery\static\css\components\_slider.css */
+
+/* Контейнер для слайдера */
+.slide-to-delete-container {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid var(--secondary-color);
+}
+
+/* Трек (фон) слайдера */
+.slide-to-delete-track {
+    position: relative;
+    height: 44px;
+    background-color: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--secondary-color);
+    border-radius: 22px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none; /* Отключаем выделение текста */
+}
+
+/* Цветной фон, который проявляется при движении */
+.slide-to-delete-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 0; /* Управляется через JS */
+    border-radius: 22px;
+    background: linear-gradient(to right, #585e64, var(--danger-color));
+    opacity: 0.8;
+}
+
+/* Текст на слайдере */
+.slide-to-delete-text {
+    position: relative;
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 700;
+    font-size: 14px;
+    pointer-events: none; /* Чтобы не мешал перетаскиванию */
+    animation: pulse-text 2s infinite;
+}
+@keyframes pulse-text {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+}
+
+/* Бегунок слайдера */
+.slide-to-delete-thumb {
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    width: 40px;
+    height: 40px;
+    background-color: var(--primary-color);
+    border-radius: 50%;
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--secondary-color);
+    font-size: 20px;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+    transition: transform 0.1s ease-out, background-color 0.2s ease;
+}
+
+.slide-to-delete-thumb:active {
+    cursor: grabbing;
+    transform: scale(1.1);
+}
+
+/* Контейнер для слайдера в неактивном состоянии */
+.slide-to-delete-container.disabled .slide-to-delete-track {
+    background-color: rgba(0,0,0,0.1);
+    border-color: #2c2c2c;
+    cursor: not-allowed;
+}
+.slide-to-delete-container.disabled .slide-to-delete-text {
+    /* Можно добавить текст "Удалено" или скрыть */
+    opacity: 0.3;
+    animation: none;
+}
+.slide-to-delete-container.disabled .slide-to-delete-thumb {
+    display: none;
+}

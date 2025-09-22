@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кино-лотерея: Результат</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="background-rotator"></div>
+    <div class="container">
+        {% if lottery.result %}
+            <div class="result-card">
+                <h1>Розыгрыш состоялся!</h1>
+                <p>Вашему другу выпал фильм:</p>
+                <img src="{{ lottery.result.poster or 'https://via.placeholder.com/200x300.png?text=No+Image' }}" alt="Постер фильма">
+                <h3>{{ lottery.result.name }}</h3>
+                <p>{{ lottery.result.year }}</p>
+            </div>
+        {% else %}
+            <div class="result-card waiting">
+                <h1>Ожидаем розыгрыша...</h1>
+                <p>Результат появится здесь, как только ваш друг нажмет кнопку.</p>
+                <p>Просто обновите эту страницу позже.</p>
+                <div class="loader"></div>
+            </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Передаем данные о лотерее в JavaScript для скрипта фона
+        const lottery = {{ lottery|tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/background.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кино-лотерея: Создать</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="background-rotator"></div>
+    <div class="container">
+        <header>
+            <h1>Создай свою Кино-Лотерею</h1>
+            <p>Добавь фильмы, которые хочешь разыграть, и тебя перенаправит на страницу ожидания.</p>
+            <div class="nav-links">
+                <a href="{{ url_for('history') }}" class="nav-button">История</a>
+                <a href="{{ url_for('library') }}" class="nav-button">Библиотека</a>
+            </div>
+        </header>
+
+        <div class="form-container">
+            <div class="input-group">
+                <input type="text" id="movie-input" placeholder="Название фильма или ссылка на Кинопоиск">
+                <button id="add-movie-btn">Добавить</button>
+            </div>
+            <div id="loader" class="loader" style="display: none;"></div>
+            <p class="error-message" id="error-message"></p>
+        </div>
+
+        <h2>Список фильмов:</h2>
+        <div id="movie-list" class="movie-list">
+            </div>
+
+        <div class="settings-container">
+            <input type="checkbox" id="auto-download-checkbox">
+            <label for="auto-download-checkbox">Скачивать фильм автоматически после розыгрыша</label>
+        </div>
+
+        <button id="create-lottery-btn" class="cta-button" disabled>Создать лотерею и перейти к ожиданию</button>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    
+    <script>
+        var backgroundPhotos = {{ background_photos|tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/background.js') }}"></script>
+</body>
+</html>

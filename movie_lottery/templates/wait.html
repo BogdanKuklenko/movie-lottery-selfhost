@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кино-лотерея: Ожидание</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="background-rotator"></div>
+    <div class="container">
+        <header>
+            <h1>Лотерея создана!</h1>
+            <p>Теперь дело за вашим другом. Отправьте ему ссылку ниже.</p>
+            <a href="{{ url_for('history') }}" class="nav-button">Перейти в галерею</a>
+        </header>
+
+        <div class="link-box">
+            <label for="play-link-wait">Ссылка для друга:</label>
+            <input type="text" id="play-link-wait" value="{{ play_url }}" readonly>
+            <button class="copy-btn" data-target="play-link-wait">Копировать</button>
+        </div>
+
+        <a href="#" id="telegram-share-btn-wait" class="action-button-tg" target="_blank">
+            Поделиться в Telegram
+        </a>
+
+        <div id="wait-result-area" class="result-card waiting">
+            <h1>Ожидаем розыгрыша...</h1>
+            <p>Результат появится здесь автоматически, как только ваш друг нажмет кнопку.</p>
+            <div class="loader"></div>
+        </div>
+    </div>
+
+    <script>
+        const lotteryId = {{ lottery_id|tojson }};
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const waitResultArea = document.getElementById('wait-result-area');
+            const playUrlInput = document.getElementById('play-link-wait');
+            const telegramShareBtn = document.getElementById('telegram-share-btn-wait');
+            let pollInterval = null;
+            
+            const playUrl = playUrlInput.value;
+            const text = encodeURIComponent('Привет! Предлагаю тебе определить, какой фильм мы посмотрим. Нажми на ссылку и испытай удачу!');
+            const url = encodeURIComponent(playUrl);
+            telegramShareBtn.href = `https://t.me/share/url?url=${url}&text=${text}`;
+
+            // --- НОВАЯ ФУНКЦИЯ ДЛЯ АВТО-ЗАГРУЗКИ ---
+            const startAutoDownload = async () => {
+                // Проверяем, включена ли галочка в памяти браузера
+                if (localStorage.getItem('autoDownloadEnabled') === 'true') {
+                    console.log('Авто-загрузка включена. Отправляю команду на скачивание...');
+                    try {
+                        const response = await fetch(`/api/start-download/${lotteryId}`, { method: 'POST' });
+                        const result = await response.json();
+                        console.log('Результат запуска скачивания:', result.message);
+                    } catch (error) {
+                        console.error('Ошибка при автоматическом запуске скачивания:', error);
+                    }
+                } else {
+                    console.log('Авто-загрузка выключена.');
+                }
+            };
+
+            const checkResult = async () => {
+                try {
+                    const response = await fetch(`/api/result/${lotteryId}`);
+                    const data = await response.json();
+
+                    if (data.result) {
+                        waitResultArea.className = 'result-card';
+                        waitResultArea.innerHTML = `
+                            <h1>Розыгрыш состоялся!</h1>
+                            <p>Вашему другу выпал фильм:</p>
+                            <img src="${data.result.poster || 'https://via.placeholder.com/200x300.png?text=No+Image'}" alt="Постер фильма">
+                            <h3>${data.result.name}</h3>
+                            <p>${data.result.year}</p>
+                        `;
+                        if (pollInterval) clearInterval(pollInterval);
+                        
+                        // --- ЗАПУСКАЕМ АВТО-ЗАГРУЗКУ ПОСЛЕ ПОЯВЛЕНИЯ РЕЗУЛЬТАТА ---
+                        startAutoDownload();
+                    }
+                } catch (error) {
+                    console.error("Ошибка при проверке результата:", error);
+                    waitResultArea.innerHTML = `<p class="error-message">Не удалось загрузить статус лотереи.</p>`;
+                    if (pollInterval) clearInterval(pollInterval);
+                }
+            };
+
+            pollInterval = setInterval(checkResult, 3000);
+            checkResult();
+
+            document.querySelector('.copy-btn').addEventListener('click', (e) => {
+                const targetId = e.target.dataset.target;
+                const input = document.getElementById(targetId);
+                input.select();
+                document.execCommand('copy');
+                e.target.textContent = 'Скопировано!';
+                setTimeout(() => { e.target.textContent = 'Копировать'; }, 2000);
+            });
+        });
+    </script>
+    <script>
+        var backgroundPhotos = {{ background_photos|tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/background.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,192 @@
+﻿REPORT FOR: F:\GPT\movie-lottery V2
+Generated: 2025-09-22 13:53:51
+Total directories: 13
+Total files: 43
+Total size (bytes): 147717
+
+=== TREE ===
+Структура папок тома Мастерская
+Серийный номер тома: BA75-1CEF
+F:.
+│   .gitignore
+│   README.md
+│   requirements.txt
+│   run.py
+│   Структ.cmd
+│   
+└───movie_lottery
+    │   config.py
+    │   models.py
+    │   __init__.py
+    │   
+    ├───routes
+    │       api_routes.py
+    │       main_routes.py
+    │       __init__.py
+    │       
+    ├───static
+    │   ├───css
+    │   │   │   style.css
+    │   │   │   
+    │   │   ├───base
+    │   │   │       _base.css
+    │   │   │       _variables.css
+    │   │   │       
+    │   │   └───components
+    │   │           _buttons.css
+    │   │           _cards.css
+    │   │           _indicators.css
+    │   │           _modal.css
+    │   │           _other.css
+    │   │           _slider.css
+    │   │           _toast.css
+    │   │           _widget.css
+    │   │           
+    │   └───js
+    │       │   background.js
+    │       │   main.js
+    │       │   play.js
+    │       │   toast.js
+    │       │   
+    │       ├───api
+    │       │       movies.js
+    │       │       torrents.js
+    │       │       
+    │       ├───components
+    │       │       modal.js
+    │       │       slider.js
+    │       │       statusWidget.js
+    │       │       
+    │       └───pages
+    │               history.js
+    │               library.js
+    │               
+    ├───templates
+    │       history.html
+    │       index.html
+    │       library.html
+    │       play.html
+    │       result.html
+    │       wait.html
+    │       
+    └───utils
+            helpers.py
+            kinopoisk.py
+            qbittorrent.py
+            __init__.py
+            
+
+
+=== TOP 50 LARGEST FILES ===
+       12198 bytes  2025-09-22 11:58:21  F:\GPT\movie-lottery V2\movie_lottery\routes\api_routes.py
+        9973 bytes  2025-09-22 12:30:06  F:\GPT\movie-lottery V2\movie_lottery\static\js\components\modal.js
+        9577 bytes  2025-09-22 12:31:29  F:\GPT\movie-lottery V2\movie_lottery\static\js\components\statusWidget.js
+        7901 bytes  2025-09-22 12:38:09  F:\GPT\movie-lottery V2\movie_lottery\templates\history.html
+        7042 bytes  2025-09-22 12:38:58  F:\GPT\movie-lottery V2\movie_lottery\templates\library.html
+        6629 bytes  2025-09-21 23:51:28  F:\GPT\movie-lottery V2\movie_lottery\static\js\main.js
+        6060 bytes  2025-09-19 10:48:01  F:\GPT\movie-lottery V2\movie_lottery\templates\wait.html
+        5557 bytes  2025-09-22 12:36:37  F:\GPT\movie-lottery V2\movie_lottery\static\js\pages\library.js
+        5284 bytes  2025-09-21 23:51:28  F:\GPT\movie-lottery V2\movie_lottery\static\js\play.js
+        5066 bytes  2025-09-22 12:27:25  F:\GPT\movie-lottery V2\movie_lottery\static\js\api\movies.js
+        5009 bytes  2025-09-22 12:12:50  F:\GPT\movie-lottery V2\movie_lottery\static\css\components\_buttons.css
+        4893 bytes  2025-09-22 12:29:03  F:\GPT\movie-lottery V2\movie_lottery\static\js\components\slider.js
+        4872 bytes  2025-09-22 12:34:55  F:\GPT\movie-lottery V2\movie_lottery\static\js\pages\history.js
+        4510 bytes  2025-09-22 12:11:06  F:\GPT\movie-lottery V2\movie_lottery\static\css\base\_base.css
+        4232 bytes  2025-09-22 12:14:51  F:\GPT\movie-lottery V2\movie_lottery\static\css\components\_cards.css
+        4011 bytes  2025-09-22 11:39:41  F:\GPT\movie-lottery V2\movie_lottery\routes\main_routes.py
+        3997 bytes  2025-09-22 12:26:04  F:\GPT\movie-lottery V2\movie_lottery\static\js\api\torrents.js
+        3697 bytes  2025-09-22 13:40:38  F:\GPT\movie-lottery V2\Структ.cmd
+        3248 bytes  2025-09-22 12:17:58  F:\GPT\movie-lottery V2\movie_lottery\static\css\components\_modal.css
+        3092 bytes  2025-09-21 23:51:28  F:\GPT\movie-lottery V2\movie_lottery\templates\play.html
+        2577 bytes  2025-09-22 12:19:45  F:\GPT\movie-lottery V2\movie_lottery\static\css\components\_slider.css
+        2520 bytes  2025-09-22 01:01:36  F:\GPT\movie-lottery V2\movie_lottery\templates\index.html
+        2449 bytes  2025-09-22 11:29:40  F:\GPT\movie-lottery V2\movie_lottery\models.py
+        2134 bytes  2025-09-22 11:41:50  F:\GPT\movie-lottery V2\movie_lottery\utils\helpers.py
+        2087 bytes  2025-09-22 11:36:53  F:\GPT\movie-lottery V2\movie_lottery\utils\kinopoisk.py
+        2019 bytes  2025-09-22 12:24:17  F:\GPT\movie-lottery V2\movie_lottery\static\css\components\_other.css
+        1881 bytes  2025-09-22 12:21:53  F:\GPT\movie-lottery V2\movie_lottery\static\css\components\_widget.css
+        1880 bytes  2025-09-22 11:34:41  F:\GPT\movie-lottery V2\movie_lottery\utils\qbittorrent.py
+        1849 bytes  2025-09-17 15:18:41  F:\GPT\movie-lottery V2\movie_lottery\templates\result.html
+        1820 bytes  2025-09-22 12:01:11  F:\GPT\movie-lottery V2\movie_lottery\__init__.py
+        1638 bytes  2025-09-18 16:22:55  F:\GPT\movie-lottery V2\movie_lottery\static\js\background.js
+        1621 bytes  2025-09-22 12:16:43  F:\GPT\movie-lottery V2\movie_lottery\static\css\components\_indicators.css
+        1448 bytes  2025-09-21 23:51:28  F:\GPT\movie-lottery V2\movie_lottery\static\js\toast.js
+        1119 bytes  2025-09-22 12:23:00  F:\GPT\movie-lottery V2\movie_lottery\static\css\components\_toast.css
+        1056 bytes  2025-09-22 11:24:22  F:\GPT\movie-lottery V2\movie_lottery\config.py
+        1024 bytes  2025-09-22 12:04:08  F:\GPT\movie-lottery V2\movie_lottery\static\css\style.css
+         975 bytes  2025-09-22 12:09:09  F:\GPT\movie-lottery V2\movie_lottery\static\css\base\_variables.css
+         426 bytes  2025-09-17 16:41:31  F:\GPT\movie-lottery V2\.gitignore
+         150 bytes  2025-09-22 11:22:35  F:\GPT\movie-lottery V2\run.py
+         109 bytes  2025-09-17 17:19:40  F:\GPT\movie-lottery V2\README.md
+          87 bytes  2025-09-21 01:25:01  F:\GPT\movie-lottery V2\requirements.txt
+           0 bytes  2025-09-22 11:33:51  F:\GPT\movie-lottery V2\movie_lottery\utils\__init__.py
+           0 bytes  2025-09-22 13:52:03  F:\GPT\movie-lottery V2\movie_lottery\routes\__init__.py
+
+=== BY EXTENSION (size desc) ===
+.js           count=     11  size=         58934
+.html         count=      6  size=         28464
+.css          count=     11  size=         28215
+.py           count=     11  size=         27785
+.cmd          count=      1  size=          3697
+.gitignore    count=      1  size=           426
+.md           count=      1  size=           109
+.txt          count=      1  size=            87
+
+=== FULL INVENTORY (CSV) ===
+Path,Type,SizeBytes,LastWrite,Created,Attributes,Owner
+"F:\GPT\movie-lottery V2\movie_lottery",Directory,,2025-09-22 12:37:41,2025-09-22 11:23:37,"Directory","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\.gitignore",File,426,2025-09-17 16:41:31,2025-09-22 13:53:17,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\README.md",File,109,2025-09-17 17:19:40,2025-09-22 13:53:17,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\Report_2025-09-22_13-53-51.txt",File,7199,2025-09-22 13:53:52,2025-09-22 13:53:51,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\requirements.txt",File,87,2025-09-21 01:25:01,2025-09-22 13:53:17,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\run.py",File,150,2025-09-22 11:22:35,2025-09-22 11:22:12,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\Структ.cmd",File,3697,2025-09-22 13:40:38,2025-09-22 13:40:30,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\routes",Directory,,2025-09-22 13:52:07,2025-09-22 11:39:02,"Directory","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static",Directory,,2025-09-22 12:25:24,2025-09-22 12:02:37,"Directory","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\templates",Directory,,2025-09-22 13:50:19,2025-09-22 12:37:39,"Directory","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\utils",Directory,,2025-09-22 11:41:32,2025-09-22 11:33:00,"Directory","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\config.py",File,1056,2025-09-22 11:24:22,2025-09-22 11:24:06,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\models.py",File,2449,2025-09-22 11:29:40,2025-09-22 11:29:21,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\__init__.py",File,1820,2025-09-22 12:01:11,2025-09-22 11:27:56,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\routes\api_routes.py",File,12198,2025-09-22 11:58:21,2025-09-22 11:56:57,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\routes\main_routes.py",File,4011,2025-09-22 11:39:41,2025-09-22 11:39:27,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\routes\__init__.py",File,0,2025-09-22 13:52:03,2025-09-22 13:52:03,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\css",Directory,,2025-09-22 12:12:08,2025-09-22 12:03:13,"Directory","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\js",Directory,,2025-09-22 13:51:09,2025-09-22 12:25:21,"Directory","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\css\base",Directory,,2025-09-22 12:10:20,2025-09-22 12:08:22,"Directory","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\css\components",Directory,,2025-09-22 12:24:01,2025-09-22 12:12:06,"Directory","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\css\style.css",File,1024,2025-09-22 12:04:08,2025-09-22 12:03:44,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\css\base\_base.css",File,4510,2025-09-22 12:11:06,2025-09-22 12:10:15,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\css\base\_variables.css",File,975,2025-09-22 12:09:09,2025-09-22 12:08:42,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\css\components\_buttons.css",File,5009,2025-09-22 12:12:50,2025-09-22 12:12:29,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\css\components\_cards.css",File,4232,2025-09-22 12:14:51,2025-09-22 12:14:30,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\css\components\_indicators.css",File,1621,2025-09-22 12:16:43,2025-09-22 12:16:24,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\css\components\_modal.css",File,3248,2025-09-22 12:17:58,2025-09-22 12:17:37,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\css\components\_other.css",File,2019,2025-09-22 12:24:17,2025-09-22 12:23:56,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\css\components\_slider.css",File,2577,2025-09-22 12:19:45,2025-09-22 12:19:22,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\css\components\_toast.css",File,1119,2025-09-22 12:23:00,2025-09-22 12:22:32,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\css\components\_widget.css",File,1881,2025-09-22 12:21:53,2025-09-22 12:20:52,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\js\api",Directory,,2025-09-22 13:51:09,2025-09-22 12:26:53,"Directory","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\js\components",Directory,,2025-09-22 12:31:14,2025-09-22 12:28:23,"Directory","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\js\pages",Directory,,2025-09-22 12:36:17,2025-09-22 12:33:43,"Directory","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\js\background.js",File,1638,2025-09-18 16:22:55,2025-09-22 13:48:51,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\js\main.js",File,6629,2025-09-21 23:51:28,2025-09-22 13:48:51,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\js\play.js",File,5284,2025-09-21 23:51:28,2025-09-22 13:48:51,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\js\toast.js",File,1448,2025-09-21 23:51:28,2025-09-22 13:48:51,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\js\api\movies.js",File,5066,2025-09-22 12:27:25,2025-09-22 12:27:08,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\js\api\torrents.js",File,3997,2025-09-22 12:26:04,2025-09-22 12:25:40,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\js\components\modal.js",File,9973,2025-09-22 12:30:06,2025-09-22 12:29:47,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\js\components\slider.js",File,4893,2025-09-22 12:29:03,2025-09-22 12:28:41,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\js\components\statusWidget.js",File,9577,2025-09-22 12:31:29,2025-09-22 12:31:08,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\js\pages\history.js",File,4872,2025-09-22 12:34:55,2025-09-22 12:34:02,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\static\js\pages\library.js",File,5557,2025-09-22 12:36:37,2025-09-22 12:36:14,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\templates\history.html",File,7901,2025-09-22 12:38:09,2025-09-22 12:37:54,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\templates\index.html",File,2520,2025-09-22 01:01:36,2025-09-22 13:50:19,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\templates\library.html",File,7042,2025-09-22 12:38:58,2025-09-22 12:38:33,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\templates\play.html",File,3092,2025-09-21 23:51:28,2025-09-22 13:50:19,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\templates\result.html",File,1849,2025-09-17 15:18:41,2025-09-22 13:50:19,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\templates\wait.html",File,6060,2025-09-19 10:48:01,2025-09-22 13:50:19,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\utils\helpers.py",File,2134,2025-09-22 11:41:50,2025-09-22 11:41:29,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\utils\kinopoisk.py",File,2087,2025-09-22 11:36:53,2025-09-22 11:36:19,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\utils\qbittorrent.py",File,1880,2025-09-22 11:34:41,2025-09-22 11:34:15,"Archive","BOGDAN\Bogdan"
+"F:\GPT\movie-lottery V2\movie_lottery\utils\__init__.py",File,0,2025-09-22 11:33:51,2025-09-22 11:33:51,"Archive","BOGDAN\Bogdan"
