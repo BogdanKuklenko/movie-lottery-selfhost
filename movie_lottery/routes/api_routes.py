@@ -1,5 +1,6 @@
 # F:\GPT\movie-lottery V2\movie_lottery\routes\api_routes.py
 import random
+import requests
 from flask import Blueprint, request, jsonify, url_for, current_app
 from qbittorrentapi import Client, exceptions as qbittorrent_exceptions
 
