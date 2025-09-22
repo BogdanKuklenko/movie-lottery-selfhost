@@ -117,7 +117,7 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
-    <script type="module" src="{{ url_for('static', filename='js/pages/library.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/torrentUpdater.js') }}"></script> <script type="module" src="{{ url_for('static', filename='js/pages/library.js') }}"></script>
 
     <script>
         var backgroundPhotos = {{ background_photos|tojson|safe }};

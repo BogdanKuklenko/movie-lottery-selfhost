@@ -78,19 +78,28 @@ def draw_winner(lottery_id):
 @api_bp.route('/result/<lottery_id>')
 def get_result_data(lottery_id):
     lottery = Lottery.query.get_or_404(lottery_id)
-    active_torrents = get_active_torrents_map()
+    # УБИРАЕМ МЕДЛЕННЫЙ ЗАПРОС К ТОРРЕНТАМ
     movies_data = []
 
     for m in lottery.movies:
         identifier = MovieIdentifier.query.get(m.kinopoisk_id) if m.kinopoisk_id else None
-        is_on_client = m.kinopoisk_id in active_torrents if m.kinopoisk_id else False
+        # Статус торрента теперь будет определяться на фронтенде
         movies_data.append({
             "kinopoisk_id": m.kinopoisk_id, "name": m.name, "poster": m.poster, "year": m.year,
             "description": m.description, "rating_kp": m.rating_kp, "genres": m.genres, "countries": m.countries,
             "has_magnet": bool(identifier), "magnet_link": identifier.magnet_link if identifier else None,
-            "is_on_client": is_on_client, "torrent_hash": active_torrents.get(m.kinopoisk_id) if is_on_client else None
+            # Передаем пустые значения по умолчанию
+            "is_on_client": False, "torrent_hash": None
         })
 
+    result_data = next((m for m in movies_data if m["name"] == lottery.result_name), None) if lottery.result_name else None
+    return jsonify({
+        "movies": movies_data, 
+        "result": result_data, 
+        "createdAt": lottery.created_at.isoformat() + "Z", 
+        "play_url": url_for('main.play_lottery', lottery_id=lottery.id, _external=True)
+    })
+    
     result_data = next((m for m in movies_data if m["name"] == lottery.result_name), None) if lottery.result_name else None
     return jsonify({
         "movies": movies_data, 

@@ -5,18 +5,10 @@ import { StatusWidgetManager } from '../components/statusWidget.js';
 import * as movieApi from '../api/movies.js';
 import * as torrentApi from '../api/torrents.js';
 
-/**
- * Форматирует дату из ISO в "ДД.ММ.ГГГГ".
- * @param {string} isoString - Дата в формате ISO.
- * @returns {string} - Отформатированная дата.
- */
 function formatDate(isoString) {
     if (!isoString) return '';
     const date = new Date(isoString);
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}.${month}.${year}`;
+    return date.toLocaleDateString('ru-RU');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -24,10 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalElement = document.getElementById('library-modal');
     const widgetElement = document.getElementById('torrent-status-widget');
 
-    if (!gallery || !modalElement || !widgetElement) {
-        console.error('Essential page elements not found. Aborting script.');
-        return;
-    }
+    if (!gallery || !modalElement || !widgetElement) return;
 
     const modal = new ModalManager(modalElement);
     const widget = new StatusWidgetManager(widgetElement, 'libraryActiveDownloads');
@@ -46,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
             countries: ds.movieCountries,
             has_magnet: ds.hasMagnet === 'true',
             magnet_link: ds.magnetLink,
-            is_on_client: card.classList.contains('has-torrent-on-client'), // Берем актуальные данные
+            is_on_client: card.classList.contains('has-torrent-on-client'),
             torrent_hash: ds.torrentHash,
         };
     };
@@ -60,22 +49,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast(result.message, 'success');
                 card.dataset.hasMagnet = result.has_magnet.toString();
                 card.dataset.magnetLink = result.magnet_link;
-                handleOpenModal(card); 
+                handleOpenModal(card);
             },
             onDeleteFromLibrary: () => {
-                 movieApi.deleteLibraryMovie(movieData.id).then(data => {
-                    showToast(data.message, data.success ? 'success' : 'error');
-                    if(data.success) {
+                movieApi.deleteLibraryMovie(movieData.id).then(data => {
+                    if (data.success) {
                         modal.close();
-                        card.classList.add('is-deleting');
-                        card.addEventListener('transitionend', () => card.remove());
+                        card.remove();
                     }
+                    showToast(data.message, data.success ? 'success' : 'error');
                 });
             },
-            onDownload: () => {
-                torrentApi.startLibraryDownload(movieData.id)
-                   .then(data => showToast(data.message, data.success ? 'success' : 'error'));
-            },
+            onDownload: () => torrentApi.startLibraryDownload(movieData.id).then(data => showToast(data.message, data.success ? 'success' : 'error')),
             onDeleteTorrent: async (torrentHash) => {
                 await torrentApi.deleteTorrentFromClient(torrentHash);
                 card.classList.remove('has-torrent-on-client');
@@ -83,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     };
-    
+
     gallery.addEventListener('click', (event) => {
         const card = event.target.closest('.gallery-item');
         if (!card) return;
@@ -95,21 +80,15 @@ document.addEventListener('DOMContentLoaded', () => {
             event.stopPropagation();
             if (button.classList.contains('delete-button')) {
                 movieApi.deleteLibraryMovie(movieId).then(data => {
+                    if (data.success) card.remove();
                     showToast(data.message, data.success ? 'success' : 'error');
-                    if(data.success) {
-                        card.classList.add('is-deleting');
-                        card.addEventListener('transitionend', () => card.remove());
-                    }
                 });
-            } 
-            else if (button.classList.contains('search-button')) {
+            } else if (button.classList.contains('search-button')) {
                 const query = encodeURIComponent(`${movieName.trim()} ${movieYear || ''}`.trim());
                 window.open(`https://rutracker.org/forum/tracker.php?nm=${query}`, '_blank');
-            }
-            else if (button.classList.contains('download-button')) {
-                 if (hasMagnet === 'true' && kinopoiskId) {
-                    torrentApi.startLibraryDownload(movieId)
-                        .then(data => showToast(data.message, data.success ? 'success' : 'error'));
+            } else if (button.classList.contains('download-button')) {
+                if (hasMagnet === 'true' && kinopoiskId) {
+                    torrentApi.startLibraryDownload(movieId).then(data => showToast(data.message, data.success ? 'success' : 'error'));
                 } else {
                     showToast('Сначала нужно добавить magnet-ссылку.', 'info');
                     handleOpenModal(card);
@@ -120,12 +99,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Форматируем все даты на странице
     document.querySelectorAll('.date-badge').forEach(badge => {
         badge.textContent = formatDate(badge.dataset.date);
     });
-    
-    // Запускаем фоновое обновление статусов торрентов
+
     if (window.torrentUpdater) {
         window.torrentUpdater.updateUi();
     }
