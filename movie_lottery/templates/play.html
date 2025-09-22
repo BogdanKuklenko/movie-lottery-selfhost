@@ -54,7 +54,7 @@
                     },
                 {% endfor %}
             ];
-            const drawUrl = "{{ url_for('draw_winner', lottery_id=lottery.id) }}";
+            const drawUrl = "{{ url_for('api.draw_winner', lottery_id=lottery.id) }}";
         </script>
         <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
         <script src="{{ url_for('static', filename='js/play.js') }}"></script>
