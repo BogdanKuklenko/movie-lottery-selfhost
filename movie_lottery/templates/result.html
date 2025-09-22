@@ -34,6 +34,6 @@
         // Передаем данные о лотерее в JavaScript для скрипта фона
         const lottery = {{ lottery|tojson }};
     </script>
-    <script src="{{ url_for('static', filename='js/background.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/background.js') }}"></script>
 </body>
 </html>
