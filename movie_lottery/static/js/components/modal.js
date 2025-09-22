@@ -138,7 +138,80 @@ export class ModalManager {
     renderError(message) {
         this.body.innerHTML = `<p class="error-message">${escapeHtml(message)}</p>`;
     }
-    
+
+    /**
+     * Рендерит содержимое модального окна ожидания результата лотереи.
+     * @param {object} lotteryData - Данные лотереи.
+     */
+    renderWaitingModal(lotteryData = {}) {
+        const playUrl = lotteryData.play_url || '';
+        const telegramShareUrl = playUrl
+            ? `https://t.me/share/url?url=${encodeURIComponent(playUrl)}&text=${encodeURIComponent('Посмотри розыгрыш фильма!')}`
+            : '';
+
+        this.body.innerHTML = `
+            <div class="waiting-modal">
+                <h2>Розыгрыш еще не завершен</h2>
+                <p class="waiting-status">Информация о победителе появится позже.</p>
+                ${playUrl ? `
+                    <div class="waiting-link-block">
+                        <label for="waiting-play-url">Ссылка на розыгрыш:</label>
+                        <div class="waiting-link-row">
+                            <input type="text" id="waiting-play-url" class="waiting-play-url" value="${escapeHtml(playUrl)}" readonly>
+                            <button type="button" class="action-button waiting-copy-btn">Скопировать</button>
+                        </div>
+                        <button type="button" class="secondary-button waiting-share-btn" data-share-url="${escapeHtml(telegramShareUrl)}"${telegramShareUrl ? '' : ' disabled'}>Поделиться в Telegram</button>
+                    </div>
+                ` : '<p class="waiting-status">Ссылка на розыгрыш недоступна.</p>'}
+            </div>
+        `;
+
+        if (playUrl) {
+            this.initializeWaitingActions(playUrl, telegramShareUrl);
+        }
+    }
+
+    /**
+     * Инициализирует обработчики действий в модальном окне ожидания.
+     * @param {string} playUrl - Ссылка на страницу розыгрыша.
+     * @param {string} telegramShareUrl - Ссылка для поделиться в Telegram.
+     */
+    initializeWaitingActions(playUrl, telegramShareUrl) {
+        const copyBtn = this.body.querySelector('.waiting-copy-btn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', async () => {
+                try {
+                    await navigator.clipboard.writeText(playUrl);
+                    if (typeof showToast === 'function') {
+                        showToast('Ссылка скопирована в буфер обмена.', 'success');
+                    }
+                } catch (error) {
+                    const input = this.body.querySelector('#waiting-play-url');
+                    if (input && typeof input.select === 'function') {
+                        input.select();
+                        if (typeof document.execCommand === 'function') {
+                            document.execCommand('copy');
+                        }
+                    }
+                    if (typeof showToast === 'function') {
+                        showToast('Не удалось автоматически скопировать ссылку. Скопируйте ее вручную.', 'error');
+                    }
+                }
+            });
+        }
+
+        const shareBtn = this.body.querySelector('.waiting-share-btn');
+        if (shareBtn && telegramShareUrl) {
+            shareBtn.addEventListener('click', (event) => {
+                event.preventDefault();
+                window.open(telegramShareUrl, '_blank', 'noopener');
+                if (typeof showToast === 'function') {
+                    showToast('Открылось окно Telegram для отправки ссылки.', 'info');
+                }
+            });
+        }
+    }
+
     /**
      * Рендерит содержимое для модального окна Истории.
      * @param {object} lotteryData - Полные данные о лотерее.
