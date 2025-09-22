@@ -1,5 +1,5 @@
 # F:\GPT\movie-lottery V2\movie_lottery\routes\main_routes.py
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, url_for
 from ..models import Lottery, LibraryMovie, MovieIdentifier
 from ..utils.helpers import get_background_photos 
 
@@ -11,8 +11,14 @@ def index():
 
 @main_bp.route('/wait/<lottery_id>')
 def wait_for_result(lottery_id):
-    Lottery.query.get_or_404(lottery_id)
-    return render_template('wait.html', lottery_id=lottery_id, background_photos=get_background_photos())
+    lottery = Lottery.query.get_or_404(lottery_id)
+    play_url = url_for('main.play_lottery', lottery_id=lottery.id, _external=True)
+    return render_template(
+        'wait.html',
+        lottery_id=lottery_id,
+        background_photos=get_background_photos(),
+        play_url=play_url
+    )
 
 @main_bp.route('/history')
 def history():
