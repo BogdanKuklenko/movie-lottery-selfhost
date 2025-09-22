@@ -10,8 +10,31 @@ from ..utils.kinopoisk import get_movie_data_from_kinopoisk
 from ..utils.helpers import generate_unique_id, ensure_background_photo
 from ..utils.qbittorrent import get_active_torrents_map
 from ..utils.torrent_status import qbittorrent_client, torrent_to_json
+from ..utils.magnet_search import get_search_status, start_background_search
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
+
+
+def _compose_search_query(kinopoisk_id, *, fallback_name=None, fallback_year=None):
+    if fallback_name:
+        name = fallback_name
+        year = fallback_year
+    else:
+        movie = Movie.query.filter_by(kinopoisk_id=kinopoisk_id).order_by(Movie.id.desc()).first()
+        if movie:
+            name = movie.name
+            year = movie.year
+        else:
+            library_movie = LibraryMovie.query.filter_by(kinopoisk_id=kinopoisk_id).order_by(LibraryMovie.added_at.desc()).first()
+            if library_movie:
+                name = library_movie.name
+                year = library_movie.year
+            else:
+                name = None
+                year = None
+
+    parts = [part for part in (name, year) if part]
+    return " ".join(parts).strip()
 
 # --- Маршруты для работы с фильмами и лотереями ---
 
@@ -31,9 +54,11 @@ def create_lottery():
     movies_json = request.json.get('movies')
     if not movies_json or len(movies_json) < 2:
         return jsonify({"error": "Нужно добавить хотя бы два фильма"}), 400
-    
+
     new_lottery = Lottery(id=generate_unique_id())
     db.session.add(new_lottery)
+
+    search_candidates = []
 
     for movie_data in movies_json:
         new_movie = Movie(
@@ -51,7 +76,25 @@ def create_lottery():
         if poster := movie_data.get('poster'):
             ensure_background_photo(poster)
 
+        kinopoisk_id = movie_data.get('kinopoisk_id')
+        if kinopoisk_id:
+            search_candidates.append(
+                {
+                    'kinopoisk_id': kinopoisk_id,
+                    'query': _compose_search_query(
+                        kinopoisk_id,
+                        fallback_name=movie_data.get('name'),
+                        fallback_year=movie_data.get('year'),
+                    ),
+                }
+            )
+
     db.session.commit()
+
+    for candidate in search_candidates:
+        if candidate['query']:
+            start_background_search(candidate['kinopoisk_id'], candidate['query'])
+
     # url_for для маршрутов в других blueprint'ах требует указания имени blueprint'а
     wait_url = url_for('main.wait_for_result', lottery_id=new_lottery.id)
     return jsonify({"wait_url": wait_url})
@@ -147,28 +190,39 @@ def add_library_movie():
     movie_data = request.json.get('movie', {})
     if not movie_data.get('name'):
         return jsonify({"success": False, "message": "Не удалось определить название фильма."}), 400
-    
+
     existing_movie = None
-    if kinopoisk_id := movie_data.get('kinopoisk_id'):
+    kinopoisk_id = movie_data.get('kinopoisk_id')
+    if kinopoisk_id:
         existing_movie = LibraryMovie.query.filter_by(kinopoisk_id=kinopoisk_id).first()
-    
+
     if not existing_movie:
-         existing_movie = LibraryMovie.query.filter_by(name=movie_data['name'], year=movie_data.get('year')).first()
+        existing_movie = LibraryMovie.query.filter_by(name=movie_data['name'], year=movie_data.get('year')).first()
 
     if existing_movie:
-        # Обновляем существующий фильм
         for key, value in movie_data.items():
             if hasattr(existing_movie, key) and value is not None:
                 setattr(existing_movie, key, value)
         existing_movie.added_at = db.func.now()
         message = "Информация о фильме обновлена в библиотеке."
+        target_kinopoisk_id = existing_movie.kinopoisk_id or kinopoisk_id
     else:
-        # Создаем новый фильм
         new_movie = LibraryMovie(**movie_data)
         db.session.add(new_movie)
         message = "Фильм добавлен в библиотеку."
-        
+        target_kinopoisk_id = new_movie.kinopoisk_id
+
     db.session.commit()
+
+    if target_kinopoisk_id:
+        query = _compose_search_query(
+            target_kinopoisk_id,
+            fallback_name=movie_data.get('name'),
+            fallback_year=movie_data.get('year'),
+        )
+        if query:
+            start_background_search(target_kinopoisk_id, query)
+
     return jsonify({"success": True, "message": message})
 
 @api_bp.route('/library/<int:movie_id>', methods=['DELETE'])
@@ -211,6 +265,36 @@ def save_movie_magnet():
         "has_magnet": bool(refreshed_identifier),
         "magnet_link": refreshed_identifier.magnet_link if refreshed_identifier else "",
     })
+
+
+@api_bp.route('/search-magnet/<int:kinopoisk_id>', methods=['GET', 'POST'])
+def search_magnet(kinopoisk_id):
+    if request.method == 'GET':
+        status = get_search_status(kinopoisk_id)
+        return jsonify(status)
+
+    data = request.json or {}
+    force = bool(data.get('force'))
+    query = data.get('query')
+
+    if not query:
+        query = _compose_search_query(
+            kinopoisk_id,
+            fallback_name=data.get('title'),
+            fallback_year=data.get('year'),
+        )
+
+    if not query:
+        return jsonify({
+            "status": "failed",
+            "kinopoisk_id": kinopoisk_id,
+            "has_magnet": False,
+            "magnet_link": "",
+            "message": "Не удалось определить запрос для поиска.",
+        }), 400
+
+    status = start_background_search(kinopoisk_id, query, force=force)
+    return jsonify(status)
 
 @api_bp.route('/start-download/<int:kinopoisk_id>', methods=['POST'])
 def start_download(kinopoisk_id):

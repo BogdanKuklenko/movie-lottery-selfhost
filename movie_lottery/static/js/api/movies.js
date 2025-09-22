@@ -109,3 +109,36 @@ export async function saveMagnetLink(kinopoiskId, magnetLink) {
     if (!response.ok) throw new Error('Ошибка сети при сохранении magnet-ссылки.');
     return await response.json();
 }
+
+/**
+ * Запускает поиск magnet-ссылки на сервере.
+ * @param {number|string} kinopoiskId - ID фильма на Кинопоиске.
+ * @param {object} payload - Дополнительные параметры поиска.
+ * @returns {Promise<object>} - Текущий статус задачи.
+ */
+export async function startMagnetSearch(kinopoiskId, payload = {}) {
+    const response = await fetch(`/api/search-magnet/${kinopoiskId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Не удалось запустить поиск magnet-ссылки.');
+    }
+    return await response.json();
+}
+
+/**
+ * Получает текущий статус фонового поиска magnet-ссылки.
+ * @param {number|string} kinopoiskId - ID фильма на Кинопоиске.
+ * @returns {Promise<object>} - Статус задачи.
+ */
+export async function fetchMagnetSearchStatus(kinopoiskId) {
+    const response = await fetch(`/api/search-magnet/${kinopoiskId}`);
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Не удалось получить статус поиска magnet.');
+    }
+    return await response.json();
+}
