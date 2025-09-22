@@ -191,28 +191,42 @@ export class StatusWidgetManager {
     async syncExternalDownloads() {
         try {
             const data = await fetchActiveDownloads();
-            if (!data.downloads) return;
+            if (!data || typeof data !== 'object') return;
 
             const galleryItems = document.querySelectorAll('.gallery-item[data-kinopoisk-id]');
-            const kpIdToLotteryId = new Map();
+            const kpIdToInfo = new Map();
             galleryItems.forEach(item => {
-                kpIdToLotteryId.set(item.dataset.kinopoiskId, item.dataset.lotteryId || item.dataset.movieId)
+                const kpId = item.dataset.kinopoiskId;
+                if (!kpId) return;
+                const movieName = item.dataset.movieName || item.dataset.title || item.getAttribute('title') || null;
+                kpIdToInfo.set(kpId, { movieName });
             });
 
-            data.downloads.forEach(item => {
-                const kpId = String(item.kinopoisk_id);
+            Object.entries(data).forEach(([kpIdRaw, torrentHash]) => {
+                const kpId = String(kpIdRaw);
                 const key = getDownloadKey(kpId, 'kinopoisk');
-                if (!this.activeDownloads.has(key)) {
-                    // Нашли новый торрент, которого нет в localStorage
-                    const entry = {
-                        key: key,
-                        id: kpId,
-                        type: 'kinopoisk',
-                        movieName: item.name
-                    };
-                    this.registerDownload(entry);
-                }
+                if (this.activeDownloads.has(key)) return;
+
+                const info = kpIdToInfo.get(kpId) || {};
+                const entry = {
+                    key,
+                    id: kpId,
+                    type: 'kinopoisk',
+                    movieName: info.movieName || `Фильм ${kpId}`,
+                    torrentHash
+                };
+
+                this.registerDownload(entry);
             });
+
+            if (window.torrentUpdater) {
+                try {
+                    sessionStorage.setItem(window.torrentUpdater.storageKey, JSON.stringify(data));
+                    window.torrentUpdater.updateUi();
+                } catch (storageError) {
+                    console.warn('Не удалось обновить sessionStorage активных торрентов:', storageError);
+                }
+            }
         } catch (error) {
             console.warn("Не удалось синхронизировать внешние загрузки:", error);
         }
