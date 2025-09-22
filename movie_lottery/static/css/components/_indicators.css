@@ -3,16 +3,15 @@
 /* Индикатор статуса торрента */
 .torrent-status-indicator {
     position: absolute;
-    bottom: -1px; /* Сдвигаем на 1px для идеального прилегания */
-    left: -1px;   /* Сдвигаем на 1px для идеального прилегания */
-    width: 40px;  /* Увеличиваем область для эффекта */
-    height: 40px;
+    bottom: 0;
+    left: 0;
+    width: 60px;  /* Увеличиваем область для более заметного эффекта */
+    height: 60px;
     opacity: 0;
     transition: opacity 0.4s ease;
     pointer-events: none;
-    /* Этот псевдоэлемент будет нашим источником света */
+    z-index: 3; /* Ставим индикатор поверх картинки */
     --glow-color: var(--torrent-color);
-    --glow-size: 12px; /* Размер размытия */
 }
 
 /* Класс, который добавляется через JS, чтобы показать индикатор */
@@ -20,19 +19,34 @@
     opacity: 1;
 }
 
-/* Создаем свечение с помощью фильтра drop-shadow */
+/* Слой #1: Внешнее размытое свечение (ЗА КАРТИНКОЙ) */
 .torrent-status-indicator::before {
     content: '';
     position: absolute;
     bottom: 0;
     left: 0;
-    width: 15px;  /* Размер самого источника света */
-    height: 15px;
-    background-color: var(--glow-color); /* Цвет источника */
-    border-radius: 0 0 0 8px; /* Скругляем только внутренний угол, как у карточки */
-    
-    /* Самая важная часть: фильтр, который создает свечение нужного цвета и размера */
-    filter: blur(var(--glow-size)); 
+    width: 25px;  /* Увеличиваем размер источника */
+    height: 25px;
+    background-color: var(--glow-color);
+    border-radius: 0 0 0 8px;
+    /* Увеличиваем размытие для большей заметности */
+    filter: blur(20px);
+    transform: translate(-5px, 5px); /* Сдвигаем тень чуть ниже и левее */
+}
+
+/* Слой #2: Эффект "светящегося угла" (ПОВЕРХ КАРТИНКИ) */
+.torrent-status-indicator::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    /* Градиент, имитирующий свет, падающий на угол */
+    background: radial-gradient(circle at bottom left, rgba(13, 110, 253, 0.4) 0%, rgba(13, 110, 253, 0) 50%);
+    border-radius: 0 0 0 8px;
+    /* Режим наложения, который осветляет пиксели картинки под ним */
+    mix-blend-mode: color-dodge;
 }
 
 
