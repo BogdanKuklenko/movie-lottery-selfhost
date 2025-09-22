@@ -6,10 +6,10 @@ from sqlalchemy import engine_from_config, pool
 
 # --- НАЧАЛО ИСПРАВЛЕНИЯ ---
 # Импортируем наше приложение и базу данных
+# Это позволяет Alembic "увидеть" ваши модели и конфигурацию
 from movie_lottery import create_app, db
 
 # Создаем экземпляр приложения Flask, чтобы получить его конфигурацию
-# Переменная окружения DATABASE_URL будет автоматически подхвачена Render
 app = create_app()
 
 # Указываем Alembic на метаданные наших моделей (самый важный шаг)
@@ -17,28 +17,17 @@ target_metadata = db.metadata
 # --- КОНЕЦ ИСПРАВЛЕНИЯ ---
 
 
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
+# это объект конфигурации Alembic, который предоставляет
+# доступ к значениям в используемом .ini файле.
 config = context.config
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
+# Интерпретируем файл конфигурации для логирования Python.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-
-    """
+    """Запуск миграций в 'оффлайн' режиме."""
     url = app.config.get('SQLALCHEMY_DATABASE_URI') # Используем URI из приложения
     context.configure(
         url=url,
@@ -52,13 +41,8 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
-
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-
-    """
-    # Используем конфигурацию SQLAlchemy из нашего приложения Flask
+    """Запуск миграций в 'онлайн' режиме."""
+    # Используем движок SQLAlchemy из нашего Flask-приложения
     connectable = db.engine
 
     with connectable.connect() as connection:
