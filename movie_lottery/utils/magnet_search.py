@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import string
 from concurrent.futures import Future, ThreadPoolExecutor
 from threading import Lock
 from typing import Any, Dict, Optional
@@ -64,6 +65,13 @@ def _extract_info_hash(payload: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+def _is_valid_info_hash(value: Optional[str]) -> bool:
+    if not value or not isinstance(value, str):
+        return False
+    normalized = value.strip()
+    return len(normalized) == 40 and all(ch in string.hexdigits for ch in normalized)
+
+
 def search_best_magnet(title: str, *, session: Optional[requests.Session] = None, timeout: int = 15) -> Optional[str]:
     """Searches for the best magnet link matching the provided title.
 
@@ -119,13 +127,16 @@ def search_best_magnet(title: str, *, session: Optional[requests.Session] = None
         trackers = [trackers]
 
     for item in candidates:
+        name = str(item.get("name") or item.get("title") or query)
+        if "no results" in name.lower():
+            continue
         magnet = item.get("magnet") or item.get("magnet_link") or item.get("magnetLink")
-        if magnet and isinstance(magnet, str):
+        if magnet and isinstance(magnet, str) and magnet.strip():
             return magnet
         info_hash = _extract_info_hash(item)
-        name = str(item.get("name") or item.get("title") or query)
-        if info_hash:
-            return _build_magnet(info_hash, name, trackers)
+        if not _is_valid_info_hash(info_hash):
+            continue
+        return _build_magnet(info_hash.strip(), name, trackers)
     return None
 
 
