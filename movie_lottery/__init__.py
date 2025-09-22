@@ -2,6 +2,7 @@
 import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate # <-- ШАГ 1: ИМПОРТИРУЙТЕ MIGRATE
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Создаем экземпляр SQLAlchemy, но пока не привязываем его к приложению
@@ -28,6 +29,11 @@ def create_app():
     # Инициализируем базу данных для нашего приложения
     db.init_app(app)
 
+    # --- ШАГ 2: ИНИЦИАЛИЗИРУЙТЕ MIGRATE ЗДЕСЬ ---
+    # Эта строка связывает Alembic с вашим приложением и моделями SQLAlchemy
+    migrate = Migrate(app, db)
+    # ----------------------------------------------
+
     with app.app_context():
         # Импортируем маршруты (Blueprints)
         from .routes.main_routes import main_bp
@@ -40,6 +46,6 @@ def create_app():
         # Создаем все таблицы базы данных, если их еще нет
         # Импортируем модели здесь, чтобы они были известны SQLAlchemy
         from . import models
-        db.create_all()
+        # db.create_all() # Эту строку можно закомментировать или удалить, т.к. Alembic теперь управляет созданием таблиц
         
         return app
