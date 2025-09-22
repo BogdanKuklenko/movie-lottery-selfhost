@@ -3,6 +3,29 @@ import requests
 from flask import current_app
 from qbittorrentapi import Client, exceptions as qbittorrent_exceptions
 
+
+def is_downloading(torrent):
+    """Возвращает True, если торрент находится в активной загрузке."""
+    completed_states = {
+        "completed",
+        "pausedUP",
+        "stalledUP",
+        "queuedUP",
+        "uploading",
+        "seeding",
+        "forcedUP",
+        "checkingUP",
+    }
+
+    try:
+        progress = float(getattr(torrent, "progress", 0))
+    except (TypeError, ValueError):
+        progress = 0
+
+    state = getattr(torrent, "state", "")
+    return progress < 1 and state not in completed_states
+
+
 def get_active_torrents_map():
     """
     Подключается к qBittorrent, получает все торренты и возвращает словарь,
@@ -23,6 +46,8 @@ def get_active_torrents_map():
         
         torrents = qbt_client.torrents_info()
         for torrent in torrents:
+            if not is_downloading(torrent):
+                continue
             tags = torrent.tags.split(',')
             for tag in tags:
                 tag = tag.strip()
