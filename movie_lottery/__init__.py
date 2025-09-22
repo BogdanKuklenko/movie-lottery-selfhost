@@ -24,7 +24,6 @@ def create_app():
 
     db.init_app(app)
     
-    # Инициализируем Migrate
     Migrate(app, db)
 
     with app.app_context():
@@ -34,7 +33,10 @@ def create_app():
         app.register_blueprint(main_bp)
         app.register_blueprint(api_bp)
 
-        # Импортируем модели, чтобы Alembic их видел
+        # --- ГЛАВНОЕ ИЗМЕНЕНИЕ ---
+        # Импортируем модели и принудительно создаем все таблицы
         from . import models
+        db.create_all()
+        # -------------------------
         
         return app
