@@ -70,7 +70,6 @@
 /* Стили для карточек в Истории и Библиотеке */
 .gallery-item, .waiting-card { 
     position: relative; 
-    /* overflow: hidden; */ /* <- ВОТ ВИНОВНИК! УДАЛЯЕМ ЭТУ СТРОКУ */
     cursor: pointer; 
     border-radius: 8px; 
     box-shadow: 0 4px 15px rgba(0,0,0,0.5); 
@@ -88,8 +87,8 @@
     height: 100%; 
     object-fit: cover; 
     transition: transform 0.4s ease, filter 0.4s ease; 
-    animation: reveal 0.5s ease-out forwards;
-    border-radius: 8px; /* Добавляем скругление и для картинки тоже */
+    animation: reveal 0.5s ease-out forwards; 
+    border-radius: 8px; 
 }
 .gallery-item:hover img { 
     transform: scale(1.05); 
@@ -109,6 +108,7 @@
     z-index: 2;
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 }
+/* ИЗМЕНЕНИЕ: Теперь дата исчезает при наведении */
 .gallery-item:hover .date-badge, .waiting-card:hover .date-badge { 
     opacity: 0; 
 }

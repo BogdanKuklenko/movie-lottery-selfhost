@@ -5,8 +5,21 @@ import { StatusWidgetManager } from '../components/statusWidget.js';
 import * as movieApi from '../api/movies.js';
 import * as torrentApi from '../api/torrents.js';
 
+/**
+ * Форматирует дату из ISO в "ДД.ММ.ГГГГ".
+ * @param {string} isoString - Дата в формате ISO.
+ * @returns {string} - Отформатированная дата.
+ */
+function formatDate(isoString) {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    // --- ИНИЦИАЛИЗАЦИЯ ОСНОВНЫХ ЭЛЕМЕНТОВ ---
     const gallery = document.querySelector('.history-gallery');
     const modalElement = document.getElementById('history-modal');
     const widgetElement = document.getElementById('torrent-status-widget');
@@ -19,8 +32,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const modal = new ModalManager(modalElement);
     const widget = new StatusWidgetManager(widgetElement, 'lotteryActiveDownloads');
     
-    // --- ЛОГИКА СТРАНИЦЫ "ИСТОРИЯ" ---
-
     const handleOpenModal = async (lotteryId) => {
         modal.open();
         try {
@@ -29,8 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 modal.renderHistoryModal(lotteryData, {
                     onSaveMagnet: async (kinopoiskId, magnetLink) => {
                         await movieApi.saveMagnetLink(kinopoiskId, magnetLink);
-                        handleOpenModal(lotteryId); // Перерисовываем модалку
-                        // TODO: Обновить карточку в галерее без перезагрузки
+                        handleOpenModal(lotteryId);
                     },
                     onAddToLibrary: (movieData) => {
                         movieApi.addOrUpdateLibraryMovie(movieData)
@@ -42,8 +52,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     },
                     onDeleteTorrent: async (torrentHash) => {
                         await torrentApi.deleteTorrentFromClient(torrentHash);
-                        handleOpenModal(lotteryId); // Перерисовываем модалку
-                        // TODO: Обновить карточку в галерее без перезагрузки
+                        const card = document.querySelector(`.gallery-item[data-lottery-id="${lotteryId}"]`);
+                        if (card) {
+                            card.classList.remove('has-torrent-on-client');
+                        }
+                        handleOpenModal(lotteryId); 
                     }
                 });
             } else {
@@ -54,7 +67,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    // --- ГЛАВНЫЙ ОБРАБОТЧИК СОБЫТИЙ ---
     gallery.addEventListener('click', (event) => {
         const card = event.target.closest('.gallery-item');
         if (!card) return;
@@ -62,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const { lotteryId, kinopoiskId, movieName, movieYear, hasMagnet } = card.dataset;
         const button = event.target.closest('.icon-button');
 
-        if (button) { // Клик был по кнопке
+        if (button) {
             event.stopPropagation();
             if (button.classList.contains('delete-button')) {
                 movieApi.deleteLottery(lotteryId).then(data => {
@@ -86,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     handleOpenModal(lotteryId);
                 }
             }
-        } else { // Клик по самой карточке
+        } else {
             if(!card.classList.contains('waiting-card')) {
                 handleOpenModal(lotteryId);
             } else {
@@ -95,4 +107,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Форматируем все даты на странице
+    document.querySelectorAll('.date-badge').forEach(badge => {
+        badge.textContent = formatDate(badge.dataset.date);
+    });
+
+    // Запускаем фоновое обновление статусов торрентов (оно само возьмет данные из sessionStorage)
+    if (window.torrentUpdater) {
+        window.torrentUpdater.updateUi();
+    }
 });

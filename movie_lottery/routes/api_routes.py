@@ -261,3 +261,13 @@ def delete_torrent_from_client(torrent_hash):
         return jsonify({"success": False, "message": "Торрент не найден в клиенте."}), 404
     except Exception as e:
         return jsonify({"success": False, "message": f"Ошибка qBittorrent: {e}"}), 500
+        
+
+# --- НОВЫЙ МАРШРУТ ДЛЯ ОПТИМИЗАЦИИ ---
+@api_bp.route('/active-downloads')
+def get_all_active_downloads():
+    """Возвращает словарь всех активных торрентов для быстрой проверки на клиенте."""
+    active_torrents = get_active_torrents_map()
+    # Ключи (kp_id) должны быть строками для совместимости с JS dataset
+    active_torrents_str_keys = {str(k): v for k, v in active_torrents.items()}
+    return jsonify(active_torrents_str_keys)

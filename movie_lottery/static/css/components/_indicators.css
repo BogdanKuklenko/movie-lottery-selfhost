@@ -3,50 +3,49 @@
 /* Индикатор статуса торрента */
 .torrent-status-indicator {
     position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 60px;  /* Увеличиваем область для более заметного эффекта */
-    height: 60px;
+    bottom: 5px; /* Располагаем букву чуть выше края */
+    left: 5px;   /* и чуть правее */
+    width: 22px; /* Размер контейнера буквы */
+    height: 22px;
     opacity: 0;
-    transition: opacity 0.4s ease;
+    transition: opacity 0.4s ease, transform 0.3s ease;
     pointer-events: none;
-    z-index: 3; /* Ставим индикатор поверх картинки */
-    --glow-color: var(--torrent-color);
+    z-index: 3;
+    transform: scale(0.8); /* Начальный размер для анимации появления */
 }
 
 /* Класс, который добавляется через JS, чтобы показать индикатор */
 .gallery-item.has-torrent-on-client .torrent-status-indicator {
     opacity: 1;
+    transform: scale(1); /* Анимация появления */
 }
 
-/* Слой #1: Внешнее размытое свечение (ЗА КАРТИНКОЙ) */
+/* Стилизуем псевдоэлемент как букву "q" */
 .torrent-status-indicator::before {
-    content: '';
+    content: 'q'; /* Наш символ */
     position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 25px;  /* Увеличиваем размер источника */
-    height: 25px;
-    background-color: var(--glow-color);
-    border-radius: 0 0 0 8px;
-    /* Увеличиваем размытие для большей заметности */
-    filter: blur(20px);
-    transform: translate(-5px, 5px); /* Сдвигаем тень чуть ниже и левее */
-}
-
-/* Слой #2: Эффект "светящегося угла" (ПОВЕРХ КАРТИНКИ) */
-.torrent-status-indicator::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
     width: 100%;
     height: 100%;
-    /* Градиент, имитирующий свет, падающий на угол */
-    background: radial-gradient(circle at bottom left, rgba(13, 110, 253, 0.4) 0%, rgba(13, 110, 253, 0) 50%);
-    border-radius: 0 0 0 8px;
-    /* Режим наложения, который осветляет пиксели картинки под ним */
-    mix-blend-mode: color-dodge;
+    
+    /* Стили для текста */
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 900; /* Делаем букву очень жирной */
+    font-size: 18px;
+    color: var(--torrent-color); /* Основной синий цвет */
+    
+    /* Стили для контейнера */
+    background-color: rgba(10, 10, 10, 0.7); /* Полупрозрачный фон */
+    border-radius: 50%; /* Делаем фон круглым */
+    backdrop-filter: blur(3px); /* Размываем фон под буквой */
+    
+    /* Тень для эффекта свечения */
+    text-shadow: 0 0 8px var(--torrent-color), 0 0 12px rgba(255, 255, 255, 0.5);
+    
+    /* Выравнивание буквы по центру круга */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
 }
 
 
