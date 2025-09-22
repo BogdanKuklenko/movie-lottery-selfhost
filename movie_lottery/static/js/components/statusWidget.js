@@ -61,7 +61,16 @@ export class StatusWidgetManager {
         const parsed = safeJsonParse(raw);
         if (Array.isArray(parsed)) {
             parsed.forEach(entry => {
-                if(entry.key) this.activeDownloads.set(entry.key, entry);
+                if (!entry) return;
+                if (!entry.key) {
+                    entry.key = getDownloadKey(entry.id, entry.type);
+                }
+                if (!entry.key) return;
+
+                entry.movieName = entry.movieName ?? `Фильм ${entry.id}`;
+
+                this.activeDownloads.set(entry.key, entry);
+                this.startPolling(entry);
             });
         }
     }
@@ -181,8 +190,9 @@ export class StatusWidgetManager {
 
     startPolling(entry) {
         if (this.pollIntervals.has(entry.key)) return;
-        
-        this.getOrCreateDownloadElement(entry.key, `Загрузка: ${entry.movieName}`);
+
+        const movieTitle = entry.movieName ?? `Фильм ${entry.id}`;
+        this.getOrCreateDownloadElement(entry.key, `Загрузка: ${movieTitle}`);
         this.poll(entry); // Первый запуск немедленно
         const intervalId = setInterval(() => this.poll(entry), 3000);
         this.pollIntervals.set(entry.key, intervalId);
@@ -205,7 +215,13 @@ export class StatusWidgetManager {
             Object.entries(data).forEach(([kpIdRaw, torrentHash]) => {
                 const kpId = String(kpIdRaw);
                 const key = getDownloadKey(kpId, 'kinopoisk');
-                if (this.activeDownloads.has(key)) return;
+                if (this.activeDownloads.has(key)) {
+                    const existingEntry = this.activeDownloads.get(key);
+                    if (existingEntry && !this.pollIntervals.has(key)) {
+                        this.startPolling(existingEntry);
+                    }
+                    return;
+                }
 
                 const info = kpIdToInfo.get(kpId) || {};
                 const entry = {
