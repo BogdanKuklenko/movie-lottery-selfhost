@@ -47,6 +47,7 @@
                      data-lottery-id="{{ lottery.id }}"
                      data-kinopoisk-id="{{ winner_movie.kinopoisk_id if winner_movie else '' }}"
                      data-movie-name="{{ lottery.result_name|e }}"
+                     data-movie-search-name="{{ (winner_movie.search_name|default('', true))|e if winner_movie else '' }}"
                      data-movie-year="{{ lottery.result_year or '' }}"
                      data-movie-poster="{{ (lottery.result_poster or '')|e }}"
                      data-movie-description="{{ (winner_movie.description|default('', true)|replace('\n', ' '))|e if winner_movie else '' }}"

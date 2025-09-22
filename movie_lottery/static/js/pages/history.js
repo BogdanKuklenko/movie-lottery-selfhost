@@ -188,7 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const triggerMagnetSearch = async (card) => {
-        const { kinopoiskId, movieName, movieYear, lotteryId } = card.dataset;
+        const { kinopoiskId, movieName, movieYear, lotteryId, movieSearchName } = card.dataset;
         if (!kinopoiskId) {
             showToast('Для фильма не указан Kinopoisk ID.', 'error');
             return;
@@ -199,11 +199,17 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const query = `${(movieName || '').trim()} ${movieYear || ''}`.trim();
+        const searchTitle = (movieSearchName || movieName || '').trim();
+        const query = [searchTitle, movieYear || ''].filter(Boolean).join(' ').trim();
         setCardSearching(card, true);
 
         try {
-            const status = await movieApi.startMagnetSearch(kinopoiskId, { query, title: movieName, year: movieYear });
+            const status = await movieApi.startMagnetSearch(kinopoiskId, {
+                query,
+                title: movieName,
+                year: movieYear,
+                search_name: movieSearchName,
+            });
             const shouldContinue = handleSearchStatus(card, status, lotteryId, { initialToast: true });
             if (shouldContinue) {
                 pollSearchStatus(card, kinopoiskId, lotteryId);

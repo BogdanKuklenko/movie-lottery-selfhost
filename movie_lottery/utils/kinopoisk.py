@@ -36,9 +36,12 @@ def get_movie_data_from_kinopoisk(query):
         genres = [g['name'] for g in movie_data.get('genres', [])[:3]]
         countries = [c['name'] for c in movie_data.get('countries', [])[:3]]
         
+        search_name = movie_data.get('alternativeName') or movie_data.get('enName')
+
         return {
             "kinopoisk_id": movie_data.get('id'),
             "name": movie_data.get('name', 'Название не найдено'),
+            "search_name": search_name,
             "poster": movie_data.get('poster', {}).get('url'),
             "year": str(movie_data.get('year', '')),
             "description": movie_data.get('description', 'Описание отсутствует.'),

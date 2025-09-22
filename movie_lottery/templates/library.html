@@ -44,6 +44,7 @@
                     data-movie-id="{{ movie.id }}"
                     data-kinopoisk-id="{{ movie.kinopoisk_id or '' }}"
                     data-movie-name="{{ movie.name|e }}"
+                    data-movie-search-name="{{ (movie.search_name or '')|e }}"
                     data-movie-year="{{ movie.year or '' }}"
                     data-movie-poster="{{ (movie.poster or '')|e }}"
                     data-movie-description="{{ (movie.description|default('', true)|replace('\n', ' '))|e }}"
