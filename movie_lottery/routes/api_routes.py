@@ -15,26 +15,85 @@ from ..utils.magnet_search import get_search_status, start_background_search
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
 
-def _compose_search_query(kinopoisk_id, *, fallback_name=None, fallback_year=None):
-    if fallback_name:
-        name = fallback_name
-        year = fallback_year
-    else:
-        movie = Movie.query.filter_by(kinopoisk_id=kinopoisk_id).order_by(Movie.id.desc()).first()
-        if movie:
-            name = movie.name
-            year = movie.year
-        else:
-            library_movie = LibraryMovie.query.filter_by(kinopoisk_id=kinopoisk_id).order_by(LibraryMovie.added_at.desc()).first()
-            if library_movie:
-                name = library_movie.name
-                year = library_movie.year
-            else:
-                name = None
-                year = None
+def _compose_search_query(
+    kinopoisk_id,
+    *,
+    fallback_name=None,
+    fallback_year=None,
+    fallback_search_name=None,
+):
+    def _normalize(value):
+        if value is None:
+            return None
+        value = str(value).strip()
+        return value or None
 
-    parts = [part for part in (name, year) if part]
-    return " ".join(parts).strip()
+    titles = []
+    search_title_added = False
+    year = _normalize(fallback_year)
+
+    normalized_search = _normalize(fallback_search_name)
+    if normalized_search:
+        titles.append(normalized_search)
+        search_title_added = True
+
+    movie = (
+        Movie.query.filter_by(kinopoisk_id=kinopoisk_id)
+        .order_by(Movie.id.desc())
+        .first()
+    )
+    stored_name = None
+
+    if movie:
+        stored_name = _normalize(movie.name)
+        year = year or _normalize(movie.year)
+        normalized = _normalize(movie.search_name)
+        if normalized:
+            titles.append(normalized)
+            search_title_added = True
+    else:
+        library_movie = (
+            LibraryMovie.query.filter_by(kinopoisk_id=kinopoisk_id)
+            .order_by(LibraryMovie.added_at.desc())
+            .first()
+        )
+        if library_movie:
+            stored_name = _normalize(library_movie.name)
+            year = year or _normalize(library_movie.year)
+            normalized = _normalize(library_movie.search_name)
+            if normalized:
+                titles.append(normalized)
+                search_title_added = True
+
+    normalized_fallback_name = _normalize(fallback_name)
+
+    for candidate in (stored_name, normalized_fallback_name):
+        if candidate:
+            titles.append(candidate)
+
+    deduped_titles = []
+    seen_titles = set()
+    for title in titles:
+        if not title:
+            continue
+        lowered = title.lower()
+        if lowered in seen_titles:
+            continue
+        deduped_titles.append(title)
+        seen_titles.add(lowered)
+
+    if not deduped_titles:
+        return ""
+
+    if search_title_added:
+        title_part = deduped_titles[0]
+    else:
+        title_part = " ".join(deduped_titles)
+
+    if year:
+        title_part = f"{title_part} {year}".strip()
+
+    return title_part.strip()
 
 # --- Маршруты для работы с фильмами и лотереями ---
 
@@ -64,6 +123,7 @@ def create_lottery():
         new_movie = Movie(
             kinopoisk_id=movie_data.get('kinopoisk_id'),
             name=movie_data['name'],
+            search_name=movie_data.get('search_name'),
             poster=movie_data.get('poster'),
             year=movie_data.get('year'),
             description=movie_data.get('description'),
@@ -85,6 +145,7 @@ def create_lottery():
                         kinopoisk_id,
                         fallback_name=movie_data.get('name'),
                         fallback_year=movie_data.get('year'),
+                        fallback_search_name=movie_data.get('search_name'),
                     ),
                 }
             )
@@ -130,7 +191,7 @@ def get_result_data(lottery_id):
         identifier = MovieIdentifier.query.get(m.kinopoisk_id) if m.kinopoisk_id else None
         # Статус торрента теперь будет определяться на фронтенде
         movies_data.append({
-            "kinopoisk_id": m.kinopoisk_id, "name": m.name, "poster": m.poster, "year": m.year,
+            "kinopoisk_id": m.kinopoisk_id, "name": m.name, "search_name": m.search_name, "poster": m.poster, "year": m.year,
             "description": m.description, "rating_kp": m.rating_kp, "genres": m.genres, "countries": m.countries,
             "has_magnet": bool(identifier), "magnet_link": identifier.magnet_link if identifier else None,
             # Передаем пустые значения по умолчанию
@@ -219,6 +280,7 @@ def add_library_movie():
             target_kinopoisk_id,
             fallback_name=movie_data.get('name'),
             fallback_year=movie_data.get('year'),
+            fallback_search_name=movie_data.get('search_name'),
         )
         if query:
             start_background_search(target_kinopoisk_id, query)
@@ -275,13 +337,14 @@ def search_magnet(kinopoisk_id):
 
     data = request.json or {}
     force = bool(data.get('force'))
-    query = data.get('query')
+    query = (data.get('query') or '').strip()
 
     if not query:
         query = _compose_search_query(
             kinopoisk_id,
             fallback_name=data.get('title'),
             fallback_year=data.get('year'),
+            fallback_search_name=data.get('search_name') or data.get('searchTitle'),
         )
 
     if not query:
