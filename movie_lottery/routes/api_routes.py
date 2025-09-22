@@ -9,6 +9,7 @@ from ..models import Movie, Lottery, MovieIdentifier, LibraryMovie
 from ..utils.kinopoisk import get_movie_data_from_kinopoisk
 from ..utils.helpers import generate_unique_id, ensure_background_photo
 from ..utils.qbittorrent import get_active_torrents_map
+from ..utils.torrent_status import qbittorrent_client, torrent_to_json
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -271,7 +272,101 @@ def delete_torrent_from_client(torrent_hash):
         return jsonify({"success": False, "message": "Торрент не найден в клиенте."}), 404
     except Exception as e:
         return jsonify({"success": False, "message": f"Ошибка qBittorrent: {e}"}), 500
-        
+
+
+def _normalize_tags(tag_string):
+    if not tag_string:
+        return []
+    return [tag.strip().lower() for tag in tag_string.split(',') if tag.strip()]
+
+
+def _find_first_torrent(torrents, *, tag=None):
+    if not torrents:
+        return None
+    if tag:
+        tag = tag.lower()
+        for torrent in torrents:
+            if tag in _normalize_tags(getattr(torrent, 'tags', '')):
+                return torrent
+    return torrents[0]
+
+
+@api_bp.route('/download-status/<int:kinopoisk_id>')
+def get_download_status(kinopoisk_id):
+    tag = f"kp-{kinopoisk_id}"
+    try:
+        with qbittorrent_client() as client:
+            torrents = client.torrents_info(tag=tag)
+            torrent = _find_first_torrent(torrents, tag=tag)
+            if not torrent:
+                return jsonify({"status": "not_found", "message": "Торрент с указанным ID не найден."})
+
+            status_payload = torrent_to_json(torrent)
+
+            movie = Movie.query.filter_by(kinopoisk_id=kinopoisk_id).order_by(Movie.id.desc()).first()
+            if movie:
+                status_payload["name"] = movie.name
+
+            return jsonify(status_payload)
+    except (qbittorrent_exceptions.APIConnectionError, requests.exceptions.RequestException):
+        return jsonify({"status": "error", "message": "Не удалось подключиться к qBittorrent."}), 503
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Ошибка qBittorrent: {e}"}), 500
+
+
+@api_bp.route('/torrent-status/<lottery_id>')
+def get_torrent_status_for_lottery(lottery_id):
+    lottery = Lottery.query.get(lottery_id)
+    if not lottery:
+        return jsonify({"status": "error", "message": "Лотерея не найдена."}), 404
+
+    category = f"lottery-{lottery_id}"
+    try:
+        with qbittorrent_client() as client:
+            torrents = client.torrents_info(category=category)
+            torrent = _find_first_torrent(torrents)
+            if not torrent:
+                return jsonify({"status": "not_found", "message": "Торрент для лотереи не найден."})
+
+            status_payload = torrent_to_json(torrent)
+            if lottery.result_name:
+                status_payload["name"] = lottery.result_name
+
+            return jsonify(status_payload)
+    except (qbittorrent_exceptions.APIConnectionError, requests.exceptions.RequestException):
+        return jsonify({"status": "error", "message": "Не удалось подключиться к qBittorrent."}), 503
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Ошибка qBittorrent: {e}"}), 500
+
+
+@api_bp.route('/library/torrent-status/<int:movie_id>')
+def get_torrent_status_for_library(movie_id):
+    library_movie = LibraryMovie.query.get(movie_id)
+    if not library_movie:
+        return jsonify({"status": "error", "message": "Фильм не найден в библиотеке."}), 404
+
+    tag = f"kp-{library_movie.kinopoisk_id}" if library_movie.kinopoisk_id else None
+    category = f"library-{movie_id}"
+
+    try:
+        with qbittorrent_client() as client:
+            torrents = client.torrents_info(category=category)
+            torrent = _find_first_torrent(torrents, tag=tag)
+            if not torrent and tag:
+                torrents = client.torrents_info(tag=tag)
+                torrent = _find_first_torrent(torrents, tag=tag)
+
+            if not torrent:
+                return jsonify({"status": "not_found", "message": "Торрент для фильма не найден."})
+
+            status_payload = torrent_to_json(torrent)
+            status_payload["name"] = library_movie.name
+            return jsonify(status_payload)
+    except (qbittorrent_exceptions.APIConnectionError, requests.exceptions.RequestException):
+        return jsonify({"status": "error", "message": "Не удалось подключиться к qBittorrent."}), 503
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Ошибка qBittorrent: {e}"}), 500
+
 
 # --- НОВЫЙ МАРШРУТ ДЛЯ ОПТИМИЗАЦИИ ---
 @api_bp.route('/active-downloads')
