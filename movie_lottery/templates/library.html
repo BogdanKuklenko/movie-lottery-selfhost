@@ -59,26 +59,29 @@
                     <div class="torrent-status-indicator"></div>
 
                     <div class="action-buttons">
-                        <button
-                            type="button"
-                            class="icon-button download-button"
-                            title="Скачать торрент"
-                            aria-label="Скачать торрент"
-                        >
-                            <svg class="icon-svg icon-download" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                <use href="#icon-download"></use>
-                            </svg>
-                        </button>
-                        <button
-                            type="button"
-                            class="icon-button search-button"
-                            title="Искать торрент"
-                            aria-label="Искать торрент"
-                        >
-                            <svg class="icon-svg icon-search" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                <use href="#icon-search"></use>
-                            </svg>
-                        </button>
+                        {% if movie.has_magnet %}
+                            <button
+                                type="button"
+                                class="icon-button download-button"
+                                title="Скачать торрент"
+                                aria-label="Скачать торрент"
+                            >
+                                <svg class="icon-svg icon-download" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <use href="#icon-download"></use>
+                                </svg>
+                            </button>
+                        {% else %}
+                            <button
+                                type="button"
+                                class="icon-button search-button"
+                                title="Искать торрент"
+                                aria-label="Искать торрент"
+                            >
+                                <svg class="icon-svg icon-search" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <use href="#icon-search"></use>
+                                </svg>
+                            </button>
+                        {% endif %}
                         <button
                             type="button"
                             class="icon-button delete-button"

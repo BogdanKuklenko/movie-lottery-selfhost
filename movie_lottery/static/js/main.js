@@ -9,15 +9,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const movieListDiv = document.getElementById('movie-list');
     const loader = document.getElementById('loader');
     const errorMessage = document.getElementById('error-message');
-    // --- НОВОЕ: Получаем доступ к галочке ---
     const autoDownloadCheckbox = document.getElementById('auto-download-checkbox');
 
-    // --- НОВОЕ: Логика для запоминания состояния галочки ---
-    // При загрузке страницы, проверяем, что сохранено в памяти браузера
     if (localStorage.getItem('autoDownloadEnabled') === 'true') {
         autoDownloadCheckbox.checked = true;
     }
-    // При каждом клике на галочку, сохраняем ее новое состояние
     autoDownloadCheckbox.addEventListener('change', () => {
         localStorage.setItem('autoDownloadEnabled', autoDownloadCheckbox.checked);
     });
@@ -65,6 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.target.textContent = 'Добавление...';
 
                 try {
+                    // ИСПРАВЛЕНИЕ: Добавлен префикс /api/
                     const response = await fetch('/api/library', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -100,7 +97,8 @@ document.addEventListener('DOMContentLoaded', () => {
         addMovieBtn.disabled = true;
 
         try {
-            const response = await fetch('/fetch-movie', {
+            // ИСПРАВЛЕНИЕ: Добавлен префикс /api/
+            const response = await fetch('/api/fetch-movie', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query: query })
@@ -136,7 +134,8 @@ document.addEventListener('DOMContentLoaded', () => {
         createLotteryBtn.disabled = true;
         createLotteryBtn.textContent = 'Перенаправление...';
         try {
-            const response = await fetch('/create', {
+            // ИСПРАВЛЕНИЕ: Добавлен префикс /api/
+            const response = await fetch('/api/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ movies: movies })

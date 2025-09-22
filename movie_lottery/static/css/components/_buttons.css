@@ -130,8 +130,8 @@ button:disabled {
 }
 
 .action-buttons .icon-button {
-    width: 38px;
-    height: 38px;
+    width: 34px; /* УМЕНЬШЕНО */
+    height: 34px; /* УМЕНЬШЕНО */
     border: none;
     padding: 0;
     display: inline-flex;
@@ -153,8 +153,8 @@ button:disabled {
 }
 
 .action-buttons .icon-button svg {
-    width: 22px;
-    height: 22px;
+    width: 20px; /* УМЕНЬШЕНО */
+    height: 20px; /* УМЕНЬШЕНО */
     transition: transform 0.2s ease, opacity 0.2s ease;
 }
 

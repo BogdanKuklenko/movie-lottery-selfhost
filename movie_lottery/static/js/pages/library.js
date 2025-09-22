@@ -11,6 +11,38 @@ function formatDate(isoString) {
     return date.toLocaleDateString('ru-RU');
 }
 
+/**
+ * Динамически переключает иконку "скачать"/"искать" на карточке.
+ * @param {HTMLElement} card - Элемент карточки.
+ * @param {boolean} hasMagnet - Есть ли magnet-ссылка.
+ */
+function toggleDownloadIcon(card, hasMagnet) {
+    const actionButtons = card.querySelector('.action-buttons');
+    if (!actionButtons) return;
+
+    const downloadButton = actionButtons.querySelector('.download-button');
+    const searchButton = actionButtons.querySelector('.search-button');
+    if (downloadButton) downloadButton.remove();
+    if (searchButton) searchButton.remove();
+
+    const newButton = document.createElement('button');
+    newButton.type = 'button';
+    
+    if (hasMagnet) {
+        newButton.className = 'icon-button download-button';
+        newButton.title = 'Скачать торрент';
+        newButton.setAttribute('aria-label', 'Скачать торрент');
+        newButton.innerHTML = `<svg class="icon-svg icon-download" viewBox="0 0 24 24"><use href="#icon-download"></use></svg>`;
+    } else {
+        newButton.className = 'icon-button search-button';
+        newButton.title = 'Искать торрент';
+        newButton.setAttribute('aria-label', 'Искать торрент');
+        newButton.innerHTML = `<svg class="icon-svg icon-search" viewBox="0 0 24 24"><use href="#icon-search"></use></svg>`;
+    }
+    
+    actionButtons.prepend(newButton);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const gallery = document.querySelector('.library-gallery');
     const modalElement = document.getElementById('library-modal');
@@ -47,8 +79,10 @@ document.addEventListener('DOMContentLoaded', () => {
             onSaveMagnet: async (kinopoiskId, magnetLink) => {
                 const result = await movieApi.saveMagnetLink(kinopoiskId, magnetLink);
                 showToast(result.message, 'success');
+                // Обновляем данные и иконку на карточке
                 card.dataset.hasMagnet = result.has_magnet.toString();
                 card.dataset.magnetLink = result.magnet_link;
+                toggleDownloadIcon(card, result.has_magnet);
                 handleOpenModal(card);
             },
             onDeleteFromLibrary: () => {
