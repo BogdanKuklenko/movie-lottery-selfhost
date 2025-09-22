@@ -1,3 +1,5 @@
+import { saveCachedBackground } from './backgroundCache.js';
+
 const DEFAULT_BATCH_SIZE = 4;
 
 function decodeImage(image) {
@@ -91,7 +93,7 @@ export function loadBackgroundInBatches(rotator, photos, options = {}) {
         return Promise.resolve([]);
     }
 
-    const { batchSize = DEFAULT_BATCH_SIZE } = options;
+    const { batchSize = DEFAULT_BATCH_SIZE, cacheVersion } = options;
     let index = 0;
     const tasks = [];
     let resolveCompletion;
@@ -102,7 +104,15 @@ export function loadBackgroundInBatches(rotator, photos, options = {}) {
     rotator.innerHTML = '';
 
     const finalize = () => {
-        Promise.allSettled(tasks).then(resolveCompletion);
+        Promise.allSettled(tasks).then(() => {
+            if (cacheVersion) {
+                saveCachedBackground({
+                    version: cacheVersion,
+                    markup: rotator.innerHTML,
+                });
+            }
+            resolveCompletion();
+        });
     };
 
     const processBatch = (deadline) => {
