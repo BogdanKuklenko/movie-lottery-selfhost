@@ -39,15 +39,40 @@ export async function deleteTorrentFromClient(torrentHash) {
     return await response.json();
 }
 
+async function fetchTorrentStatus(url, defaultErrorMessage) {
+    try {
+        const response = await fetch(url);
+        let data = null;
+        try {
+            data = await response.json();
+        } catch (parseError) {
+            data = null;
+        }
+
+        if (!response.ok) {
+            if (data && typeof data === 'object') {
+                return data;
+            }
+            return { status: 'error', message: defaultErrorMessage };
+        }
+
+        if (data && typeof data === 'object') {
+            return data;
+        }
+        return { status: 'error', message: defaultErrorMessage };
+    } catch (error) {
+        return { status: 'error', message: error.message || defaultErrorMessage };
+    }
+}
+
 /**
  * Запрашивает статус торрента для лотереи.
  * @param {string} lotteryId - ID лотереи.
  * @returns {Promise<object>} - Данные о статусе.
  */
 export async function getTorrentStatusForLottery(lotteryId) {
-    const response = await fetch(`/api/torrent-status/${lotteryId}`);
-    if (!response.ok) throw new Error('Сервер вернул ошибку статуса');
-    return await response.json();
+    const encodedId = encodeURIComponent(lotteryId);
+    return fetchTorrentStatus(`/api/torrent-status/${encodedId}`, 'Не удалось получить статус торрента лотереи.');
 }
 
 /**
@@ -56,9 +81,8 @@ export async function getTorrentStatusForLottery(lotteryId) {
  * @returns {Promise<object>} - Данные о статусе.
  */
 export async function getTorrentStatusForLibrary(libraryMovieId) {
-    const response = await fetch(`/api/library/torrent-status/${libraryMovieId}`);
-    if (!response.ok) throw new Error('Сервер вернул ошибку статуса');
-    return await response.json();
+    const encodedId = encodeURIComponent(libraryMovieId);
+    return fetchTorrentStatus(`/api/library/torrent-status/${encodedId}`, 'Не удалось получить статус торрента библиотеки.');
 }
 
 /**
@@ -67,9 +91,8 @@ export async function getTorrentStatusForLibrary(libraryMovieId) {
  * @returns {Promise<object>} - Данные о статусе.
  */
 export async function getDownloadStatusByKpId(kinopoiskId) {
-    const response = await fetch(`/api/download-status/${kinopoiskId}`);
-    if (!response.ok) throw new Error('Сервер вернул ошибку статуса');
-    return await response.json();
+    const encodedId = encodeURIComponent(kinopoiskId);
+    return fetchTorrentStatus(`/api/download-status/${encodedId}`, 'Не удалось получить статус загрузки.');
 }
 
 /**
