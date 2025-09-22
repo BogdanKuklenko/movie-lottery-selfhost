@@ -45,18 +45,42 @@ class TorrentUpdater {
      * Обновляет UI на текущей странице, добавляя индикаторы к нужным карточкам.
      */
     updateUi() {
-        const activeTorrents = this.getStoredTorrents();
-        if (!activeTorrents) return;
+        const storedPayload = this.getStoredTorrents();
+        if (!storedPayload || typeof storedPayload !== 'object') return;
+
+        const kpMap = (storedPayload && typeof storedPayload.kp === 'object' && storedPayload.kp !== null)
+            ? storedPayload.kp
+            : storedPayload;
+
+        if (!kpMap || typeof kpMap !== 'object') return;
+
+        const resolveTorrentInfo = (value) => {
+            if (!value) return { hash: '' };
+            if (typeof value === 'object') {
+                const hash = typeof value.hash === 'string' ? value.hash : '';
+                const state = typeof value.state === 'string' ? value.state : '';
+                const progressValue = typeof value.progress === 'number'
+                    ? value.progress
+                    : parseFloat(value.progress ?? '0') || 0;
+                return { hash, state, progress: progressValue };
+            }
+            if (typeof value === 'string') {
+                return { hash: value, state: '', progress: 0 };
+            }
+            return { hash: '' };
+        };
 
         const galleryItems = document.querySelectorAll('.gallery-item[data-kinopoisk-id]');
         galleryItems.forEach(item => {
             const kpId = item.dataset.kinopoiskId;
-            if (kpId && activeTorrents[kpId]) {
+            if (!kpId) return;
+
+            const info = resolveTorrentInfo(kpMap[kpId]);
+            if (info.hash) {
                 item.classList.add('has-torrent-on-client');
                 item.dataset.isOnClient = 'true';
-                item.dataset.torrentHash = activeTorrents[kpId];
+                item.dataset.torrentHash = info.hash;
             } else {
-                // Убираем индикатор, если торрента больше нет
                 item.classList.remove('has-torrent-on-client');
                 item.dataset.isOnClient = 'false';
                 item.dataset.torrentHash = '';

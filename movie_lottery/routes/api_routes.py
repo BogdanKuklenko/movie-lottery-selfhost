@@ -372,7 +372,25 @@ def get_torrent_status_for_library(movie_id):
 @api_bp.route('/active-downloads')
 def get_all_active_downloads():
     """Возвращает словарь всех активных торрентов для быстрой проверки на клиенте."""
-    active_torrents = get_active_torrents_map()
-    # Ключи (kp_id) должны быть строками для совместимости с JS dataset
-    active_torrents_str_keys = {str(k): v for k, v in active_torrents.items()}
-    return jsonify(active_torrents_str_keys)
+    torrents_payload = get_active_torrents_map() or {}
+
+    def _stringify_keys(data):
+        if not isinstance(data, dict):
+            return {}
+        return {str(key): value for key, value in data.items()}
+
+    active_map = torrents_payload.get("active") if isinstance(torrents_payload, dict) else {}
+    kp_map = torrents_payload.get("kp") if isinstance(torrents_payload, dict) else {}
+
+    response_payload = {
+        "active": _stringify_keys(active_map),
+        "kp": _stringify_keys(kp_map),
+    }
+
+    # Для обратной совместимости: если карта "kp" пуста, а верхний уровень похож на старый формат,
+    # возвращаем старую структуру ключ-значение.
+    if not response_payload["kp"] and isinstance(torrents_payload, dict) and torrents_payload and "active" not in torrents_payload:
+        response_payload["kp"] = _stringify_keys(torrents_payload)
+        response_payload["active"] = _stringify_keys(torrents_payload)
+
+    return jsonify(response_payload)

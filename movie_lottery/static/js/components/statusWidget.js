@@ -203,6 +203,48 @@ export class StatusWidgetManager {
             const data = await fetchActiveDownloads();
             if (!data || typeof data !== 'object') return;
 
+            const activeMapRaw = (data && typeof data === 'object' && data.active) ? data.active : data;
+
+            const normalizeTorrentInfo = (value) => {
+                if (!value) return null;
+                if (typeof value === 'object') {
+                    const hash = typeof value.hash === 'string' ? value.hash : '';
+                    const state = typeof value.state === 'string' ? value.state : 'unknown';
+                    const progressValue = typeof value.progress === 'number'
+                        ? value.progress
+                        : parseFloat(value.progress ?? '0') || 0;
+                    const isActive = typeof value.is_active === 'boolean'
+                        ? value.is_active
+                        : (typeof value.isActive === 'boolean' ? value.isActive : undefined);
+                    return {
+                        hash,
+                        state,
+                        progress: progressValue,
+                        isActive,
+                    };
+                }
+                if (typeof value === 'string') {
+                    return {
+                        hash: value,
+                        state: 'unknown',
+                        progress: 0,
+                        isActive: undefined,
+                    };
+                }
+                return null;
+            };
+
+            const COMPLETED_STATES = new Set([
+                'completed',
+                'pausedup',
+                'stalledup',
+                'queuedup',
+                'uploading',
+                'seeding',
+                'forcedup',
+                'checkingup',
+            ]);
+
             const galleryItems = document.querySelectorAll('.gallery-item[data-kinopoisk-id]');
             const kpIdToInfo = new Map();
             galleryItems.forEach(item => {
@@ -212,27 +254,55 @@ export class StatusWidgetManager {
                 kpIdToInfo.set(kpId, { movieName });
             });
 
-            Object.entries(data).forEach(([kpIdRaw, torrentHash]) => {
-                const kpId = String(kpIdRaw);
-                const key = getDownloadKey(kpId, 'kinopoisk');
-                if (this.activeDownloads.has(key)) {
-                    const existingEntry = this.activeDownloads.get(key);
-                    if (existingEntry && !this.pollIntervals.has(key)) {
-                        this.startPolling(existingEntry);
+            const activeKeys = new Set();
+
+            if (activeMapRaw && typeof activeMapRaw === 'object') {
+                Object.entries(activeMapRaw).forEach(([kpIdRaw, torrentValue]) => {
+                    const kpId = String(kpIdRaw);
+                    const normalized = normalizeTorrentInfo(torrentValue);
+                    if (!normalized || !normalized.hash) return;
+
+                    const stateLower = (normalized.state || '').toLowerCase();
+                    const isMarkedActive = normalized.isActive;
+                    const isInCompletedState = COMPLETED_STATES.has(stateLower);
+                    const isProgressComplete = normalized.progress >= 100;
+                    const shouldSkip = (isMarkedActive === false)
+                        || (isMarkedActive !== true && (isProgressComplete || isInCompletedState || stateLower.includes('seeding') || stateLower.includes('completed')));
+                    if (shouldSkip) return;
+
+                    const key = getDownloadKey(kpId, 'kinopoisk');
+                    activeKeys.add(key);
+
+                    if (this.activeDownloads.has(key)) {
+                        const existingEntry = this.activeDownloads.get(key);
+                        if (existingEntry) {
+                            existingEntry.torrentHash = normalized.hash;
+                            existingEntry.torrentInfo = normalized;
+                        }
+                        if (existingEntry && !this.pollIntervals.has(key)) {
+                            this.startPolling(existingEntry);
+                        }
+                        return;
                     }
-                    return;
+
+                    const info = kpIdToInfo.get(kpId) || {};
+                    const entry = {
+                        key,
+                        id: kpId,
+                        type: 'kinopoisk',
+                        movieName: info.movieName || `Фильм ${kpId}`,
+                        torrentHash: normalized.hash,
+                        torrentInfo: normalized,
+                    };
+
+                    this.registerDownload(entry);
+                });
+            }
+
+            this.activeDownloads.forEach((entry, key) => {
+                if (entry?.type === 'kinopoisk' && !activeKeys.has(key)) {
+                    this.removeDownload(key);
                 }
-
-                const info = kpIdToInfo.get(kpId) || {};
-                const entry = {
-                    key,
-                    id: kpId,
-                    type: 'kinopoisk',
-                    movieName: info.movieName || `Фильм ${kpId}`,
-                    torrentHash
-                };
-
-                this.registerDownload(entry);
             });
 
             if (window.torrentUpdater) {
