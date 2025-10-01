@@ -131,8 +131,8 @@ def _search_via_yts(query: str, session: requests.Session, timeout: int = 15) ->
         return None
 
 
-def _search_via_piratebay(query: str, session: requests.Session, timeout: int = 15) -> Optional[str]:
-    """Поиск через Pirate Bay API (старый метод, работает с английскими названиями)."""
+def _search_via_piratebay(query: str, session: requests.Session, timeout: int = 15, prefer_russian: bool = True) -> Optional[str]:
+    """Поиск через Pirate Bay API с приоритетом на русскую озвучку."""
     try:
         base_url = _get_configured_value("MAGNET_SEARCH_URL", DEFAULT_SEARCH_URL)
         response = session.get(base_url.format(query=quote_plus(query)), timeout=timeout)
@@ -149,33 +149,37 @@ def _search_via_piratebay(query: str, session: requests.Session, timeout: int = 
         if not results:
             return None
 
-        quality_keywords = ("1080p", "1080")
-        filtered: list[Dict[str, Any]] = []
-        for item in results:
-            if not isinstance(item, dict):
-                continue
-            name = str(item.get("name") or item.get("title") or "")
-            lower_name = name.lower()
-            if any(q in lower_name for q in quality_keywords):
-                filtered.append(item)
+        candidates = [item for item in results if isinstance(item, dict) and "no results" not in str(item.get("name") or item.get("title") or "").lower()]
 
-        candidates = filtered or [item for item in results if isinstance(item, dict)]
         if not candidates:
             return None
 
-        candidates.sort(key=_extract_seeders, reverse=True)
+        candidates.sort(key=lambda x: _calculate_torrent_score(x, prefer_1080p=True), reverse=True)
+        
         trackers = _get_configured_value("MAGNET_TRACKERS", DEFAULT_TRACKERS)
+        
+        for i, item in enumerate(candidates[:3], 1):
+            name = str(item.get("name") or item.get("title") or "")
+            score = _calculate_torrent_score(item)
+            has_rus = _has_russian_audio(name)
+            seeds = _extract_seeders(item)
+            _logger.debug(f"  #{i} (score={score:.1f}, rus={has_rus}, seeds={seeds}): {name[:80]}")
 
         for item in candidates:
             name = str(item.get("name") or item.get("title") or query)
-            if "no results" in name.lower():
-                continue
+            
             magnet = item.get("magnet") or item.get("magnet_link") or item.get("magnetLink")
             if magnet and isinstance(magnet, str) and magnet.strip():
+                has_rus = _has_russian_audio(name)
+                _logger.info(f"Selected torrent (Russian audio: {has_rus}): {name[:80]}")
                 return magnet
+            
             info_hash = _extract_info_hash(item)
             if _is_valid_info_hash(info_hash):
+                has_rus = _has_russian_audio(name)
+                _logger.info(f"Selected torrent (Russian audio: {has_rus}): {name[:80]}")
                 return _build_magnet(info_hash.strip(), name, trackers)
+                
     except Exception as exc:
         _logger.debug(f"PirateBay search failed: {exc}")
     return None
@@ -204,6 +208,56 @@ def _has_cyrillic(text: str) -> bool:
     return bool(text and any('\u0400' <= c <= '\u04FF' for c in text))
 
 
+def _has_russian_audio(torrent_name: str) -> bool:
+    """Проверяет, содержит ли название торрента указание на русскую озвучку."""
+    if not torrent_name:
+        return False
+    
+    name_lower = torrent_name.lower()
+    
+    # Ключевые слова русской озвучки
+    russian_audio_keywords = [
+        'дубляж', 'дублированный', 'многоголос', 'двухголос',
+        'профессиональный', 'лицензия', 'лиц.', 
+        'дубл.', 'dubl', 'rus', 'russian',
+        'звук', 'озвуч', 'перевод',
+        # Конкретные студии озвучки
+        'baibako', 'lostfilm', 'newstudio', 'alexfilm',
+        'paramount comedy', 'кураж-бамбей', 'amedia'
+    ]
+    
+    # Проверяем наличие хотя бы одного ключевого слова
+    return any(keyword in name_lower for keyword in russian_audio_keywords)
+
+
+def _calculate_torrent_score(torrent_data: Dict[str, Any], prefer_1080p: bool = True) -> float:
+    """Вычисляет балл торрента на основе качества и количества сидов.
+    
+    Балансирует между:
+    - Качеством видео (1080p получает бонус)
+    - Количеством сидеров
+    - Наличием русской озвучки (получает огромный бонус)
+    """
+    score = 0.0
+    
+    # Базовый балл от сидов (логарифмическая шкала для баланса)
+    seeders = _extract_seeders(torrent_data)
+    if seeders > 0:
+        import math
+        score += math.log10(seeders + 1) * 10  # макс ~20-30 баллов для 100+ сидов
+    
+    # Бонус за качество 1080p
+    name = str(torrent_data.get("name") or torrent_data.get("title") or "")
+    if prefer_1080p and ("1080p" in name.lower() or "1080" in name.lower()):
+        score += 50  # Большой бонус за 1080p
+    
+    # Огромный бонус за русскую озвучку
+    if _has_russian_audio(name):
+        score += 100  # Русская озвучка - приоритет номер 1!
+    
+    return score
+
+
 def _transliterate_russian(text: str) -> str:
     """Транслитерация русского текста в латиницу."""
     translit_dict = {
@@ -222,14 +276,15 @@ def _transliterate_russian(text: str) -> str:
 
 
 def search_best_magnet(title: str, *, session: Optional[requests.Session] = None, timeout: int = 15) -> Optional[str]:
-    """Ищет лучшую magnet-ссылку для указанного названия фильма.
+    """Ищет лучшую magnet-ссылку для указанного названия фильма с русской озвучкой.
     
-    Функция последовательно пробует несколько источников поиска:
-    1. YTS API (для английских названий, высокое качество)
-    2. Pirate Bay API (универсальный, работает с английскими названиями)
-    3. Транслитерация + повторный поиск (для русских названий)
+    Приоритет поиска:
+    1. Торренты с русской озвучкой (дубляж, многоголосый)
+    2. Качество 1080p
+    3. Количество сидов
     
-    Для русских названий автоматически применяется транслитерация.
+    Функция автоматически добавляет ключевые слова для поиска русской озвучки
+    и использует балансировку между качеством и сидами.
     """
     query = (title or "").strip()
     if not query:
@@ -243,25 +298,37 @@ def search_best_magnet(title: str, *, session: Optional[requests.Session] = None
     is_cyrillic = _has_cyrillic(query)
     _logger.info(f"Searching magnet for: '{query}' (Cyrillic: {is_cyrillic})")
 
-    # Список вариантов запроса для поиска
-    search_queries = [query]
+    # Создаем варианты запросов с приоритетом на русскую озвучку
+    search_queries = []
     
-    # Если название на русском, добавляем транслитерированный вариант
     if is_cyrillic:
+        # Для русских названий
+        search_queries.append(f"{query} дубляж")  # С явным указанием дубляжа
+        search_queries.append(f"{query} многоголосый")  # Альтернативный вариант
+        search_queries.append(query)  # Оригинальный запрос
+        
+        # Добавляем транслитерированные варианты
         transliterated = _transliterate_russian(query)
         if transliterated and transliterated != query:
+            search_queries.append(f"{transliterated} russian")
             search_queries.append(transliterated)
-            _logger.info(f"Added transliterated variant: '{transliterated}'")
+            _logger.info(f"Added transliterated variants")
+    else:
+        # Для английских названий ищем версии с русской озвучкой
+        search_queries.append(f"{query} дубляж 1080p")  # Приоритет: дубляж + качество
+        search_queries.append(f"{query} многоголосый")  # Многоголосая озвучка
+        search_queries.append(f"{query} russian")  # Английский запрос + russian
+        search_queries.append(f"{query} rus")  # Короткая форма
+        search_queries.append(query)  # Оригинальный запрос (fallback)
 
-    # Источники поиска по приоритету
+    # Источники поиска: PirateBay лучше для русской озвучки
     search_methods = [
-        ("YTS", _search_via_yts),
-        ("PirateBay", _search_via_piratebay),
+        ("PirateBay (RUS priority)", _search_via_piratebay),
     ]
 
-    # Пробуем каждый вариант запроса с каждым источником
-    for query_variant in search_queries:
-        _logger.info(f"Searching with variant: '{query_variant}'")
+    # Пробуем каждый вариант запроса
+    for i, query_variant in enumerate(search_queries, 1):
+        _logger.info(f"[{i}/{len(search_queries)}] Searching with: '{query_variant}'")
         
         for source_name, search_func in search_methods:
             try:
