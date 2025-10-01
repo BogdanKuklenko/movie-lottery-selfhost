@@ -55,6 +55,9 @@ DEFAULT_TRACKERS = (
 
 _logger = logging.getLogger(__name__)
 
+# АВТОПОИСК ОТКЛЮЧЕН
+# Модуль больше не импортируется в api_routes.py, поэтому ThreadPoolExecutor не создается
+# Это экономит память и ресурсы на сервере
 _search_executor = ThreadPoolExecutor(max_workers=3)
 _tasks: Dict[int, Dict[str, Any]] = {}
 _tasks_lock = Lock()

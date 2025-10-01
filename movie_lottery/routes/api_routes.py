@@ -10,7 +10,8 @@ from ..utils.kinopoisk import get_movie_data_from_kinopoisk
 from ..utils.helpers import generate_unique_id, ensure_background_photo
 from ..utils.qbittorrent import get_active_torrents_map
 from ..utils.torrent_status import qbittorrent_client, torrent_to_json
-from ..utils.magnet_search import get_search_status, start_background_search
+# ИМПОРТ ОТКЛЮЧЕН - автопоиск больше не используется
+# from ..utils.magnet_search import get_search_status, start_background_search
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
