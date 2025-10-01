@@ -35,8 +35,10 @@ def create_app():
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
 
-    # Создаем таблицы БД, если их нет (только в dev режиме)
-    with app.app_context():
-        db.create_all()
+    # Создаем таблицы БД, если их нет (ТОЛЬКО в dev режиме, НЕ на продакшене)
+    # На Render.com это блокирует запуск worker'ов!
+    if not os.environ.get('RENDER'):
+        with app.app_context():
+            db.create_all()
     
     return app
