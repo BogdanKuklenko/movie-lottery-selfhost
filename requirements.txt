@@ -6,3 +6,4 @@ requests
 qbittorrent-api
 torrentp
 Flask-Migrate
+psutil
