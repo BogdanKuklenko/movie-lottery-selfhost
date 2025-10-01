@@ -3,29 +3,167 @@
 class TorrentUpdater {
     constructor(storageKey = 'activeTorrents') {
         this.storageKey = storageKey;
+        this.statusKey = storageKey + '_qbitStatus';
         this.updateInProgress = false;
+        
+        // Адаптивные интервалы опроса (в миллисекундах)
+        this.INTERVALS = {
+            FAST: 5000,      // 5 сек - qBittorrent доступен
+            MEDIUM: 15000,   // 15 сек - qBittorrent восстанавливается
+            SLOW: 60000,     // 60 сек - qBittorrent недоступен
+            VERY_SLOW: 120000 // 2 мин - долгое недоступность
+        };
+        
+        this.currentInterval = this.INTERVALS.FAST;
+        this.failureCount = 0;
+        this.pollTimeoutId = null;
+        
         // Запускаем обновление сразу при создании объекта
+        this.startPolling();
+    }
+
+    /**
+     * Запускает непрерывный опрос с адаптивными интервалами
+     */
+    startPolling() {
         this.fetchAndStoreTorrents();
+    }
+
+    /**
+     * Останавливает опрос
+     */
+    stopPolling() {
+        if (this.pollTimeoutId) {
+            clearTimeout(this.pollTimeoutId);
+            this.pollTimeoutId = null;
+        }
+    }
+
+    /**
+     * Планирует следующее обновление
+     */
+    scheduleNextUpdate() {
+        this.stopPolling();
+        this.pollTimeoutId = setTimeout(() => {
+            this.fetchAndStoreTorrents();
+        }, this.currentInterval);
+        
+        console.log(`[TorrentUpdater] Следующее обновление через ${this.currentInterval / 1000} сек`);
+    }
+
+    /**
+     * Определяет интервал опроса на основе статуса qBittorrent
+     */
+    determineInterval(qbitStatus) {
+        if (!qbitStatus) {
+            // Нет информации о статусе - используем средний интервал
+            return this.INTERVALS.MEDIUM;
+        }
+
+        if (qbitStatus.available) {
+            if (qbitStatus.state === 'half_open') {
+                // Восстановление - средний интервал
+                return this.INTERVALS.MEDIUM;
+            } else {
+                // Нормальная работа - быстрый опрос
+                return this.INTERVALS.FAST;
+            }
+        } else {
+            // qBittorrent недоступен
+            if (this.failureCount > 3) {
+                // Долгая недоступность - очень редкий опрос
+                return this.INTERVALS.VERY_SLOW;
+            } else {
+                // Первые неудачи - редкий опрос
+                return this.INTERVALS.SLOW;
+            }
+        }
+    }
+
+    /**
+     * Запрашивает статус qBittorrent
+     */
+    async fetchQBittorrentStatus() {
+        try {
+            const response = await fetch('/api/qbittorrent-status');
+            if (!response.ok) throw new Error('Failed to fetch qBittorrent status');
+            return await response.json();
+        } catch (error) {
+            console.error('[TorrentUpdater] Ошибка получения статуса qBittorrent:', error);
+            return null;
+        }
     }
 
     /**
      * Запрашивает с сервера список активных торрентов и сохраняет его в sessionStorage.
      */
     async fetchAndStoreTorrents() {
-        if (this.updateInProgress) return;
+        if (this.updateInProgress) {
+            this.scheduleNextUpdate();
+            return;
+        }
+        
         this.updateInProgress = true;
         
         try {
-            const response = await fetch('/api/active-downloads');
-            if (!response.ok) throw new Error('Network response was not ok');
-            const data = await response.json();
+            // Параллельно запрашиваем торренты и статус
+            const [torrentsResponse, qbitStatus] = await Promise.all([
+                fetch('/api/active-downloads'),
+                this.fetchQBittorrentStatus()
+            ]);
+            
+            if (!torrentsResponse.ok) {
+                throw new Error('Network response was not ok');
+            }
+            
+            const data = await torrentsResponse.json();
+            const qbitAvailable = data.qbittorrent_available ?? false;
+            
+            // Сохраняем данные
             sessionStorage.setItem(this.storageKey, JSON.stringify(data));
+            
+            if (qbitStatus) {
+                sessionStorage.setItem(this.statusKey, JSON.stringify(qbitStatus));
+            }
+            
+            // Обновляем интервал на основе статуса
+            const newInterval = this.determineInterval(qbitStatus);
+            
+            if (qbitAvailable) {
+                // Сброс счетчика ошибок при успехе
+                if (this.failureCount > 0) {
+                    console.log('[TorrentUpdater] ✅ qBittorrent восстановлен!');
+                }
+                this.failureCount = 0;
+            } else {
+                this.failureCount++;
+                console.warn(`[TorrentUpdater] ⚠️ qBittorrent недоступен (попытка ${this.failureCount})`);
+            }
+            
+            // Обновляем интервал только если он изменился
+            if (newInterval !== this.currentInterval) {
+                const oldInterval = this.currentInterval;
+                this.currentInterval = newInterval;
+                console.log(
+                    `[TorrentUpdater] Переключение интервала: ${oldInterval / 1000}с → ${newInterval / 1000}с`
+                );
+            }
+            
         } catch (error) {
-            console.error('Failed to fetch active torrents:', error);
-            // В случае ошибки очищаем старые данные, чтобы не показывать неверный статус
+            console.error('[TorrentUpdater] Ошибка обновления:', error);
+            this.failureCount++;
+            
+            // При ошибке переключаемся на редкий опрос
+            if (this.currentInterval < this.INTERVALS.SLOW) {
+                this.currentInterval = this.INTERVALS.SLOW;
+                console.log('[TorrentUpdater] Переключение на редкий опрос из-за ошибки');
+            }
+            
+            // В случае ошибки очищаем старые данные
             sessionStorage.removeItem(this.storageKey);
         } finally {
             this.updateInProgress = false;
+            this.scheduleNextUpdate();
         }
     }
 
@@ -39,6 +177,31 @@ class TorrentUpdater {
         } catch (error) {
             return null;
         }
+    }
+
+    /**
+     * Получает статус qBittorrent из sessionStorage.
+     * @returns {object|null}
+     */
+    getQBittorrentStatus() {
+        try {
+            return JSON.parse(sessionStorage.getItem(this.statusKey));
+        } catch (error) {
+            return null;
+        }
+    }
+
+    /**
+     * Возвращает текущий статус для отладки
+     */
+    getDebugInfo() {
+        const status = this.getQBittorrentStatus();
+        return {
+            currentInterval: this.currentInterval / 1000 + ' сек',
+            failureCount: this.failureCount,
+            qbitStatus: status,
+            isPolling: !!this.pollTimeoutId
+        };
     }
 
     /**

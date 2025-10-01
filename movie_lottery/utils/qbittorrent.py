@@ -1,7 +1,16 @@
 # F:\GPT\movie-lottery V2\movie_lottery\utils\qbittorrent.py
+import logging
 import requests
 from flask import current_app
 from qbittorrentapi import Client, exceptions as qbittorrent_exceptions
+
+from .qbittorrent_circuit_breaker import get_circuit_breaker
+
+logger = logging.getLogger(__name__)
+
+# Быстрый timeout для подключения к qBittorrent (не блокируем сайт)
+QBIT_CONNECT_TIMEOUT = 3  # секунды
+QBIT_READ_TIMEOUT = 5      # секунды
 
 
 def is_downloading(torrent):
@@ -45,23 +54,56 @@ def get_active_torrents_map():
         {
             "active": {kp_id: {"hash": str, "state": str, "progress": float, "is_active": bool}},
             "kp": {kp_id: {"hash": str, "state": str, "progress": float, "is_active": bool}},
+            "qbittorrent_available": bool,
         }
+    
+    Использует Circuit Breaker для предотвращения зависания при недоступности qBittorrent.
     """
     config = current_app.config
+    circuit_breaker = get_circuit_breaker()
+    
+    # Проверяем доступность qBittorrent через Circuit Breaker
+    if not circuit_breaker.is_available():
+        logger.debug("qBittorrent недоступен (Circuit Breaker OPEN)")
+        return {
+            "active": {}, 
+            "kp": {}, 
+            "qbittorrent_available": False
+        }
+    
+    # Проверяем что настройки qBittorrent заданы
+    if not all([
+        config.get('QBIT_HOST'),
+        config.get('QBIT_PORT'),
+        config.get('QBIT_USERNAME'),
+        config.get('QBIT_PASSWORD')
+    ]):
+        logger.debug("qBittorrent не настроен (отсутствуют credentials)")
+        return {
+            "active": {}, 
+            "kp": {}, 
+            "qbittorrent_available": False
+        }
+    
     qbt_client = None
     active_torrents = {}
     kp_torrents = {}
 
     try:
+        # Создаём клиент с быстрыми таймаутами
         qbt_client = Client(
             host=config['QBIT_HOST'],
             port=config['QBIT_PORT'],
             username=config['QBIT_USERNAME'],
-            password=config['QBIT_PASSWORD']
+            password=config['QBIT_PASSWORD'],
+            REQUESTS_ARGS={
+                'timeout': (QBIT_CONNECT_TIMEOUT, QBIT_READ_TIMEOUT)
+            }
         )
         qbt_client.auth_log_in()
         
         torrents = qbt_client.torrents_info()
+        
         for torrent in torrents:
             tags_raw = getattr(torrent, "tags", "") or ""
             tags = tags_raw.split(',') if tags_raw else []
@@ -91,18 +133,40 @@ def get_active_torrents_map():
                         active_torrents[kp_id] = torrent_payload
 
                     break
+        
+        # Успех - записываем в Circuit Breaker
+        circuit_breaker.record_success()
+        logger.debug(f"qBittorrent: получено {len(kp_torrents)} торрентов")
+        
+        return {
+            "active": active_torrents, 
+            "kp": kp_torrents,
+            "qbittorrent_available": True
+        }
 
-    except (qbittorrent_exceptions.APIConnectionError, requests.exceptions.RequestException) as e:
-        print(f"Ошибка подключения к qBittorrent: {e}")
-        return {"active": {}, "kp": {}}
+    except (
+        qbittorrent_exceptions.APIConnectionError,
+        requests.exceptions.RequestException,
+        requests.exceptions.Timeout
+    ) as e:
+        logger.warning(f"qBittorrent недоступен: {e}")
+        circuit_breaker.record_failure()
+        return {
+            "active": {}, 
+            "kp": {}, 
+            "qbittorrent_available": False
+        }
     except Exception as e:
-        print(f"Неизвестная ошибка при работе с qBittorrent: {e}")
-        return {"active": {}, "kp": {}}
+        logger.error(f"Неожиданная ошибка при работе с qBittorrent: {e}")
+        circuit_breaker.record_failure()
+        return {
+            "active": {}, 
+            "kp": {}, 
+            "qbittorrent_available": False
+        }
     finally:
         if qbt_client and qbt_client.is_logged_in:
             try:
                 qbt_client.auth_log_out()
             except Exception:
                 pass
-
-    return {"active": active_torrents, "kp": kp_torrents}

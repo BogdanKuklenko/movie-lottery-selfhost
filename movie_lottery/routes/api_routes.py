@@ -12,6 +12,7 @@ from ..utils.qbittorrent import get_active_torrents_map
 from ..utils.torrent_status import qbittorrent_client, torrent_to_json
 # ИМПОРТ ОТКЛЮЧЕН - автопоиск больше не используется
 # from ..utils.magnet_search import get_search_status, start_background_search
+from ..utils.qbittorrent_circuit_breaker import get_circuit_breaker
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -533,10 +534,12 @@ def get_all_active_downloads():
 
     active_map = torrents_payload.get("active") if isinstance(torrents_payload, dict) else {}
     kp_map = torrents_payload.get("kp") if isinstance(torrents_payload, dict) else {}
+    qbit_available = torrents_payload.get("qbittorrent_available", False)
 
     response_payload = {
         "active": _stringify_keys(active_map),
         "kp": _stringify_keys(kp_map),
+        "qbittorrent_available": qbit_available,
     }
 
     # Для обратной совместимости: если карта "kp" пуста, а верхний уровень похож на старый формат,
@@ -546,3 +549,41 @@ def get_all_active_downloads():
         response_payload["active"] = _stringify_keys(torrents_payload)
 
     return jsonify(response_payload)
+
+
+@api_bp.route('/qbittorrent-status')
+def get_qbittorrent_status():
+    """
+    Возвращает статус доступности qBittorrent и рекомендуемый интервал опроса.
+    
+    Response:
+    {
+        "available": bool,           # Доступен ли qBittorrent
+        "state": str,                # closed/open/half_open
+        "poll_interval": int,        # Рекомендуемый интервал опроса в секундах
+        "retry_in": float,          # Через сколько секунд повторить проверку
+        "message": str               # Человекочитаемое сообщение
+    }
+    """
+    circuit_breaker = get_circuit_breaker()
+    breaker_state = circuit_breaker.get_state()
+    
+    # Определяем рекомендуемый интервал опроса
+    if breaker_state["available"]:
+        if breaker_state["state"] == "half_open":
+            poll_interval = 15  # При восстановлении - средний интервал
+            message = "qBittorrent восстанавливается, опрос каждые 15 секунд"
+        else:  # closed
+            poll_interval = 5   # Нормальная работа - частый опрос
+            message = "qBittorrent доступен, нормальный режим"
+    else:  # open
+        poll_interval = 60  # Недоступен - редкий опрос
+        message = f"qBittorrent недоступен, следующая проверка через {int(breaker_state['retry_in'])} сек"
+    
+    return jsonify({
+        "available": breaker_state["available"],
+        "state": breaker_state["state"],
+        "poll_interval": poll_interval,
+        "retry_in": breaker_state["retry_in"],
+        "message": message
+    })

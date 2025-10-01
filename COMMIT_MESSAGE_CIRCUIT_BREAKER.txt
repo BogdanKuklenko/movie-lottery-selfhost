@@ -1,0 +1,33 @@
+feat: Добавлен Circuit Breaker и адаптивный опрос для qBittorrent
+
+Решена проблема зависания сайта при недоступности qBittorrent сервера.
+
+Добавлено:
+- Circuit Breaker Pattern для qBittorrent подключений
+- Быстрые таймауты (3+5 сек вместо 30+)
+- Адаптивные интервалы опроса (5/15/60/120 секунд)
+- Автоматическое восстановление при появлении доступа
+- Новый API endpoint: /api/qbittorrent-status
+- Graceful degradation - сайт работает даже если qBittorrent недоступен
+
+Backend изменения:
+- Новый файл: movie_lottery/utils/qbittorrent_circuit_breaker.py
+- Обновлён: movie_lottery/utils/qbittorrent.py
+- Обновлён: movie_lottery/routes/api_routes.py
+
+Frontend изменения:
+- Полностью переписан: movie_lottery/static/js/torrentUpdater.js
+- Добавлено логирование в консоль для отладки
+
+Результат:
+- Сайт никогда не зависает при недоступности qBittorrent
+- Автоматическое переключение частоты опроса
+- Отличный UX даже при проблемах с qBittorrent
+- Экономия ресурсов сервера
+
+Документация:
+- РЕШЕНИЕ_QBITTORRENT.md - краткая сводка на русском
+- ADAPTIVE_POLLING_CIRCUIT_BREAKER.md - подробная техническая документация
+
+Closes: Проблема зависания при недоступности qBittorrent
+
