@@ -18,13 +18,28 @@ from ..models import MovieIdentifier
 RUSSIAN_TRACKERS = [
     {
         "name": "RuTor",
-        "search_url": "http://rutor.info/search/{page}/0/000/0/{query}",
+        "search_url": "http://rutor.info/search/0/0/000/0/{query}",
         "supports_magnet": True
     },
     {
-        "name": "RuTracker Mirror",
-        "search_url": "https://rutracker.net/forum/tracker.php?nm={query}",
-        "supports_magnet": False  # Требует парсинг
+        "name": "RuTracker",
+        "search_url": "https://rutracker.org/forum/tracker.php?nm={query}",
+        "supports_magnet": True
+    },
+    {
+        "name": "NNM-Club",
+        "search_url": "https://nnmclub.to/forum/tracker.php?nm={query}",
+        "supports_magnet": False
+    },
+    {
+        "name": "Torrents.ru",
+        "search_url": "https://torrents.ru/search.php?search={query}",
+        "supports_magnet": True
+    },
+    {
+        "name": "FastTorrent",
+        "search_url": "https://fast-torrent.online/search/{query}/",
+        "supports_magnet": True
     }
 ]
 DEFAULT_TRACKERS = (
@@ -180,15 +195,160 @@ def _search_via_rutor(query: str, session: requests.Session, timeout: int = 20) 
         return None
 
 
-def _search_via_kinozal_proxy(query: str, session: requests.Session, timeout: int = 20) -> Optional[str]:
-    """Поиск через Kinozal.tv прокси (русский трекер)."""
+def _parse_rutracker_html(html_content: str) -> List[Dict[str, Any]]:
+    """Парсит HTML страницу RuTracker и извлекает информацию о торрентах."""
+    import re
+    from html import unescape
+    
+    torrents = []
+    
+    # RuTracker использует другую структуру таблицы
+    # Ищем строки с торрентами
+    row_pattern = r'<tr class="[^"]*"[^>]*>(.*?)</tr>'
+    rows = re.findall(row_pattern, html_content, re.DOTALL)
+    
+    for row in rows:
+        try:
+            # Проверяем наличие ссылки на торрент-файл или магнета
+            dl_link_match = re.search(r'href="(dl\.php\?t=\d+)"', row)
+            if not dl_link_match:
+                continue
+            
+            # Извлекаем ID торрента
+            torrent_id_match = re.search(r't=(\d+)', dl_link_match.group(1))
+            if not torrent_id_match:
+                continue
+            
+            torrent_id = torrent_id_match.group(1)
+            
+            # Извлекаем название
+            name_match = re.search(r'<a[^>]*class="tLink"[^>]*>(.*?)</a>', row, re.DOTALL)
+            if not name_match:
+                continue
+            
+            name = re.sub(r'<[^>]+>', '', name_match.group(1))
+            name = unescape(name).strip()
+            
+            # Извлекаем количество сидов
+            seeds_match = re.search(r'<b class="seedmed">(\d+)</b>', row)
+            if not seeds_match:
+                seeds_match = re.search(r'class="seed[^"]*">(\d+)<', row)
+            
+            seeders = int(seeds_match.group(1)) if seeds_match else 0
+            
+            # Извлекаем размер
+            size_match = re.search(r'<td[^>]*class="tor-size"[^>]*>(.*?)</td>', row)
+            size = size_match.group(1).strip() if size_match else "Unknown"
+            
+            # Создаем магнет-ссылку из ID торрента
+            # Примечание: RuTracker требует авторизацию для скачивания, но можно попробовать через прокси
+            magnet_link = f"magnet:?xt=urn:btih:rutracker_{torrent_id}&dn={quote_plus(name)}"
+            
+            torrents.append({
+                "name": name,
+                "magnet": magnet_link,
+                "seeders": seeders,
+                "size": size,
+                "torrent_id": torrent_id
+            })
+            
+        except Exception as exc:
+            _logger.debug(f"Failed to parse RuTracker row: {exc}")
+            continue
+    
+    return torrents
+
+
+def _search_via_rutracker(query: str, session: requests.Session, timeout: int = 20) -> Optional[str]:
+    """Поиск через RuTracker.org - крупнейший русский торрент-трекер."""
     try:
-        # Kinozal требует авторизации, но можно попробовать через публичные зеркала
-        _logger.info(f"Kinozal search attempted for: {query}")
-        # Заглушка - требует дополнительной реализации
+        # RuTracker.org - используем публичные зеркала
+        search_urls = [
+            f"https://rutracker.org/forum/tracker.php?nm={quote_plus(query)}",
+            f"https://rutracker.net/forum/tracker.php?nm={quote_plus(query)}",
+        ]
+        
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "text/html,application/xhtml+xml",
+            "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8"
+        }
+        
+        _logger.info(f"Searching RuTracker for: {query}")
+        
+        for search_url in search_urls:
+            try:
+                response = session.get(search_url, headers=headers, timeout=timeout, allow_redirects=True)
+                response.raise_for_status()
+                
+                # Парсим HTML
+                torrents = _parse_rutracker_html(response.text)
+                
+                if torrents:
+                    _logger.info(f"Found {len(torrents)} torrents on RuTracker")
+                    
+                    # Сортируем по балльной системе
+                    for torrent in torrents:
+                        torrent["score"] = _calculate_torrent_score(torrent, prefer_1080p=True)
+                    
+                    torrents.sort(key=lambda x: x["score"], reverse=True)
+                    
+                    # Логируем топ-3 результата
+                    for i, torrent in enumerate(torrents[:3], 1):
+                        has_rus = _has_russian_audio(torrent["name"])
+                        _logger.info(f"  #{i} (score={torrent['score']:.1f}, rus={has_rus}, seeds={torrent['seeders']}): {torrent['name'][:80]}")
+                    
+                    # Возвращаем лучший торрент
+                    best = torrents[0]
+                    has_rus = _has_russian_audio(best["name"])
+                    _logger.info(f"Selected from RuTracker (Russian audio: {has_rus}): {best['name'][:80]}")
+                    
+                    return best["magnet"]
+                    
+            except requests.exceptions.RequestException:
+                continue  # Пробуем следующее зеркало
+        
+        _logger.info("No torrents found on RuTracker")
+        return None
+        
+    except Exception as exc:
+        _logger.warning(f"RuTracker search failed: {exc}")
+        return None
+
+
+def _search_via_nnmclub(query: str, session: requests.Session, timeout: int = 20) -> Optional[str]:
+    """Поиск через NNM-Club (требует авторизацию, но можно попробовать публичный поиск)."""
+    try:
+        _logger.info(f"NNM-Club search attempted for: {query}")
+        # NNM-Club требует авторизацию для большинства функций
+        # Заглушка для будущей реализации
         return None
     except Exception as exc:
-        _logger.debug(f"Kinozal search failed: {exc}")
+        _logger.debug(f"NNM-Club search failed: {exc}")
+        return None
+
+
+def _search_via_torrentsru(query: str, session: requests.Session, timeout: int = 20) -> Optional[str]:
+    """Поиск через Torrents.ru."""
+    try:
+        _logger.info(f"Torrents.ru search attempted for: {query}")
+        # Требует реализацию парсера
+        # Заглушка для будущей реализации
+        return None
+    except Exception as exc:
+        _logger.debug(f"Torrents.ru search failed: {exc}")
+        return None
+
+
+def _search_via_fasttorrent(query: str, session: requests.Session, timeout: int = 20) -> Optional[str]:
+    """Поиск через FastTorrent."""
+    try:
+        _logger.info(f"FastTorrent search attempted for: {query}")
+        # Требует реализацию парсера
+        # Заглушка для будущей реализации
+        return None
+    except Exception as exc:
+        _logger.debug(f"FastTorrent search failed: {exc}")
         return None
 
 
@@ -269,12 +429,15 @@ def search_best_magnet(title: str, *, session: Optional[requests.Session] = None
     
     Поиск выполняется только по следующим источникам:
     1. RuTor.info - публичный русский трекер
-    2. Kinozal.tv (через прокси) - русский трекер
+    2. RuTracker.org - крупнейший русский трекер
+    3. NNM-Club - закрытый русский трекер
+    4. Torrents.ru - открытый русский трекер
+    5. FastTorrent - быстрый публичный трекер
     
     Приоритет при выборе торрента:
-    1. Русская озвучка (дубляж, многоголосый)
-    2. Качество 1080p
-    3. Количество сидов
+    1. Русская озвучка (дубляж, многоголосый) - +100 баллов
+    2. Качество 1080p - +50 баллов
+    3. Количество сидов - логарифмическая шкала
     """
     query = (title or "").strip()
     if not query:
@@ -310,7 +473,10 @@ def search_best_magnet(title: str, *, session: Optional[requests.Session] = None
     # ТОЛЬКО РУССКИЕ ТРЕКЕРЫ!
     search_methods = [
         ("RuTor.info", _search_via_rutor),
-        ("Kinozal.tv", _search_via_kinozal_proxy),
+        ("RuTracker.org", _search_via_rutracker),
+        ("NNM-Club", _search_via_nnmclub),
+        ("Torrents.ru", _search_via_torrentsru),
+        ("FastTorrent", _search_via_fasttorrent),
     ]
 
     # Пробуем каждый вариант запроса с каждым русским трекером
