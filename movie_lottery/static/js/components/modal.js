@@ -82,6 +82,13 @@ function createWinnerCardHTML(movieData, isLibrary) {
                         <div class="magnet-actions">
                             <button class="action-button save-magnet-btn">Сохранить</button>
                             ${movieData.has_magnet ? '<button class="action-button-delete delete-magnet-btn">Удалить</button>' : ''}
+                            <button class="action-button-rutracker search-rutracker-btn" title="Найти на RuTracker">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <path d="m21 21-4.35-4.35"></path>
+                                </svg>
+                                RuTracker
+                            </button>
                         </div>
                     </div>` : '<p class="meta-info">Kinopoisk ID не указан, работа с magnet-ссылкой недоступна.</p>'}
                 
@@ -253,6 +260,32 @@ export class ModalManager {
         const deleteMagnetBtn = this.body.querySelector('.delete-magnet-btn');
         if (deleteMagnetBtn) {
             deleteMagnetBtn.addEventListener('click', () => actions.onSaveMagnet(movieData.kinopoisk_id, ''));
+        }
+
+        // Кнопка "Найти на RuTracker"
+        const searchRutrackerBtn = this.body.querySelector('.search-rutracker-btn');
+        if (searchRutrackerBtn) {
+            searchRutrackerBtn.addEventListener('click', () => {
+                // Формируем поисковый запрос: "Название год"
+                const searchQuery = `${movieData.name}${movieData.year ? ' ' + movieData.year : ''}`;
+                
+                // Кодируем запрос для URL
+                const encodedQuery = encodeURIComponent(searchQuery);
+                
+                // Формируем URL RuTracker (используем несколько зеркал)
+                const rutrackerUrls = [
+                    `https://rutracker.org/forum/tracker.php?nm=${encodedQuery}`,
+                    `https://rutracker.net/forum/tracker.php?nm=${encodedQuery}`
+                ];
+                
+                // Открываем первое зеркало в новой вкладке
+                window.open(rutrackerUrls[0], '_blank');
+                
+                // Показываем уведомление
+                if (window.showToast) {
+                    window.showToast(`Открыт поиск на RuTracker: "${searchQuery}"`, 'info');
+                }
+            });
         }
 
         // Кнопка "Добавить/Удалить из библиотеки"
