@@ -10,14 +10,14 @@ bind = f"0.0.0.0:{os.environ.get('PORT', '10000')}"
 # Worker Settings
 workers = 1  # Только 1 worker для экономии памяти на бесплатном плане
 worker_class = "sync"
-worker_connections = 1000
-max_requests = 1000  # Перезапуск worker'а после 1000 запросов (предотвращает утечки памяти)
+worker_connections = 100  # Снижено с 1000 для экономии памяти
+max_requests = 500  # Перезапуск worker'а чаще для освобождения памяти
 max_requests_jitter = 50
 
-# Timeout Settings - КЛЮЧЕВОЕ ИЗМЕНЕНИЕ
-timeout = 120  # Увеличено с 30 до 120 секунд
-graceful_timeout = 30
-keepalive = 5
+# Timeout Settings - КРИТИЧНО для Render.com
+timeout = 300  # Увеличено до 5 минут для медленного старта на бесплатном плане
+graceful_timeout = 60
+keepalive = 2
 
 # Logging
 loglevel = "info"

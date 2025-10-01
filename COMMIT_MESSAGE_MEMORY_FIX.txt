@@ -1,0 +1,23 @@
+Critical Fix: Resolve Memory & Timeout Issues on Render
+
+Fixed severe production issues causing worker timeouts and OOM kills:
+
+Changes:
+- Remove db.create_all() from app initialization (was causing slow startup)
+- Optimize SQLAlchemy connection pool (pool_size=1, max_overflow=0)
+- Increase gunicorn timeout to 300s for slow free-tier startup
+- Reduce worker_connections from 1000 to 100 (memory optimization)
+- Reduce max_requests from 1000 to 500 (more frequent worker recycling)
+
+Impact:
+- Expected memory usage: 150-250 MB (down from 400-600 MB)
+- Expected startup time: 10-15 seconds (was timing out at 30-60s)
+- Prevents worker OOM kills on resource-constrained environments
+
+Breaking Change:
+- Database tables are no longer auto-created on startup
+- Run 'python init_db.py' once after deployment to initialize DB
+
+Fixes: Worker timeout and OOM kill issues on Render deployment
+See: MEMORY_TIMEOUT_FIX_2025-10-01.md for full details
+

@@ -35,13 +35,8 @@ def create_app():
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
 
-    # Создаем таблицы БД, если их нет
-    # Используем try-except чтобы не блокировать запуск при проблемах с БД
-    try:
-        with app.app_context():
-            db.create_all()
-    except Exception as e:
-        # Логируем ошибку, но не падаем - таблицы могут быть уже созданы
-        app.logger.warning(f"Could not create tables: {e}")
+    # НЕ создаем таблицы при каждом старте worker'а - это замедляет запуск
+    # Таблицы должны быть созданы через миграции или вручную
+    # Это критично для избежания timeout'ов на production-серверах
     
     return app

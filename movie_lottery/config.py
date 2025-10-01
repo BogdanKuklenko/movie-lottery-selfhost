@@ -17,10 +17,12 @@ class Config:
     
     SQLALCHEMY_DATABASE_URI = db_uri or f'sqlite:///{os.path.join(instance_dir, "lottery.db")}'
     
-    # Настройки для PostgreSQL - таймауты для предотвращения зависаний
+    # Настройки для PostgreSQL - оптимизированы для экономии памяти
     SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_pre_ping': True,  # Проверка соединения перед использованием
-        'pool_recycle': 300,    # Переиспользование соединений через 5 минут
+        'pool_size': 1,          # Минимальный размер пула для экономии памяти
+        'max_overflow': 0,       # Без дополнительных соединений
+        'pool_pre_ping': True,   # Проверка соединения перед использованием
+        'pool_recycle': 300,     # Переиспользование соединений через 5 минут
         'connect_args': {
             'connect_timeout': 10,  # Timeout подключения 10 секунд
         } if db_uri else {}
