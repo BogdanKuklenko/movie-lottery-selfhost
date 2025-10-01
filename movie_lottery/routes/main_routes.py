@@ -5,6 +5,11 @@ from ..utils.helpers import get_background_photos
 
 main_bp = Blueprint('main', __name__)
 
+@main_bp.route('/health')
+def health():
+    """Health check endpoint for Render.com monitoring"""
+    return {"status": "ok"}, 200
+
 @main_bp.route('/')
 def index():
     return render_template('index.html', background_photos=get_background_photos())

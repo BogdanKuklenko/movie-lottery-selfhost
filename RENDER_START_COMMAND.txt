@@ -1,0 +1,26 @@
+CRITICAL: Update Render.com Start Command
+==========================================
+
+Your gunicorn_config.py is not being loaded!
+
+Go to your Render.com dashboard:
+1. Open your web service
+2. Go to "Settings"
+3. Find "Start Command"
+4. Change it to:
+
+gunicorn --config gunicorn_config.py "movie_lottery:create_app()"
+
+Or use the short form:
+
+gunicorn -c gunicorn_config.py "movie_lottery:create_app()"
+
+Save and redeploy.
+
+This will load the config file with:
+- timeout = 300 seconds (instead of default 30)
+- workers = 1
+- Other memory optimizations
+
+Without this, ALL the changes in gunicorn_config.py are being IGNORED!
+

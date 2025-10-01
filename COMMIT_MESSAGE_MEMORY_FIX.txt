@@ -8,6 +8,7 @@ Changes:
 - Increase gunicorn timeout to 300s for slow free-tier startup
 - Reduce worker_connections from 1000 to 100 (memory optimization)
 - Reduce max_requests from 1000 to 500 (more frequent worker recycling)
+- Add /health endpoint for Render monitoring
 
 Impact:
 - Expected memory usage: 150-250 MB (down from 400-600 MB)
@@ -18,6 +19,10 @@ Breaking Change:
 - Database tables are no longer auto-created on startup
 - Run 'python init_db.py' once after deployment to initialize DB
 
+Action Required After Deployment:
+- Update Render start command to: gunicorn --config gunicorn_config.py "movie_lottery:create_app()"
+- Initialize database using: python init_db.py
+
 Fixes: Worker timeout and OOM kill issues on Render deployment
-See: MEMORY_TIMEOUT_FIX_2025-10-01.md for full details
+See: EMERGENCY_FIX_RENDER.md and RENDER_DASHBOARD_STEPS.txt for detailed instructions
 
