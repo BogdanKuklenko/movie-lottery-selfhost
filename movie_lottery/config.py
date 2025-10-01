@@ -1,4 +1,3 @@
-# F:\GPT\movie-lottery V2\movie_lottery\config.py
 import os
 
 class Config:
@@ -11,7 +10,12 @@ class Config:
     db_uri = os.environ.get('DATABASE_URL')
     if db_uri and db_uri.startswith("postgres://"):
         db_uri = db_uri.replace("postgres://", "postgresql://", 1)
-    SQLALCHEMY_DATABASE_URI = db_uri or 'sqlite:///instance/lottery.db'
+    
+    # Формируем абсолютный путь к БД в папке instance
+    basedir = os.path.abspath(os.path.dirname(__file__))
+    instance_dir = os.path.join(os.path.dirname(basedir), 'instance')
+    
+    SQLALCHEMY_DATABASE_URI = db_uri or f'sqlite:///{os.path.join(instance_dir, "lottery.db")}'
 
     # Настройки qBittorrent
     QBIT_HOST = os.environ.get('QBIT_HOST')

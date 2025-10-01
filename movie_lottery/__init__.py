@@ -1,4 +1,3 @@
-# F:\GPT\movie-lottery V2\movie_lottery\__init__.py
 import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
@@ -26,17 +25,18 @@ def create_app():
     
     Migrate(app, db)
 
-    with app.app_context():
-        from .routes.main_routes import main_bp
-        from .routes.api_routes import api_bp
-        
-        app.register_blueprint(main_bp)
-        app.register_blueprint(api_bp)
+    # Импортируем модели (нужно для миграций и регистрации моделей)
+    from . import models
+    
+    # Регистрируем blueprints
+    from .routes.main_routes import main_bp
+    from .routes.api_routes import api_bp
+    
+    app.register_blueprint(main_bp)
+    app.register_blueprint(api_bp)
 
-        # --- ГЛАВНОЕ ИЗМЕНЕНИЕ ---
-        # Импортируем модели и принудительно создаем все таблицы
-        from . import models
+    # Создаем таблицы БД, если их нет (только в dev режиме)
+    with app.app_context():
         db.create_all()
-        # -------------------------
-        
-        return app
+    
+    return app
