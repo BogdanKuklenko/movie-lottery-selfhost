@@ -35,10 +35,13 @@ def create_app():
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
 
-    # Создаем таблицы БД, если их нет (ТОЛЬКО в dev режиме, НЕ на продакшене)
-    # На Render.com это блокирует запуск worker'ов!
-    if not os.environ.get('RENDER'):
+    # Создаем таблицы БД, если их нет
+    # Используем try-except чтобы не блокировать запуск при проблемах с БД
+    try:
         with app.app_context():
             db.create_all()
+    except Exception as e:
+        # Логируем ошибку, но не падаем - таблицы могут быть уже созданы
+        app.logger.warning(f"Could not create tables: {e}")
     
     return app

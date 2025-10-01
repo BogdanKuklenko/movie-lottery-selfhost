@@ -26,8 +26,9 @@ def get_background_photos():
             }
             for photo in photos
         ]
-    except ProgrammingError:
-        # Это может случиться, если база данных еще не создана
+    except (ProgrammingError, Exception) as e:
+        # Это может случиться, если база данных еще не создана или недоступна
+        # Возвращаем пустой список вместо падения
         return []
 
 def ensure_background_photo(poster_url):
@@ -37,18 +38,22 @@ def ensure_background_photo(poster_url):
     if not poster_url:
         return
 
-    # Проверяем, существует ли уже такая запись
-    if BackgroundPhoto.query.filter_by(poster_url=poster_url).first():
-        return
+    try:
+        # Проверяем, существует ли уже такая запись
+        if BackgroundPhoto.query.filter_by(poster_url=poster_url).first():
+            return
 
-    # Находим максимальный z-index, чтобы новое фото было поверх старых
-    max_z_index = db.session.query(db.func.max(BackgroundPhoto.z_index)).scalar() or 0
-    
-    new_photo = BackgroundPhoto(
-        poster_url=poster_url,
-        pos_top=random.uniform(5, 65),
-        pos_left=random.uniform(5, 75),
-        rotation=random.randint(-30, 30),
-        z_index=max_z_index + 1,
-    )
-    db.session.add(new_photo)
+        # Находим максимальный z-index, чтобы новое фото было поверх старых
+        max_z_index = db.session.query(db.func.max(BackgroundPhoto.z_index)).scalar() or 0
+        
+        new_photo = BackgroundPhoto(
+            poster_url=poster_url,
+            pos_top=random.uniform(5, 65),
+            pos_left=random.uniform(5, 75),
+            rotation=random.randint(-30, 30),
+            z_index=max_z_index + 1,
+        )
+        db.session.add(new_photo)
+    except Exception:
+        # Если БД недоступна или таблица не создана, просто пропускаем
+        pass
