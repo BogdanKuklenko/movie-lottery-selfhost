@@ -206,14 +206,6 @@ def get_result_data(lottery_id):
         "play_url": url_for('main.play_lottery', lottery_id=lottery.id, _external=True)
     })
     
-    result_data = next((m for m in movies_data if m["name"] == lottery.result_name), None) if lottery.result_name else None
-    return jsonify({
-        "movies": movies_data, 
-        "result": result_data, 
-        "createdAt": lottery.created_at.isoformat() + "Z", 
-        "play_url": url_for('main.play_lottery', lottery_id=lottery.id, _external=True)
-    })
-    
 @api_bp.route('/delete-lottery/<lottery_id>', methods=['POST'])
 def delete_lottery(lottery_id):
     lottery_to_delete = Lottery.query.get_or_404(lottery_id)

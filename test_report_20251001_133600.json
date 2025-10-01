@@ -1,0 +1,129 @@
+{
+  "passed": [
+    {
+      "test": "Import Flask",
+      "message": "Flask imported successfully",
+      "timestamp": "2025-10-01 13:35:58"
+    },
+    {
+      "test": "Import Flask-SQLAlchemy",
+      "message": "Flask-SQLAlchemy imported successfully",
+      "timestamp": "2025-10-01 13:35:59"
+    },
+    {
+      "test": "Import Flask-Migrate",
+      "message": "Flask-Migrate imported successfully",
+      "timestamp": "2025-10-01 13:35:59"
+    },
+    {
+      "test": "Import Requests",
+      "message": "Requests imported successfully",
+      "timestamp": "2025-10-01 13:35:59"
+    },
+    {
+      "test": "Import qBittorrent-API",
+      "message": "qBittorrent-API imported successfully",
+      "timestamp": "2025-10-01 13:35:59"
+    },
+    {
+      "test": "Config: SECRET_KEY",
+      "message": "Config attribute exists",
+      "timestamp": "2025-10-01 13:35:59"
+    },
+    {
+      "test": "Config: SQLALCHEMY_DATABASE_URI",
+      "message": "Config attribute exists",
+      "timestamp": "2025-10-01 13:35:59"
+    },
+    {
+      "test": "Config: SQLALCHEMY_TRACK_MODIFICATIONS",
+      "message": "Config attribute exists",
+      "timestamp": "2025-10-01 13:35:59"
+    },
+    {
+      "test": "Static: style.css",
+      "message": "File exists",
+      "timestamp": "2025-10-01 13:36:00"
+    },
+    {
+      "test": "Static: main.js",
+      "message": "File exists",
+      "timestamp": "2025-10-01 13:36:00"
+    },
+    {
+      "test": "Static: play.js",
+      "message": "File exists",
+      "timestamp": "2025-10-01 13:36:00"
+    },
+    {
+      "test": "Static: toast.js",
+      "message": "File exists",
+      "timestamp": "2025-10-01 13:36:00"
+    },
+    {
+      "test": "Template: index.html",
+      "message": "Valid HTML structure",
+      "timestamp": "2025-10-01 13:36:00"
+    },
+    {
+      "test": "Template: history.html",
+      "message": "Valid HTML structure",
+      "timestamp": "2025-10-01 13:36:00"
+    },
+    {
+      "test": "Template: library.html",
+      "message": "Valid HTML structure",
+      "timestamp": "2025-10-01 13:36:00"
+    },
+    {
+      "test": "Template: play.html",
+      "message": "Valid HTML structure",
+      "timestamp": "2025-10-01 13:36:00"
+    },
+    {
+      "test": "Template: wait.html",
+      "message": "Valid HTML structure",
+      "timestamp": "2025-10-01 13:36:00"
+    },
+    {
+      "test": "Code Quality: Duplicate Code",
+      "message": "No duplicate code blocks found",
+      "timestamp": "2025-10-01 13:36:00"
+    }
+  ],
+  "failed": [
+    {
+      "test": "Application Setup",
+      "message": "Failed to initialize app: (sqlite3.OperationalError) unable to open database file\n(Background on this error at: https://sqlalche.me/e/20/e3q8)",
+      "timestamp": "2025-10-01 13:36:00"
+    },
+    {
+      "test": "Utilities Test",
+      "message": "Working outside of application context.\n\nThis typically means that you attempted to use functionality that needed\nthe current application. To solve this, set up an application context\nwith app.app_context(). See the documentation for more information.",
+      "timestamp": "2025-10-01 13:36:00"
+    }
+  ],
+  "warnings": [
+    {
+      "test": "Config: QBIT_HOST",
+      "message": "qBittorrent QBIT_HOST not configured (optional)",
+      "timestamp": "2025-10-01 13:35:59"
+    },
+    {
+      "test": "Config: QBIT_PORT",
+      "message": "qBittorrent QBIT_PORT not configured (optional)",
+      "timestamp": "2025-10-01 13:35:59"
+    },
+    {
+      "test": "Config: QBIT_USERNAME",
+      "message": "qBittorrent QBIT_USERNAME not configured (optional)",
+      "timestamp": "2025-10-01 13:35:59"
+    },
+    {
+      "test": "Config: QBIT_PASSWORD",
+      "message": "qBittorrent QBIT_PASSWORD not configured (optional)",
+      "timestamp": "2025-10-01 13:35:59"
+    }
+  ],
+  "info": []
+}
