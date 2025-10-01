@@ -152,9 +152,10 @@ def create_lottery():
 
     db.session.commit()
 
-    for candidate in search_candidates:
-        if candidate['query']:
-            start_background_search(candidate['kinopoisk_id'], candidate['query'])
+    # АВТОПОИСК ОТКЛЮЧЕН - пользователь вводит магнет-ссылки вручную
+    # for candidate in search_candidates:
+    #     if candidate['query']:
+    #         start_background_search(candidate['kinopoisk_id'], candidate['query'])
 
     # url_for для маршрутов в других blueprint'ах требует указания имени blueprint'а
     wait_url = url_for('main.wait_for_result', lottery_id=new_lottery.id)
@@ -267,15 +268,16 @@ def add_library_movie():
 
     db.session.commit()
 
-    if target_kinopoisk_id:
-        query = _compose_search_query(
-            target_kinopoisk_id,
-            fallback_name=movie_data.get('name'),
-            fallback_year=movie_data.get('year'),
-            fallback_search_name=movie_data.get('search_name'),
-        )
-        if query:
-            start_background_search(target_kinopoisk_id, query)
+    # АВТОПОИСК ОТКЛЮЧЕН - пользователь вводит магнет-ссылки вручную
+    # if target_kinopoisk_id:
+    #     query = _compose_search_query(
+    #         target_kinopoisk_id,
+    #         fallback_name=movie_data.get('name'),
+    #         fallback_year=movie_data.get('year'),
+    #         fallback_search_name=movie_data.get('search_name'),
+    #     )
+    #     if query:
+    #         start_background_search(target_kinopoisk_id, query)
 
     return jsonify({"success": True, "message": message})
 
@@ -323,33 +325,43 @@ def save_movie_magnet():
 
 @api_bp.route('/search-magnet/<int:kinopoisk_id>', methods=['GET', 'POST'])
 def search_magnet(kinopoisk_id):
-    if request.method == 'GET':
-        status = get_search_status(kinopoisk_id)
-        return jsonify(status)
-
-    data = request.json or {}
-    force = bool(data.get('force'))
-    query = (data.get('query') or '').strip()
-
-    if not query:
-        query = _compose_search_query(
-            kinopoisk_id,
-            fallback_name=data.get('title'),
-            fallback_year=data.get('year'),
-            fallback_search_name=data.get('search_name') or data.get('searchTitle'),
-        )
-
-    if not query:
-        return jsonify({
-            "status": "failed",
-            "kinopoisk_id": kinopoisk_id,
-            "has_magnet": False,
-            "magnet_link": "",
-            "message": "Не удалось определить запрос для поиска.",
-        }), 400
-
-    status = start_background_search(kinopoisk_id, query, force=force)
-    return jsonify(status)
+    # АВТОПОИСК ОТКЛЮЧЕН - возвращаем сообщение об отключенной функции
+    return jsonify({
+        "status": "disabled",
+        "kinopoisk_id": kinopoisk_id,
+        "has_magnet": False,
+        "magnet_link": "",
+        "message": "Автопоиск магнет-ссылок отключен. Используйте кнопку RuTracker для поиска и вставьте ссылку вручную.",
+    }), 200
+    
+    # СТАРЫЙ КОД (закомментирован):
+    # if request.method == 'GET':
+    #     status = get_search_status(kinopoisk_id)
+    #     return jsonify(status)
+    # 
+    # data = request.json or {}
+    # force = bool(data.get('force'))
+    # query = (data.get('query') or '').strip()
+    # 
+    # if not query:
+    #     query = _compose_search_query(
+    #         kinopoisk_id,
+    #         fallback_name=data.get('title'),
+    #         fallback_year=data.get('year'),
+    #         fallback_search_name=data.get('search_name') or data.get('searchTitle'),
+    #     )
+    # 
+    # if not query:
+    #     return jsonify({
+    #         "status": "failed",
+    #         "kinopoisk_id": kinopoisk_id,
+    #         "has_magnet": False,
+    #         "magnet_link": "",
+    #         "message": "Не удалось определить запрос для поиска.",
+    #     }), 400
+    # 
+    # status = start_background_search(kinopoisk_id, query, force=force)
+    # return jsonify(status)
 
 @api_bp.route('/start-download/<int:kinopoisk_id>', methods=['POST'])
 def start_download(kinopoisk_id):
