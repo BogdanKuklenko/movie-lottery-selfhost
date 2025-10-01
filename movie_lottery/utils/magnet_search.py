@@ -14,28 +14,19 @@ from flask import current_app, has_app_context
 from .. import db
 from ..models import MovieIdentifier
 
-# Список API для поиска торрентов (с поддержкой русского языка)
-TORRENT_APIS = [
+# Русские торрент-трекеры для поиска
+RUSSIAN_TRACKERS = [
     {
-        "name": "Torrent Project",
-        "url": "https://torrent-project.cc/api",
-        "params": lambda query: {"query": query, "lang": "ru"},
-        "supports_russian": True
+        "name": "RuTor",
+        "search_url": "http://rutor.info/search/{page}/0/000/0/{query}",
+        "supports_magnet": True
     },
     {
-        "name": "1337x API",
-        "url": "https://1337x.to/search/{query}/1/",
-        "supports_russian": True
-    },
-    {
-        "name": "YTS",
-        "url": "https://yts.mx/api/v2/list_movies.json",
-        "params": lambda query: {"query_term": query, "limit": 20, "sort_by": "seeds"},
-        "supports_russian": False
+        "name": "RuTracker Mirror",
+        "search_url": "https://rutracker.net/forum/tracker.php?nm={query}",
+        "supports_magnet": False  # Требует парсинг
     }
 ]
-
-DEFAULT_SEARCH_URL = "https://apibay.org/q.php?q={query}"
 DEFAULT_TRACKERS = (
     "udp://tracker.opentrackr.org:1337/announce",
     "udp://open.demonii.com:1337/announce",
@@ -96,111 +87,109 @@ def _is_valid_info_hash(value: Optional[str]) -> bool:
     return len(normalized) == 40 and all(ch in string.hexdigits for ch in normalized)
 
 
-def _search_via_yts(query: str, session: requests.Session, timeout: int = 15) -> Optional[str]:
-    """Поиск через YTS API (английские фильмы)."""
-    try:
-        url = "https://yts.mx/api/v2/list_movies.json"
-        params = {"query_term": query, "limit": 20, "sort_by": "seeds"}
-        response = session.get(url, params=params, timeout=timeout)
-        response.raise_for_status()
-        data = response.json()
-        
-        if data.get("status") == "ok" and data.get("data", {}).get("movies"):
-            movies = data["data"]["movies"]
-            trackers = _get_configured_value("MAGNET_TRACKERS", DEFAULT_TRACKERS)
-            
-            for movie in movies:
-                torrents = movie.get("torrents", [])
-                # Ищем 1080p торрент
-                for torrent in torrents:
-                    if torrent.get("quality") in ["1080p", "1080p.x265"]:
-                        info_hash = torrent.get("hash")
-                        if _is_valid_info_hash(info_hash):
-                            title = f"{movie.get('title', query)} {torrent.get('quality')}"
-                            return _build_magnet(info_hash, title, trackers)
+def _parse_rutor_html(html_content: str) -> List[Dict[str, Any]]:
+    """Парсит HTML страницу RuTor и извлекает информацию о торрентах."""
+    import re
+    from html import unescape
+    
+    torrents = []
+    
+    # Ищем строки таблицы с торрентами
+    # RuTor использует таблицу с классом "gai" или "tum"
+    row_pattern = r'<tr class="[gt][au][im]">(.*?)</tr>'
+    rows = re.findall(row_pattern, html_content, re.DOTALL)
+    
+    for row in rows:
+        try:
+            # Извлекаем магнет-ссылку
+            magnet_match = re.search(r'href="(magnet:\?xt=urn:btih:[A-Fa-f0-9]{40}[^"]*)"', row)
+            if not magnet_match:
+                continue
                 
-                # Если нет 1080p, берем лучший доступный
-                if torrents:
-                    best_torrent = max(torrents, key=lambda t: t.get("seeds", 0))
-                    info_hash = best_torrent.get("hash")
-                    if _is_valid_info_hash(info_hash):
-                        title = f"{movie.get('title', query)} {best_torrent.get('quality')}"
-                        return _build_magnet(info_hash, title, trackers)
+            magnet_link = unescape(magnet_match.group(1))
+            
+            # Извлекаем название
+            name_match = re.search(r'<a href="/torrent/\d+/[^"]*"[^>]*>(.*?)</a>', row)
+            name = unescape(name_match.group(1)) if name_match else "Unknown"
+            
+            # Извлекаем количество сидов
+            seeds_match = re.search(r'<span class="green">(\d+)</span>', row)
+            seeders = int(seeds_match.group(1)) if seeds_match else 0
+            
+            # Извлекаем размер
+            size_match = re.search(r'<td align="right">([0-9.]+ [KMGT]B)</td>', row)
+            size = size_match.group(1) if size_match else "Unknown"
+            
+            torrents.append({
+                "name": name.strip(),
+                "magnet": magnet_link,
+                "seeders": seeders,
+                "size": size
+            })
+            
+        except Exception as exc:
+            _logger.debug(f"Failed to parse RuTor row: {exc}")
+            continue
+    
+    return torrents
+
+
+def _search_via_rutor(query: str, session: requests.Session, timeout: int = 20) -> Optional[str]:
+    """Поиск через RuTor.info - русский торрент-трекер с магнет-ссылками."""
+    try:
+        # RuTor поддерживает прямой поиск
+        search_url = f"http://rutor.info/search/0/0/000/0/{quote_plus(query)}"
+        
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        
+        _logger.info(f"Searching RuTor for: {query}")
+        response = session.get(search_url, headers=headers, timeout=timeout)
+        response.raise_for_status()
+        
+        # Парсим HTML
+        torrents = _parse_rutor_html(response.text)
+        
+        if not torrents:
+            _logger.info("No torrents found on RuTor")
+            return None
+        
+        _logger.info(f"Found {len(torrents)} torrents on RuTor")
+        
+        # Сортируем по балльной системе
+        for torrent in torrents:
+            torrent["score"] = _calculate_torrent_score(torrent, prefer_1080p=True)
+        
+        torrents.sort(key=lambda x: x["score"], reverse=True)
+        
+        # Логируем топ-3 результата
+        for i, torrent in enumerate(torrents[:3], 1):
+            has_rus = _has_russian_audio(torrent["name"])
+            _logger.info(f"  #{i} (score={torrent['score']:.1f}, rus={has_rus}, seeds={torrent['seeders']}): {torrent['name'][:80]}")
+        
+        # Возвращаем лучший торрент
+        best = torrents[0]
+        has_rus = _has_russian_audio(best["name"])
+        _logger.info(f"Selected from RuTor (Russian audio: {has_rus}): {best['name'][:80]}")
+        
+        return best["magnet"]
+        
     except Exception as exc:
-        _logger.debug(f"YTS search failed: {exc}")
+        _logger.warning(f"RuTor search failed: {exc}")
         return None
 
 
-def _search_via_piratebay(query: str, session: requests.Session, timeout: int = 15, prefer_russian: bool = True) -> Optional[str]:
-    """Поиск через Pirate Bay API с приоритетом на русскую озвучку."""
+def _search_via_kinozal_proxy(query: str, session: requests.Session, timeout: int = 20) -> Optional[str]:
+    """Поиск через Kinozal.tv прокси (русский трекер)."""
     try:
-        base_url = _get_configured_value("MAGNET_SEARCH_URL", DEFAULT_SEARCH_URL)
-        response = session.get(base_url.format(query=quote_plus(query)), timeout=timeout)
-        response.raise_for_status()
-        data = response.json()
-
-        if isinstance(data, dict) and "results" in data:
-            results = data.get("results") or []
-        elif isinstance(data, list):
-            results = data
-        else:
-            return None
-
-        if not results:
-            return None
-
-        candidates = [item for item in results if isinstance(item, dict) and "no results" not in str(item.get("name") or item.get("title") or "").lower()]
-
-        if not candidates:
-            return None
-
-        candidates.sort(key=lambda x: _calculate_torrent_score(x, prefer_1080p=True), reverse=True)
-        
-        trackers = _get_configured_value("MAGNET_TRACKERS", DEFAULT_TRACKERS)
-        
-        for i, item in enumerate(candidates[:3], 1):
-            name = str(item.get("name") or item.get("title") or "")
-            score = _calculate_torrent_score(item)
-            has_rus = _has_russian_audio(name)
-            seeds = _extract_seeders(item)
-            _logger.debug(f"  #{i} (score={score:.1f}, rus={has_rus}, seeds={seeds}): {name[:80]}")
-
-        for item in candidates:
-            name = str(item.get("name") or item.get("title") or query)
-            
-            magnet = item.get("magnet") or item.get("magnet_link") or item.get("magnetLink")
-            if magnet and isinstance(magnet, str) and magnet.strip():
-                has_rus = _has_russian_audio(name)
-                _logger.info(f"Selected torrent (Russian audio: {has_rus}): {name[:80]}")
-                return magnet
-            
-            info_hash = _extract_info_hash(item)
-            if _is_valid_info_hash(info_hash):
-                has_rus = _has_russian_audio(name)
-                _logger.info(f"Selected torrent (Russian audio: {has_rus}): {name[:80]}")
-                return _build_magnet(info_hash.strip(), name, trackers)
-                
+        # Kinozal требует авторизации, но можно попробовать через публичные зеркала
+        _logger.info(f"Kinozal search attempted for: {query}")
+        # Заглушка - требует дополнительной реализации
+        return None
     except Exception as exc:
-        _logger.debug(f"PirateBay search failed: {exc}")
-    return None
-
-
-def _search_via_rutracker_proxy(query: str, session: requests.Session, timeout: int = 15) -> Optional[str]:
-    """Поиск через публичное API RuTracker (с поддержкой русского языка)."""
-    try:
-        # Используем публичный API-прокси для RuTracker
-        url = f"https://rutracker.org/forum/tracker.php?nm={quote_plus(query)}"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        }
-        
-        # Примечание: полноценный парсинг RuTracker требует авторизации
-        # Это базовая заглушка, которая может быть расширена
-        _logger.info(f"RuTracker search attempted for: {query}")
-        
-    except Exception as exc:
-        _logger.debug(f"RuTracker proxy search failed: {exc}")
-    return None
+        _logger.debug(f"Kinozal search failed: {exc}")
+        return None
 
 
 def _has_cyrillic(text: str) -> bool:
@@ -275,16 +264,17 @@ def _transliterate_russian(text: str) -> str:
     return ''.join(translit_dict.get(c, c) for c in text)
 
 
-def search_best_magnet(title: str, *, session: Optional[requests.Session] = None, timeout: int = 15) -> Optional[str]:
-    """Ищет лучшую magnet-ссылку для указанного названия фильма с русской озвучкой.
+def search_best_magnet(title: str, *, session: Optional[requests.Session] = None, timeout: int = 20) -> Optional[str]:
+    """Ищет magnet-ссылку через РУССКИЕ торрент-трекеры.
     
-    Приоритет поиска:
-    1. Торренты с русской озвучкой (дубляж, многоголосый)
+    Поиск выполняется только по следующим источникам:
+    1. RuTor.info - публичный русский трекер
+    2. Kinozal.tv (через прокси) - русский трекер
+    
+    Приоритет при выборе торрента:
+    1. Русская озвучка (дубляж, многоголосый)
     2. Качество 1080p
     3. Количество сидов
-    
-    Функция автоматически добавляет ключевые слова для поиска русской озвучки
-    и использует балансировку между качеством и сидами.
     """
     query = (title or "").strip()
     if not query:
@@ -296,54 +286,51 @@ def search_best_magnet(title: str, *, session: Optional[requests.Session] = None
     })
     
     is_cyrillic = _has_cyrillic(query)
-    _logger.info(f"Searching magnet for: '{query}' (Cyrillic: {is_cyrillic})")
+    _logger.info(f"🔍 Поиск через РУССКИЕ трекеры: '{query}' (Кириллица: {is_cyrillic})")
 
-    # Создаем варианты запросов с приоритетом на русскую озвучку
+    # Создаем варианты запросов
     search_queries = []
     
     if is_cyrillic:
         # Для русских названий
-        search_queries.append(f"{query} дубляж")  # С явным указанием дубляжа
-        search_queries.append(f"{query} многоголосый")  # Альтернативный вариант
-        search_queries.append(query)  # Оригинальный запрос
+        search_queries.append(query)
+        search_queries.append(f"{query} 1080p")
         
-        # Добавляем транслитерированные варианты
+        # Добавляем транслитерацию для некоторых трекеров
         transliterated = _transliterate_russian(query)
         if transliterated and transliterated != query:
-            search_queries.append(f"{transliterated} russian")
             search_queries.append(transliterated)
-            _logger.info(f"Added transliterated variants")
     else:
-        # Для английских названий ищем версии с русской озвучкой
-        search_queries.append(f"{query} дубляж 1080p")  # Приоритет: дубляж + качество
-        search_queries.append(f"{query} многоголосый")  # Многоголосая озвучка
-        search_queries.append(f"{query} russian")  # Английский запрос + russian
-        search_queries.append(f"{query} rus")  # Короткая форма
-        search_queries.append(query)  # Оригинальный запрос (fallback)
+        # Для английских названий добавляем русские ключевые слова
+        search_queries.append(f"{query} 1080p")
+        search_queries.append(f"{query} дубляж")
+        search_queries.append(f"{query} многоголосый")
+        search_queries.append(query)
 
-    # Источники поиска: PirateBay лучше для русской озвучки
+    # ТОЛЬКО РУССКИЕ ТРЕКЕРЫ!
     search_methods = [
-        ("PirateBay (RUS priority)", _search_via_piratebay),
+        ("RuTor.info", _search_via_rutor),
+        ("Kinozal.tv", _search_via_kinozal_proxy),
     ]
 
-    # Пробуем каждый вариант запроса
+    # Пробуем каждый вариант запроса с каждым русским трекером
     for i, query_variant in enumerate(search_queries, 1):
-        _logger.info(f"[{i}/{len(search_queries)}] Searching with: '{query_variant}'")
+        _logger.info(f"[{i}/{len(search_queries)}] Вариант запроса: '{query_variant}'")
         
         for source_name, search_func in search_methods:
             try:
-                _logger.info(f"  → Trying {source_name}...")
+                _logger.info(f"  → Поиск через {source_name}...")
                 magnet = search_func(query_variant, session, timeout)
                 if magnet:
-                    _logger.info(f"  ✓ Found magnet via {source_name} for '{query_variant}'!")
+                    _logger.info(f"  ✅ Найдено через {source_name}!")
                     return magnet
                 else:
-                    _logger.debug(f"  ✗ {source_name}: no results")
+                    _logger.debug(f"  ❌ {source_name}: ничего не найдено")
             except Exception as exc:
-                _logger.debug(f"  ✗ {source_name} error: {exc}")
-            continue
+                _logger.debug(f"  ❌ {source_name}: ошибка - {exc}")
+                continue
     
-    _logger.warning(f"❌ No magnet found for: '{query}' (tried {len(search_queries)} variants)")
+    _logger.warning(f"❌ Magnet-ссылка НЕ найдена для: '{query}' (проверено {len(search_queries)} вариантов на русских трекерах)")
     return None
 
 
