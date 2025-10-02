@@ -59,26 +59,37 @@ def get_active_torrents_map():
     
     Использует Circuit Breaker для предотвращения зависания при недоступности qBittorrent.
     """
+    import os
     config = current_app.config
     circuit_breaker = get_circuit_breaker()
     
-    # Проверяем доступность qBittorrent через Circuit Breaker
-    if not circuit_breaker.is_available():
-        logger.debug("qBittorrent недоступен (Circuit Breaker OPEN)")
+    # КРИТИЧНО: Проверяем что настройки qBittorrent заданы И не пустые
+    qbit_host = config.get('QBIT_HOST')
+    qbit_port = config.get('QBIT_PORT')
+    qbit_username = config.get('QBIT_USERNAME')
+    qbit_password = config.get('QBIT_PASSWORD')
+    
+    if not all([qbit_host, qbit_port, qbit_username, qbit_password]):
+        # qBittorrent не настроен - возвращаем пустой результат БЕЗ попыток подключения
+        logger.debug("qBittorrent не настроен (credentials отсутствуют или пусты)")
         return {
             "active": {}, 
             "kp": {}, 
             "qbittorrent_available": False
         }
     
-    # Проверяем что настройки qBittorrent заданы
-    if not all([
-        config.get('QBIT_HOST'),
-        config.get('QBIT_PORT'),
-        config.get('QBIT_USERNAME'),
-        config.get('QBIT_PASSWORD')
-    ]):
-        logger.debug("qBittorrent не настроен (отсутствуют credentials)")
+    # Дополнительная проверка: если значения пустые строки
+    if not qbit_host.strip() or not str(qbit_port).strip():
+        logger.debug("qBittorrent host/port пустые")
+        return {
+            "active": {}, 
+            "kp": {}, 
+            "qbittorrent_available": False
+        }
+    
+    # Проверяем доступность qBittorrent через Circuit Breaker
+    if not circuit_breaker.is_available():
+        logger.debug("qBittorrent недоступен (Circuit Breaker OPEN)")
         return {
             "active": {}, 
             "kp": {}, 
