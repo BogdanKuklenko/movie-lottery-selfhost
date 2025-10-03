@@ -3,11 +3,15 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from werkzeug.middleware.proxy_fix import ProxyFix
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+import atexit
 
 from .diagnostic_middleware import start_diagnostics, checkpoint, finish_diagnostics
 
 _diag = start_diagnostics()
 db = SQLAlchemy()
+scheduler = BackgroundScheduler()
 
 
 def create_app():
@@ -48,6 +52,29 @@ def create_app():
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
     checkpoint("Blueprints registered")
+    
+    # Запускаем планировщик для очистки истёкших опросов
+    if not scheduler.running:
+        from .utils.helpers import cleanup_expired_polls
+        
+        def cleanup_job():
+            with app.app_context():
+                count = cleanup_expired_polls()
+                if count > 0:
+                    print(f"Удалено истёкших опросов: {count}")
+        
+        scheduler.add_job(
+            func=cleanup_job,
+            trigger=IntervalTrigger(hours=1),  # Запускаем каждый час
+            id='cleanup_polls',
+            name='Cleanup expired polls',
+            replace_existing=True
+        )
+        scheduler.start()
+        checkpoint("Scheduler started")
+        
+        # Останавливаем scheduler при завершении приложения
+        atexit.register(lambda: scheduler.shutdown())
     
     finish_diagnostics()
     return app

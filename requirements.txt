@@ -7,3 +7,4 @@ qbittorrent-api
 torrentp
 Flask-Migrate
 psutil
+APScheduler

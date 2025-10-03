@@ -1,12 +1,14 @@
 import random
 import requests
+import secrets
+from datetime import datetime
 from flask import Blueprint, request, jsonify, url_for, current_app
 from qbittorrentapi import Client, exceptions as qbittorrent_exceptions
 
 from .. import db
-from ..models import Movie, Lottery, MovieIdentifier, LibraryMovie
+from ..models import Movie, Lottery, MovieIdentifier, LibraryMovie, Poll, PollMovie, Vote
 from ..utils.kinopoisk import get_movie_data_from_kinopoisk
-from ..utils.helpers import generate_unique_id, ensure_background_photo
+from ..utils.helpers import generate_unique_id, ensure_background_photo, generate_unique_poll_id
 from ..utils.qbittorrent import get_active_torrents_map
 from ..utils.torrent_status import qbittorrent_client, torrent_to_json
 from ..utils.qbittorrent_circuit_breaker import get_circuit_breaker
@@ -457,3 +459,235 @@ def get_qbittorrent_status():
         "retry_in": breaker_state["retry_in"],
         "message": message
     })
+
+
+# --- Маршруты для опросов ---
+
+@api_bp.route('/polls/create', methods=['POST'])
+def create_poll():
+    """Создание нового опроса"""
+    movies_json = request.json.get('movies')
+    if not movies_json or len(movies_json) < 2:
+        return jsonify({"error": "Нужно добавить хотя бы два фильма"}), 400
+    
+    if len(movies_json) > 25:
+        return jsonify({"error": "Максимум 25 фильмов в опросе"}), 400
+
+    new_poll = Poll(id=generate_unique_poll_id())
+    db.session.add(new_poll)
+
+    for movie_data in movies_json:
+        new_movie = PollMovie(
+            kinopoisk_id=movie_data.get('kinopoisk_id'),
+            name=movie_data['name'],
+            search_name=movie_data.get('search_name'),
+            poster=movie_data.get('poster'),
+            year=movie_data.get('year'),
+            description=movie_data.get('description'),
+            rating_kp=movie_data.get('rating_kp'),
+            genres=movie_data.get('genres'),
+            countries=movie_data.get('countries'),
+            poll=new_poll
+        )
+        db.session.add(new_movie)
+        if poster := movie_data.get('poster'):
+            ensure_background_photo(poster)
+
+    db.session.commit()
+
+    poll_url = url_for('main.view_poll', poll_id=new_poll.id, _external=True)
+    return jsonify({
+        "poll_id": new_poll.id,
+        "poll_url": poll_url,
+        "creator_token": new_poll.creator_token
+    })
+
+
+@api_bp.route('/polls/<poll_id>', methods=['GET'])
+def get_poll(poll_id):
+    """Получение данных опроса"""
+    poll = Poll.query.get_or_404(poll_id)
+    
+    if poll.is_expired:
+        return jsonify({"error": "Опрос истёк"}), 410
+    
+    # Получаем токен голосующего из cookie или генерируем новый
+    voter_token = request.cookies.get('voter_token')
+    if not voter_token:
+        voter_token = secrets.token_hex(16)
+    
+    # Проверяем, голосовал ли уже этот пользователь
+    existing_vote = Vote.query.filter_by(poll_id=poll_id, voter_token=voter_token).first()
+    
+    movies_data = []
+    for m in poll.movies:
+        movies_data.append({
+            "id": m.id,
+            "kinopoisk_id": m.kinopoisk_id,
+            "name": m.name,
+            "search_name": m.search_name,
+            "poster": m.poster,
+            "year": m.year,
+            "description": m.description,
+            "rating_kp": m.rating_kp,
+            "genres": m.genres,
+            "countries": m.countries,
+        })
+    
+    response = jsonify({
+        "poll_id": poll.id,
+        "movies": movies_data,
+        "created_at": poll.created_at.isoformat() + "Z",
+        "expires_at": poll.expires_at.isoformat() + "Z",
+        "has_voted": bool(existing_vote),
+        "total_votes": len(poll.votes)
+    })
+    
+    # Устанавливаем cookie с токеном голосующего
+    if not request.cookies.get('voter_token'):
+        response.set_cookie('voter_token', voter_token, max_age=60*60*24*30)  # 30 дней
+    
+    return response
+
+
+@api_bp.route('/polls/<poll_id>/vote', methods=['POST'])
+def vote_in_poll(poll_id):
+    """Голосование в опросе"""
+    poll = Poll.query.get_or_404(poll_id)
+    
+    if poll.is_expired:
+        return jsonify({"error": "Опрос истёк"}), 410
+    
+    movie_id = request.json.get('movie_id')
+    if not movie_id:
+        return jsonify({"error": "Не указан фильм"}), 400
+    
+    # Проверяем, что фильм принадлежит этому опросу
+    movie = PollMovie.query.filter_by(id=movie_id, poll_id=poll_id).first()
+    if not movie:
+        return jsonify({"error": "Фильм не найден в опросе"}), 404
+    
+    # Получаем или создаём токен голосующего
+    voter_token = request.cookies.get('voter_token')
+    if not voter_token:
+        voter_token = secrets.token_hex(16)
+    
+    # Проверяем, не голосовал ли уже этот пользователь
+    existing_vote = Vote.query.filter_by(poll_id=poll_id, voter_token=voter_token).first()
+    if existing_vote:
+        return jsonify({"error": "Вы уже проголосовали в этом опросе"}), 400
+    
+    # Создаём новый голос
+    new_vote = Vote(
+        poll_id=poll_id,
+        movie_id=movie_id,
+        voter_token=voter_token
+    )
+    db.session.add(new_vote)
+    db.session.commit()
+    
+    response = jsonify({
+        "success": True,
+        "message": "Голос учтён! Приятного просмотра!",
+        "movie_name": movie.name
+    })
+    
+    # Устанавливаем cookie с токеном
+    if not request.cookies.get('voter_token'):
+        response.set_cookie('voter_token', voter_token, max_age=60*60*24*30)
+    
+    return response
+
+
+@api_bp.route('/polls/<poll_id>/results', methods=['GET'])
+def get_poll_results(poll_id):
+    """Получение результатов опроса (только для создателя)"""
+    poll = Poll.query.get_or_404(poll_id)
+    
+    creator_token = request.args.get('creator_token')
+    if not creator_token or creator_token != poll.creator_token:
+        return jsonify({"error": "Доступ запрещён"}), 403
+    
+    if poll.is_expired:
+        return jsonify({"error": "Опрос истёк"}), 410
+    
+    # Получаем статистику голосов
+    vote_counts = poll.get_vote_counts()
+    winners = poll.winners
+    
+    movies_with_votes = []
+    for movie in poll.movies:
+        votes = vote_counts.get(movie.id, 0)
+        movies_with_votes.append({
+            "id": movie.id,
+            "kinopoisk_id": movie.kinopoisk_id,
+            "name": movie.name,
+            "search_name": movie.search_name,
+            "poster": movie.poster,
+            "year": movie.year,
+            "description": movie.description,
+            "rating_kp": movie.rating_kp,
+            "genres": movie.genres,
+            "countries": movie.countries,
+            "votes": votes,
+            "is_winner": movie in winners
+        })
+    
+    # Сортируем по количеству голосов
+    movies_with_votes.sort(key=lambda x: x['votes'], reverse=True)
+    
+    return jsonify({
+        "poll_id": poll.id,
+        "movies": movies_with_votes,
+        "total_votes": len(poll.votes),
+        "winners": [{"id": w.id, "name": w.name, "poster": w.poster, "year": w.year} for w in winners],
+        "created_at": poll.created_at.isoformat() + "Z",
+        "expires_at": poll.expires_at.isoformat() + "Z"
+    })
+
+
+@api_bp.route('/polls/my-polls', methods=['GET'])
+def get_my_polls():
+    """Получение всех опросов пользователя"""
+    creator_token = request.args.get('creator_token')
+    if not creator_token:
+        return jsonify({"polls": []})
+    
+    # Находим все опросы, созданные этим пользователем
+    polls = Poll.query.filter_by(creator_token=creator_token).filter(
+        Poll.expires_at > datetime.utcnow()
+    ).order_by(Poll.created_at.desc()).all()
+    
+    polls_data = []
+    for poll in polls:
+        # Проверяем, есть ли голоса
+        if len(poll.votes) == 0:
+            continue
+        
+        vote_counts = poll.get_vote_counts()
+        winners = poll.winners
+        
+        polls_data.append({
+            "poll_id": poll.id,
+            "created_at": poll.created_at.isoformat() + "Z",
+            "expires_at": poll.expires_at.isoformat() + "Z",
+            "total_votes": len(poll.votes),
+            "movies_count": len(poll.movies),
+            "winners": [{"id": w.id, "name": w.name, "poster": w.poster, "year": w.year, "votes": vote_counts.get(w.id, 0)} for w in winners],
+            "poll_url": url_for('main.view_poll', poll_id=poll.id, _external=True)
+        })
+    
+    return jsonify({"polls": polls_data})
+
+
+@api_bp.route('/polls/cleanup-expired', methods=['POST'])
+def cleanup_expired_polls():
+    """Удаление истёкших опросов (можно вызывать по cron или вручную)"""
+    expired_polls = Poll.query.filter(Poll.expires_at <= datetime.utcnow()).all()
+    count = len(expired_polls)
+    
+    for poll in expired_polls:
+        db.session.delete(poll)
+    
+    db.session.commit()
+    return jsonify({"success": True, "deleted_count": count})

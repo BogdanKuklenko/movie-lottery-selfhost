@@ -141,6 +141,10 @@ export class ModalManager {
             this.close();
         }
     }
+
+    renderCustomContent(htmlContent) {
+        this.body.innerHTML = htmlContent;
+    }
     
     renderError(message) {
         this.body.innerHTML = `<p class="error-message">${escapeHtml(message)}</p>`;

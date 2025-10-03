@@ -16,6 +16,10 @@
             <h1>Создай свою Кино-Лотерею</h1>
             <p>Добавь фильмы, которые хочешь разыграть, и тебя перенаправит на страницу ожидания.</p>
             <div class="nav-links">
+                <button id="my-polls-btn" class="nav-button" style="display: none;">
+                    Мои опросы
+                    <span id="my-polls-badge" class="badge" style="display: none;"></span>
+                </button>
                 <a href="{{ url_for('main.history') }}" class="nav-button">История</a>
                 <a href="{{ url_for('main.library') }}" class="nav-button">Библиотека</a>
             </div>
@@ -39,7 +43,17 @@
             <label for="auto-download-checkbox">Скачивать фильм автоматически после розыгрыша</label>
         </div>
 
-        <button id="create-lottery-btn" class="cta-button" disabled>Создать лотерею и перейти к ожиданию</button>
+        <div class="action-buttons-group">
+            <button id="create-lottery-btn" class="cta-button" disabled>Создать лотерею</button>
+            <button id="create-poll-btn" class="cta-button secondary" disabled>Создать опрос</button>
+        </div>
+    </div>
+
+    <div id="poll-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <div></div>
+        </div>
     </div>
 
     <svg class="icon-sprite" aria-hidden="true" focusable="false" style="display: none;">

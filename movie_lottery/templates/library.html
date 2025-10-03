@@ -15,10 +15,25 @@
     <header class="gallery-header">
         <h1>Библиотека фильмов</h1>
         <div class="gallery-actions">
+            <button id="my-polls-btn" class="nav-button" style="display: none;">
+                Мои опросы
+                <span id="my-polls-badge" class="badge" style="display: none;"></span>
+            </button>
+            <button id="toggle-select-mode-btn" class="nav-button">Выбрать фильмы</button>
             <a href="{{ url_for('main.index') }}" class="nav-button">&larr; Вернуться к созданию</a>
             <a href="{{ url_for('main.history') }}" class="nav-button">История</a>
         </div>
     </header>
+    
+    <div id="selection-panel" class="selection-panel" style="display: none;">
+        <div class="selection-info">
+            <span id="selection-count">Выбрано: 0</span>
+        </div>
+        <div class="selection-actions">
+            <button id="create-poll-from-selection-btn" class="cta-button" disabled>Создать опрос</button>
+            <button id="cancel-selection-btn" class="secondary-button">Отменить</button>
+        </div>
+    </div>
 
     <svg class="icon-sprite" aria-hidden="true" focusable="false">
         <symbol id="icon-download" viewBox="0 0 24 24">
@@ -61,6 +76,7 @@
                     data-is-on-client="{{ 'true' if movie.is_on_client else 'false' }}"
                     data-torrent-hash="{{ movie.torrent_hash|e if movie.torrent_hash else '' }}"
                 >
+                    <input type="checkbox" class="movie-checkbox" style="display: none;" data-movie-id="{{ movie.id }}">
                     <div class="torrent-status-indicator"></div>
 
                     <div class="action-buttons">

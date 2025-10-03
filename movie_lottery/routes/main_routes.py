@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, url_for
-from ..models import Lottery, LibraryMovie, MovieIdentifier
+from ..models import Lottery, LibraryMovie, MovieIdentifier, Poll
 from ..utils.helpers import get_background_photos
 
 main_bp = Blueprint('main', __name__)
@@ -87,6 +87,15 @@ def play_lottery(lottery_id):
         'play.html', 
         lottery=lottery, 
         result=result_obj, 
+        background_photos=get_background_photos()
+    )
+
+@main_bp.route('/p/<poll_id>')
+def view_poll(poll_id):
+    poll = Poll.query.get_or_404(poll_id)
+    return render_template(
+        'poll.html',
+        poll=poll,
         background_photos=get_background_photos()
     )
 
