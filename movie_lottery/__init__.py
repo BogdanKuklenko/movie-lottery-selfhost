@@ -54,14 +54,15 @@ def create_app():
     checkpoint("Blueprints registered")
     
     # Запускаем планировщик для очистки истёкших опросов
-    if not scheduler.running:
+    # Проверяем, что мы не в reloader процессе Flask
+    if not scheduler.running and os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         from .utils.helpers import cleanup_expired_polls
         
         def cleanup_job():
             with app.app_context():
                 count = cleanup_expired_polls()
                 if count > 0:
-                    print(f"Удалено истёкших опросов: {count}")
+                    app.logger.info(f"Удалено истёкших опросов: {count}")
         
         scheduler.add_job(
             func=cleanup_job,
@@ -71,10 +72,10 @@ def create_app():
             replace_existing=True
         )
         scheduler.start()
-        checkpoint("Scheduler started")
+        checkpoint("Scheduler started for poll cleanup")
         
         # Останавливаем scheduler при завершении приложения
-        atexit.register(lambda: scheduler.shutdown())
+        atexit.register(lambda: scheduler.shutdown() if scheduler.running else None)
     
     finish_diagnostics()
     return app
