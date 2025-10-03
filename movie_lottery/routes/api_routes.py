@@ -24,6 +24,9 @@ def get_movie_info():
         return jsonify({"error": "Пустой запрос"}), 400
     movie_data = get_movie_data_from_kinopoisk(query)
     if movie_data:
+        # Add poster to background when fetched from Kinopoisk
+        if poster := movie_data.get('poster'):
+            ensure_background_photo(poster)
         return jsonify(movie_data)
     else:
         return jsonify({"error": "Фильм не найден"}), 404
@@ -177,6 +180,10 @@ def add_library_movie():
         new_movie = LibraryMovie(**movie_data)
         db.session.add(new_movie)
         message = "Movie added to library."
+
+    # Add poster to background when movie is added to library
+    if poster := movie_data.get('poster'):
+        ensure_background_photo(poster)
 
     db.session.commit()
     return jsonify({"success": True, "message": message})
