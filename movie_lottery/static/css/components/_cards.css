@@ -22,9 +22,62 @@
 .movie-card:hover { 
     transform: scale(1.05); 
 }
-.movie-card img { 
+.movie-card-poster-wrapper {
+    position: relative;
+    width: 100%;
+}
+.movie-card-poster-wrapper img { 
     width: 100%; 
     border-radius: 5px; 
+    display: block;
+}
+.movie-card-actions-overlay {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+    gap: 5px;
+    padding: 5px;
+}
+.movie-card .search-rutracker-btn {
+    background: rgba(0,0,0,0.7);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.3s, transform 0.2s;
+    padding: 0;
+}
+.movie-card .search-rutracker-btn:hover {
+    background: rgba(0,0,0,0.9);
+    transform: scale(1.1);
+}
+.movie-card .search-rutracker-btn .icon-svg {
+    width: 16px;
+    height: 16px;
+}
+.movie-card .remove-btn { 
+    background: rgba(0,0,0,0.7); 
+    color: white; 
+    border: none; 
+    border-radius: 50%; 
+    width: 25px; 
+    height: 25px; 
+    font-size: 16px; 
+    line-height: 25px; 
+    text-align: center; 
+    padding: 0; 
+    cursor: pointer; 
+    transition: background 0.3s, transform 0.2s; 
+}
+.movie-card .remove-btn:hover {
+    background: rgba(220, 53, 69, 0.9);
+    transform: scale(1.1);
 }
 .movie-card .movie-info h4 { 
     margin: 10px 0 5px; 
@@ -43,27 +96,6 @@
 }
 .movie-card-actions .secondary-button { 
     width: 100%; 
-}
-.remove-btn { 
-    position: absolute; 
-    top: 5px; 
-    right: 5px; 
-    background: rgba(0,0,0,0.7); 
-    color: white; 
-    border: none; 
-    border-radius:50%; 
-    width: 25px; 
-    height: 25px; 
-    font-size: 16px; 
-    line-height: 25px; 
-    text-align: center; 
-    padding: 0; 
-    cursor: pointer; 
-    opacity: 0; 
-    transition: opacity 0.3s; 
-}
-.movie-card:hover .remove-btn { 
-    opacity: 1; 
 }
 
 

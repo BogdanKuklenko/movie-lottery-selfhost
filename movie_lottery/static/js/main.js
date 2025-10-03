@@ -27,8 +27,21 @@ document.addEventListener('DOMContentLoaded', () => {
         movies.forEach((movie, index) => {
             const movieCard = document.createElement('div');
             movieCard.className = 'movie-card';
+            movieCard.dataset.movieName = movie.name;
+            movieCard.dataset.movieSearchName = movie.search_name || '';
+            movieCard.dataset.movieYear = movie.year || '';
             movieCard.innerHTML = `
-                <img src="${movie.poster || 'https://via.placeholder.com/100x150.png?text=No+Image'}" alt="Постер">
+                <div class="movie-card-poster-wrapper">
+                    <img src="${movie.poster || 'https://via.placeholder.com/100x150.png?text=No+Image'}" alt="Постер">
+                    <div class="movie-card-actions-overlay">
+                        <button class="icon-button search-rutracker-btn" data-index="${index}" title="Найти на RuTracker" aria-label="Найти на RuTracker">
+                            <svg class="icon-svg icon-search" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <use href="#icon-search"></use>
+                            </svg>
+                        </button>
+                        <button class="remove-btn" data-index="${index}">&times;</button>
+                    </div>
+                </div>
                 <div class="movie-info">
                     <h4>${movie.name}</h4>
                     <p>${movie.year}</p>
@@ -36,17 +49,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="movie-card-actions">
                     <button class="secondary-button library-add-btn" data-index="${index}">Добавить в библиотеку</button>
                 </div>
-                <button class="remove-btn" data-index="${index}">&times;</button>
             `;
             movieListDiv.appendChild(movieCard);
         });
 
         document.querySelectorAll('.remove-btn').forEach(button => {
             button.addEventListener('click', (e) => {
+                e.stopPropagation();
                 const indexToRemove = parseInt(e.target.dataset.index, 10);
                 movies.splice(indexToRemove, 1);
                 renderMovieList();
                 updateCreateButtonState();
+            });
+        });
+
+        document.querySelectorAll('.search-rutracker-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const index = parseInt(e.target.closest('.search-rutracker-btn').dataset.index, 10);
+                const movie = movies[index];
+                if (movie) {
+                    const searchQuery = `${movie.search_name || movie.name}${movie.year ? ' ' + movie.year : ''}`;
+                    const encodedQuery = encodeURIComponent(searchQuery);
+                    const rutrackerUrl = `https://rutracker.org/forum/tracker.php?nm=${encodedQuery}`;
+                    window.open(rutrackerUrl, '_blank');
+                    showToast(`Открыт поиск на RuTracker: "${searchQuery}"`, 'info');
+                }
             });
         });
 

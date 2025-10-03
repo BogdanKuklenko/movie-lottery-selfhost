@@ -12,7 +12,7 @@ function formatDate(isoString) {
 }
 
 /**
- * Динамически переключает иконку "скачать"/"искать" на карточке.
+ * Динамически переключает иконку "копировать"/"искать" на карточке.
  * @param {HTMLElement} card - Элемент карточки.
  * @param {boolean} hasMagnet - Есть ли magnet-ссылка.
  */
@@ -20,23 +20,23 @@ function toggleDownloadIcon(card, hasMagnet) {
     const actionButtons = card.querySelector('.action-buttons');
     if (!actionButtons) return;
 
-    const downloadButton = actionButtons.querySelector('.download-button');
-    const searchButton = actionButtons.querySelector('.search-button');
-    if (downloadButton) downloadButton.remove();
+    const copyButton = actionButtons.querySelector('.copy-magnet-button');
+    const searchButton = actionButtons.querySelector('.search-rutracker-button');
+    if (copyButton) copyButton.remove();
     if (searchButton) searchButton.remove();
 
     const newButton = document.createElement('button');
     newButton.type = 'button';
     
     if (hasMagnet) {
-        newButton.className = 'icon-button download-button';
-        newButton.title = 'Скачать торрент';
-        newButton.setAttribute('aria-label', 'Скачать торрент');
-        newButton.innerHTML = `<svg class="icon-svg icon-download" viewBox="0 0 24 24"><use href="#icon-download"></use></svg>`;
+        newButton.className = 'icon-button copy-magnet-button';
+        newButton.title = 'Скопировать magnet-ссылку';
+        newButton.setAttribute('aria-label', 'Скопировать magnet-ссылку');
+        newButton.innerHTML = `<svg class="icon-svg icon-copy" viewBox="0 0 24 24"><use href="#icon-copy"></use></svg>`;
     } else {
-        newButton.className = 'icon-button search-button';
-        newButton.title = 'Искать торрент';
-        newButton.setAttribute('aria-label', 'Искать торрент');
+        newButton.className = 'icon-button search-rutracker-button';
+        newButton.title = 'Найти на RuTracker';
+        newButton.setAttribute('aria-label', 'Найти на RuTracker');
         newButton.innerHTML = `<svg class="icon-svg icon-search" viewBox="0 0 24 24"><use href="#icon-search"></use></svg>`;
     }
     
@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const card = event.target.closest('.gallery-item');
         if (!card) return;
 
-        const { movieId, kinopoiskId, movieName, movieYear, hasMagnet } = card.dataset;
+        const { movieId, kinopoiskId, movieName, movieYear, movieSearchName, hasMagnet, magnetLink } = card.dataset;
         const button = event.target.closest('.icon-button');
 
         if (button) {
@@ -123,15 +123,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (data.success) card.remove();
                     showToast(data.message, data.success ? 'success' : 'error');
                 });
-            } else if (button.classList.contains('add-magnet-button')) {
-                // Открываем модальное окно для ручного ввода magnet-ссылки
-                handleOpenModal(card);
-            } else if (button.classList.contains('download-button')) {
-                if (hasMagnet === 'true' && kinopoiskId) {
-                    torrentApi.startLibraryDownload(movieId).then(data => showToast(data.message, data.success ? 'success' : 'error'));
-                } else {
-                    showToast('Сначала нужно добавить magnet-ссылку.', 'info');
-                    handleOpenModal(card);
+            } else if (button.classList.contains('search-rutracker-button')) {
+                // Открываем поиск на RuTracker
+                const searchQuery = `${movieSearchName || movieName}${movieYear ? ' ' + movieYear : ''}`;
+                const encodedQuery = encodeURIComponent(searchQuery);
+                const rutrackerUrl = `https://rutracker.org/forum/tracker.php?nm=${encodedQuery}`;
+                window.open(rutrackerUrl, '_blank');
+                showToast(`Открыт поиск на RuTracker: "${searchQuery}"`, 'info');
+            } else if (button.classList.contains('copy-magnet-button')) {
+                // Копируем magnet-ссылку в буфер обмена
+                if (hasMagnet === 'true' && magnetLink) {
+                    navigator.clipboard.writeText(magnetLink).then(() => {
+                        showToast('Magnet-ссылка скопирована в буфер обмена', 'success');
+                    }).catch(() => {
+                        showToast('Не удалось скопировать ссылку', 'error');
+                    });
                 }
             }
         } else {

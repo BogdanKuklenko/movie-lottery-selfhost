@@ -31,6 +31,10 @@
             <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
             <path d="m16 16 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
         </symbol>
+        <symbol id="icon-copy" viewBox="0 0 24 24">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" transform="translate(-7 -7)"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
         <symbol id="icon-delete" viewBox="0 0 24 24">
             <path d="M6 6 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -63,13 +67,13 @@
 
                     <div class="action-buttons">
                         {% if has_identifier %}
-                            <button type="button" class="icon-button download-button" title="Скачать фильм" aria-label="Скачать фильм">
-                                <svg class="icon-svg icon-download" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                    <use href="#icon-download"></use>
+                            <button type="button" class="icon-button copy-magnet-button" title="Скопировать magnet-ссылку" aria-label="Скопировать magnet-ссылку">
+                                <svg class="icon-svg icon-copy" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <use href="#icon-copy"></use>
                                 </svg>
                             </button>
                         {% else %}
-                            <button type="button" class="icon-button add-magnet-button" title="Добавить magnet-ссылку" aria-label="Добавить magnet-ссылку">
+                            <button type="button" class="icon-button search-rutracker-button" title="Найти на RuTracker" aria-label="Найти на RuTracker">
                                 <svg class="icon-svg icon-search" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                                     <use href="#icon-search"></use>
                                 </svg>
