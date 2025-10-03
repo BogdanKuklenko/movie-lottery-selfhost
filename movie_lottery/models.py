@@ -1,6 +1,5 @@
-# F:\GPT\movie-lottery V2\movie_lottery\models.py
-from . import db
 from datetime import datetime
+from . import db
 
 class MovieIdentifier(db.Model):
     __tablename__ = 'movie_identifier'

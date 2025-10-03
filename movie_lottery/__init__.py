@@ -4,15 +4,15 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-# Диагностика запуска (только на Render или если включена)
 from .diagnostic_middleware import start_diagnostics, checkpoint, finish_diagnostics
-_diag = start_diagnostics()
 
+_diag = start_diagnostics()
 db = SQLAlchemy()
+
 
 def create_app():
     """
-    Фабрика для создания и конфигурации экземпляра приложения Flask.
+    Factory function for creating and configuring a Flask application instance.
     """
     checkpoint("create_app() started")
     
@@ -36,11 +36,9 @@ def create_app():
     Migrate(app, db)
     checkpoint("Flask-Migrate initialized")
 
-    # Импортируем модели (нужно для миграций и регистрации моделей)
     from . import models
     checkpoint("Models imported")
     
-    # Регистрируем blueprints
     from .routes.main_routes import main_bp
     checkpoint("main_routes imported")
     
@@ -50,10 +48,6 @@ def create_app():
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
     checkpoint("Blueprints registered")
-
-    # НЕ создаем таблицы при каждом старте worker'а - это замедляет запуск
-    # Таблицы должны быть созданы через миграции или вручную
-    # Это критично для избежания timeout'ов на production-серверах
     
     finish_diagnostics()
     return app

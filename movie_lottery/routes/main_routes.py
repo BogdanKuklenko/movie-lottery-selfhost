@@ -1,7 +1,6 @@
-# F:\GPT\movie-lottery V2\movie_lottery\routes\main_routes.py
 from flask import Blueprint, render_template, url_for
 from ..models import Lottery, LibraryMovie, MovieIdentifier
-from ..utils.helpers import get_background_photos 
+from ..utils.helpers import get_background_photos
 
 main_bp = Blueprint('main', __name__)
 
@@ -28,17 +27,21 @@ def wait_for_result(lottery_id):
 @main_bp.route('/history')
 def history():
     lotteries = Lottery.query.order_by(Lottery.created_at.desc()).all()
-    identifiers = {}
     
+    # Collect all unique kinopoisk IDs from winners to avoid N+1 queries
+    kp_ids = set()
     for lottery in lotteries:
         winner_movie = next((m for m in lottery.movies if m.name == lottery.result_name), None)
         if winner_movie and winner_movie.kinopoisk_id:
-            kp_id = winner_movie.kinopoisk_id
-            if kp_id not in identifiers:
-                identifiers[kp_id] = MovieIdentifier.query.get(kp_id)
-            
+            kp_ids.add(winner_movie.kinopoisk_id)
             winner_movie.is_on_client = False
             winner_movie.torrent_hash = None
+    
+    # Fetch all identifiers in one query
+    identifiers = {}
+    if kp_ids:
+        identifier_list = MovieIdentifier.query.filter(MovieIdentifier.kinopoisk_id.in_(kp_ids)).all()
+        identifiers = {i.kinopoisk_id: i for i in identifier_list}
 
     return render_template(
         'history.html',
@@ -51,15 +54,17 @@ def history():
 def library():
     library_movies = LibraryMovie.query.order_by(LibraryMovie.added_at.desc()).all()
     
+    # Fetch all identifiers in one query to avoid N+1
+    kp_ids = [m.kinopoisk_id for m in library_movies if m.kinopoisk_id]
+    identifiers_map = {}
+    if kp_ids:
+        identifiers = MovieIdentifier.query.filter(MovieIdentifier.kinopoisk_id.in_(kp_ids)).all()
+        identifiers_map = {i.kinopoisk_id: i for i in identifiers}
+    
     for movie in library_movies:
-        if movie.kinopoisk_id:
-            identifier = MovieIdentifier.query.get(movie.kinopoisk_id)
-            movie.has_magnet = bool(identifier)
-            movie.magnet_link = identifier.magnet_link if identifier else ''
-        else:
-            movie.has_magnet = False
-            movie.magnet_link = ''
-        
+        identifier = identifiers_map.get(movie.kinopoisk_id)
+        movie.has_magnet = bool(identifier)
+        movie.magnet_link = identifier.magnet_link if identifier else ''
         movie.is_on_client = False
         movie.torrent_hash = None
             

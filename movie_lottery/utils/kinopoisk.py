@@ -1,11 +1,11 @@
-# F:\GPT\movie-lottery V2\movie_lottery\utils\kinopoisk.py
 import re
 import requests
 from flask import current_app
 
+
 def get_movie_data_from_kinopoisk(query):
     """
-    Ищет фильм по названию или ID на Кинопоиске и возвращает структурированные данные.
+    Search for a movie by name or ID on Kinopoisk and return structured data.
     """
     config = current_app.config
     headers = {"X-API-KEY": config['KINOPOISK_API_TOKEN']}

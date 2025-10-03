@@ -62,5 +62,4 @@ def qbittorrent_client() -> Iterable[Client]:
             try:
                 client.auth_log_out()
             except Exception:
-                # Ошибки при выходе из клиента не критичны
                 pass
