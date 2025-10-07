@@ -53,7 +53,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <img src="${movie.poster || 'https://via.placeholder.com/200x300.png?text=No+Image'}" alt="${escapeHtml(movie.name)}">
                 <div class="poll-movie-info">
                     <h3>${escapeHtml(movie.name)}</h3>
-                    <p>${escapeHtml(movie.year || '')}</p>
+                    <p class="movie-year">${escapeHtml(movie.year || '')}</p>
+                    ${movie.genres ? `<p class="movie-genres">${escapeHtml(movie.genres)}</p>` : ''}
                     ${movie.rating_kp ? `<p class="movie-rating">⭐ ${movie.rating_kp.toFixed(1)}</p>` : ''}
                 </div>
             `;

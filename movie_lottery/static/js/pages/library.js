@@ -440,6 +440,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const { movieId, kinopoiskId, movieName, movieYear, movieSearchName, hasMagnet, magnetLink } = card.dataset;
         const button = event.target.closest('.icon-button');
+        const checkbox = event.target.closest('.movie-checkbox');
+
+        // Если клик по чекбоксу, не открываем модальное окно
+        if (checkbox) {
+            event.stopPropagation();
+            return;
+        }
 
         if (button) {
             event.stopPropagation();
