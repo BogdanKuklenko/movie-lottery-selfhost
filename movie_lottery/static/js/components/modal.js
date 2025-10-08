@@ -64,6 +64,41 @@ function createWinnerCardHTML(movieData, isLibrary) {
         ? `<button class="danger-button modal-delete-btn">Удалить из библиотеки</button>`
         : `<button class="secondary-button add-library-modal-btn">Добавить в библиотеку</button>`;
 
+    // Секция выбора бейджа (только для библиотеки)
+    const badgeIcons = {
+        'favorite': '⭐',
+        'watchlist': '👁️',
+        'top': '🏆',
+        'watched': '✅',
+        'new': '🔥'
+    };
+    
+    const badgeLabels = {
+        'favorite': 'Любимое',
+        'watchlist': 'Хочу посмотреть',
+        'top': 'Топ',
+        'watched': 'Просмотрено',
+        'new': 'Новинка'
+    };
+    
+    const badgeTypes = ['favorite', 'watchlist', 'top', 'watched', 'new'];
+    const currentBadge = movieData.badge || null;
+
+    const badgeSectionHTML = isLibrary ? `
+        <div class="movie-badge-section">
+            <h4>Бейдж фильма</h4>
+            <div class="badge-options-inline">
+                ${badgeTypes.map(type => `
+                    <div class="badge-option-inline ${currentBadge === type ? 'selected' : ''}" data-badge="${type}">
+                        <span class="badge-icon">${badgeIcons[type]}</span>
+                        <span class="badge-label">${badgeLabels[type]}</span>
+                    </div>
+                `).join('')}
+            </div>
+            ${currentBadge ? '<button class="secondary-button modal-remove-badge-btn" style="margin-top: 10px;">Убрать бейдж</button>' : ''}
+        </div>
+    ` : '';
+
     return `
         <div class="winner-card">
             <div class="winner-poster">
@@ -91,6 +126,8 @@ function createWinnerCardHTML(movieData, isLibrary) {
                             </button>
                         </div>
                     </div>` : '<p class="meta-info">Kinopoisk ID не указан, работа с magnet-ссылкой недоступна.</p>'}
+                
+                ${badgeSectionHTML}
                 
                 <div class="library-modal-actions">
                     <button class="secondary-button modal-download-btn"${movieData.has_magnet ? '' : ' disabled'}>Скачать</button>
@@ -289,6 +326,24 @@ export class ModalManager {
                 if (window.showToast) {
                     window.showToast(`Открыт поиск на RuTracker: "${searchQuery}"`, 'info');
                 }
+            });
+        }
+
+        // Управление бейджами (только для библиотеки)
+        const badgeOptions = this.body.querySelectorAll('.badge-option-inline');
+        if (badgeOptions.length > 0 && actions.onSetBadge) {
+            badgeOptions.forEach(option => {
+                option.addEventListener('click', async () => {
+                    const badgeType = option.dataset.badge;
+                    await actions.onSetBadge(movieData.id, badgeType);
+                });
+            });
+        }
+
+        const removeBadgeBtn = this.body.querySelector('.modal-remove-badge-btn');
+        if (removeBadgeBtn && actions.onRemoveBadge) {
+            removeBadgeBtn.addEventListener('click', async () => {
+                await actions.onRemoveBadge(movieData.id);
             });
         }
 

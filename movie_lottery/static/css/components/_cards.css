@@ -206,3 +206,224 @@
 .result-card h3 { margin: 8px 0; font-size: 1.3em; }
 .result-card p { margin: 5px 0; }
 .result-card.waiting .loader { margin-top: 20px; }
+
+/* Стили для бейджей на карточках */
+.movie-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 18px;
+    line-height: 1;
+    z-index: 3;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: opacity 0.3s ease;
+}
+
+.movie-badge.empty {
+    display: none;
+}
+
+/* Кнопка управления бейджами */
+.badge-control-btn {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 6px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    z-index: 4;
+    opacity: 0;
+    pointer-events: none;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.gallery-item:hover .badge-control-btn {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.badge-control-btn:hover {
+    background: rgba(0, 0, 0, 0.9);
+    border-color: rgba(255, 255, 255, 0.6);
+    transform: scale(1.1);
+}
+
+/* Модальное окно выбора бейджа */
+.badge-selector-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.badge-selector-modal.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.badge-selector-content {
+    background: #1a1a1a;
+    border-radius: 12px;
+    padding: 25px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    position: relative;
+}
+
+.badge-selector-content h3 {
+    margin: 0 0 20px;
+    color: #f8f9fa;
+    font-size: 1.3em;
+    text-align: center;
+}
+
+.badge-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 15px;
+}
+
+.badge-option {
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+    color: #f8f9fa;
+}
+
+.badge-option:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+}
+
+.badge-option.selected {
+    background: rgba(var(--primary-color-rgb), 0.2);
+    border-color: var(--primary-color);
+}
+
+.badge-option .badge-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+    display: block;
+}
+
+.badge-option .badge-label {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.badge-selector-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.badge-selector-actions button {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.badge-selector-actions .remove-badge-btn {
+    background: rgba(220, 53, 69, 0.2);
+    color: #dc3545;
+    border: 1px solid rgba(220, 53, 69, 0.5);
+}
+
+.badge-selector-actions .remove-badge-btn:hover {
+    background: rgba(220, 53, 69, 0.3);
+}
+
+.badge-selector-actions .cancel-badge-btn {
+    background: rgba(108, 117, 125, 0.2);
+    color: #adb5bd;
+    border: 1px solid rgba(108, 117, 125, 0.5);
+}
+
+.badge-selector-actions .cancel-badge-btn:hover {
+    background: rgba(108, 117, 125, 0.3);
+}
+
+/* Секция выбора бейджа в модальном окне фильма */
+.movie-badge-section {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.movie-badge-section h4 {
+    margin: 0 0 15px;
+    color: #f8f9fa;
+    font-size: 1.1em;
+}
+
+.badge-options-inline {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.badge-option-inline {
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 10px 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #f8f9fa;
+}
+
+.badge-option-inline:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--primary-color);
+}
+
+.badge-option-inline.selected {
+    background: rgba(var(--primary-color-rgb), 0.2);
+    border-color: var(--primary-color);
+}
+
+.badge-option-inline .badge-icon {
+    font-size: 20px;
+}
+
+.badge-option-inline .badge-label {
+    font-size: 13px;
+    font-weight: 600;
+}

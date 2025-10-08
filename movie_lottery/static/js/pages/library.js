@@ -395,8 +395,152 @@ document.addEventListener('DOMContentLoaded', () => {
             magnet_link: ds.magnetLink,
             is_on_client: card.classList.contains('has-torrent-on-client'),
             torrent_hash: ds.torrentHash,
+            badge: ds.badge || null,
         };
     };
+
+    // --- Функционал управления бейджами ---
+    const badgeModal = document.getElementById('badge-selector-modal');
+    const badgeOptions = badgeModal.querySelectorAll('.badge-option');
+    const removeBadgeBtn = badgeModal.querySelector('.remove-badge-btn');
+    const cancelBadgeBtn = badgeModal.querySelector('.cancel-badge-btn');
+    let currentBadgeCard = null;
+
+    const badgeIcons = {
+        'favorite': '⭐',
+        'watchlist': '👁️',
+        'top': '🏆',
+        'watched': '✅',
+        'new': '🔥'
+    };
+
+    function openBadgeSelector(card) {
+        currentBadgeCard = card;
+        const currentBadge = card.dataset.badge;
+
+        // Снимаем выделение со всех опций
+        badgeOptions.forEach(opt => opt.classList.remove('selected'));
+
+        // Выделяем текущий бейдж, если есть
+        if (currentBadge) {
+            const selectedOption = Array.from(badgeOptions).find(opt => opt.dataset.badge === currentBadge);
+            if (selectedOption) selectedOption.classList.add('selected');
+        }
+
+        badgeModal.classList.add('active');
+    }
+
+    function closeBadgeSelector() {
+        badgeModal.classList.remove('active');
+        currentBadgeCard = null;
+    }
+
+    async function setBadge(movieId, badgeType) {
+        try {
+            const response = await fetch(`/api/library/${movieId}/badge`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ badge: badgeType })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Не удалось установить бейдж');
+            }
+
+            return data;
+        } catch (error) {
+            showToast(error.message, 'error');
+            throw error;
+        }
+    }
+
+    async function removeBadge(movieId) {
+        try {
+            const response = await fetch(`/api/library/${movieId}/badge`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Не удалось удалить бейдж');
+            }
+
+            return data;
+        } catch (error) {
+            showToast(error.message, 'error');
+            throw error;
+        }
+    }
+
+    function updateBadgeOnCard(card, badgeType) {
+        card.dataset.badge = badgeType || '';
+        
+        let badgeElement = card.querySelector('.movie-badge');
+        
+        if (badgeType) {
+            if (!badgeElement) {
+                badgeElement = document.createElement('div');
+                badgeElement.className = 'movie-badge';
+                card.appendChild(badgeElement);
+            }
+            badgeElement.dataset.badgeType = badgeType;
+            badgeElement.textContent = badgeIcons[badgeType] || '';
+        } else if (badgeElement) {
+            badgeElement.remove();
+        }
+    }
+
+    // Обработчик клика по опциям бейджа
+    badgeOptions.forEach(option => {
+        option.addEventListener('click', async () => {
+            if (!currentBadgeCard) return;
+
+            const badgeType = option.dataset.badge;
+            const movieId = currentBadgeCard.dataset.movieId;
+
+            try {
+                await setBadge(movieId, badgeType);
+                updateBadgeOnCard(currentBadgeCard, badgeType);
+                showToast('Бейдж установлен', 'success');
+                closeBadgeSelector();
+            } catch (error) {
+                // Ошибка уже обработана в setBadge
+            }
+        });
+    });
+
+    // Обработчик кнопки "Убрать бейдж"
+    removeBadgeBtn.addEventListener('click', async () => {
+        if (!currentBadgeCard) return;
+
+        const movieId = currentBadgeCard.dataset.movieId;
+
+        try {
+            await removeBadge(movieId);
+            updateBadgeOnCard(currentBadgeCard, null);
+            showToast('Бейдж удалён', 'success');
+            closeBadgeSelector();
+        } catch (error) {
+            // Ошибка уже обработана в removeBadge
+        }
+    });
+
+    // Обработчик кнопки "Отмена"
+    cancelBadgeBtn.addEventListener('click', () => {
+        closeBadgeSelector();
+    });
+
+    // Закрытие по клику вне модального окна
+    badgeModal.addEventListener('click', (e) => {
+        if (e.target === badgeModal) {
+            closeBadgeSelector();
+        }
+    });
+
+    // --- Конец функционала управления бейджами ---
 
     const handleOpenModal = (card) => {
         const movieData = getMovieDataFromCard(card);
@@ -426,6 +570,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 await torrentApi.deleteTorrentFromClient(torrentHash);
                 card.classList.remove('has-torrent-on-client');
                 handleOpenModal(card);
+            },
+            onSetBadge: async (movieId, badgeType) => {
+                try {
+                    await setBadge(movieId, badgeType);
+                    updateBadgeOnCard(card, badgeType);
+                    showToast('Бейдж установлен', 'success');
+                    handleOpenModal(card);
+                } catch (error) {
+                    // Ошибка уже обработана в setBadge
+                }
+            },
+            onRemoveBadge: async (movieId) => {
+                try {
+                    await removeBadge(movieId);
+                    updateBadgeOnCard(card, null);
+                    showToast('Бейдж удалён', 'success');
+                    handleOpenModal(card);
+                } catch (error) {
+                    // Ошибка уже обработана в removeBadge
+                }
             }
         });
     };
@@ -441,10 +605,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const { movieId, kinopoiskId, movieName, movieYear, movieSearchName, hasMagnet, magnetLink } = card.dataset;
         const button = event.target.closest('.icon-button');
         const checkbox = event.target.closest('.movie-checkbox');
+        const badgeControlBtn = event.target.closest('.badge-control-btn');
 
         // Если клик по чекбоксу, не открываем модальное окно
         if (checkbox) {
             event.stopPropagation();
+            return;
+        }
+
+        // Если клик по кнопке управления бейджами
+        if (badgeControlBtn) {
+            event.stopPropagation();
+            openBadgeSelector(card);
             return;
         }
 

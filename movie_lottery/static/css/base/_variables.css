@@ -1,6 +1,7 @@
 /* F:\GPT\movie-lottery V2\movie_lottery\static\css\base\_variables.css */
 :root {
     --primary-color: #ffc107; /* Яркий желтый */
+    --primary-color-rgb: 255, 193, 7; /* RGB значение для primary-color */
     --secondary-color: #343a40; /* Темно-серый */
     --background-color: #121212; /* Почти черный */
     --text-color: #f8f9fa; /* Светло-серый */

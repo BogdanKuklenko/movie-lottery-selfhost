@@ -698,3 +698,35 @@ def cleanup_expired_polls():
     
     db.session.commit()
     return jsonify({"success": True, "deleted_count": count})
+
+
+# --- Маршруты для управления бейджами ---
+
+@api_bp.route('/library/<int:movie_id>/badge', methods=['PUT'])
+def set_movie_badge(movie_id):
+    """Установка бейджа для фильма в библиотеке"""
+    library_movie = LibraryMovie.query.get_or_404(movie_id)
+    
+    badge_type = request.json.get('badge')
+    allowed_badges = ['favorite', 'watchlist', 'top', 'watched', 'new']
+    
+    if badge_type and badge_type not in allowed_badges:
+        return jsonify({"success": False, "message": "Недопустимый тип бейджа"}), 400
+    
+    library_movie.badge = badge_type
+    db.session.commit()
+    
+    return jsonify({
+        "success": True, 
+        "message": "Бейдж установлен" if badge_type else "Бейдж удалён",
+        "badge": badge_type
+    })
+
+@api_bp.route('/library/<int:movie_id>/badge', methods=['DELETE'])
+def remove_movie_badge(movie_id):
+    """Удаление бейджа у фильма в библиотеке"""
+    library_movie = LibraryMovie.query.get_or_404(movie_id)
+    library_movie.badge = None
+    db.session.commit()
+    
+    return jsonify({"success": True, "message": "Бейдж удалён"})
