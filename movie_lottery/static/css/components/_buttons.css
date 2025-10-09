@@ -212,6 +212,7 @@ button:disabled {
 .badge-poll-dropdown {
     position: relative;
     display: inline-block;
+    z-index: 100;
 }
 
 .badge-poll-button {
@@ -268,7 +269,7 @@ button:disabled {
     visibility: hidden;
     transform: translateY(-10px);
     transition: all 0.3s ease;
-    z-index: 100;
+    z-index: 150;
 }
 
 .badge-poll-dropdown.active .badge-poll-menu {
@@ -339,8 +340,10 @@ button:disabled {
 .badge-filters-panel {
     background: rgba(26, 26, 26, 0.95);
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 15px 20px;
+    padding: 12px 20px;
     margin-bottom: 20px;
+    position: relative;
+    z-index: 10;
 }
 
 .badge-filter-header {
