@@ -451,8 +451,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     Опрос будет доступен друзьям по ссылке в течение 24 часов.
                 </p>
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
-                    <button class="secondary-button" id="cancel-badge-poll" style="flex: 1;">Отмена</button>
-                    <button class="cta-button" id="confirm-badge-poll" style="flex: 1;">Создать опрос</button>
+                    <button class="secondary-button" id="cancel-badge-poll" style="flex: 1; padding: 15px; margin: 0;">Отмена</button>
+                    <button class="cta-button" id="confirm-badge-poll" style="flex: 1; padding: 15px; margin: 0;">Создать опрос</button>
                 </div>
             `;
 
