@@ -633,6 +633,105 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Конец функционала фильтрации по бейджам ---
 
+    // --- Функционал быстрого просмотра постера ---
+    let posterPreviewOverlay = null;
+    let isMouseDown = false;
+
+    function createPosterPreview(posterUrl) {
+        // Создаем overlay если его еще нет
+        if (!posterPreviewOverlay) {
+            posterPreviewOverlay = document.createElement('div');
+            posterPreviewOverlay.className = 'poster-preview-overlay';
+            document.body.appendChild(posterPreviewOverlay);
+        }
+
+        // Создаем изображение
+        const img = document.createElement('img');
+        img.className = 'poster-preview-image';
+        img.src = posterUrl;
+        img.alt = 'Постер фильма';
+
+        // Очищаем и добавляем новое изображение
+        posterPreviewOverlay.innerHTML = '';
+        posterPreviewOverlay.appendChild(img);
+
+        // Показываем overlay
+        requestAnimationFrame(() => {
+            posterPreviewOverlay.classList.add('active');
+        });
+    }
+
+    function closePosterPreview() {
+        if (posterPreviewOverlay) {
+            posterPreviewOverlay.classList.remove('active');
+            // Удаляем содержимое после анимации
+            setTimeout(() => {
+                if (posterPreviewOverlay) {
+                    posterPreviewOverlay.innerHTML = '';
+                }
+            }, 200);
+        }
+        isMouseDown = false;
+    }
+
+    // Обработчик для карточек фильмов
+    function initPosterPreview() {
+        const movieCards = document.querySelectorAll('.library-card');
+
+        movieCards.forEach(card => {
+            const img = card.querySelector('img');
+            if (!img) return;
+
+            // Mousedown - показываем постер
+            img.addEventListener('mousedown', (e) => {
+                // Только левая кнопка мыши
+                if (e.button !== 0) return;
+                
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const posterUrl = card.dataset.moviePoster;
+                if (posterUrl && posterUrl !== 'https://via.placeholder.com/200x300.png?text=No+Image') {
+                    isMouseDown = true;
+                    createPosterPreview(posterUrl);
+                }
+            });
+
+            // Предотвращаем клик при зажатии
+            img.addEventListener('click', (e) => {
+                if (isMouseDown) {
+                    e.stopPropagation();
+                }
+            });
+        });
+    }
+
+    // Глобальные обработчики для закрытия превью
+    document.addEventListener('mouseup', () => {
+        if (isMouseDown) {
+            closePosterPreview();
+        }
+    });
+
+    document.addEventListener('mouseleave', () => {
+        if (isMouseDown) {
+            closePosterPreview();
+        }
+    });
+
+    // Инициализируем при загрузке
+    initPosterPreview();
+
+    // Переинициализируем после изменений в DOM (например, после удаления фильма)
+    const originalToggleDownloadIcon = toggleDownloadIcon;
+    window.toggleDownloadIcon = function(...args) {
+        originalToggleDownloadIcon(...args);
+        // Небольшая задержка для обновления DOM
+        setTimeout(initPosterPreview, 100);
+    };
+
+    // --- Конец функционала быстрого просмотра постера ---
+
     const getMovieDataFromCard = (card) => {
         const ds = card.dataset;
         return {

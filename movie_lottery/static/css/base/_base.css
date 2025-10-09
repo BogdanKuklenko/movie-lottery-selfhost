@@ -131,7 +131,7 @@ header p {
     padding: 20px 20px 10px 20px; 
     text-align: center; 
     position: relative; 
-    z-index: 1; 
+    z-index: 50; 
 }
 .gallery-actions {
     margin-top: 15px;
@@ -139,6 +139,8 @@ header p {
     justify-content: center;
     flex-wrap: wrap;
     gap: 10px;
+    position: relative;
+    z-index: 200;
 }
 .history-gallery { 
     display: grid; 
