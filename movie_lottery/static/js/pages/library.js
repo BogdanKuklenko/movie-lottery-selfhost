@@ -635,7 +635,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Функционал быстрого просмотра постера ---
     let posterPreviewOverlay = null;
-    let isMouseDown = false;
+    let isLongPress = false;
+    let longPressTimer = null;
+    let currentPreviewCard = null;
+    const LONG_PRESS_DURATION = 300; // мс для определения длинного нажатия
 
     function createPosterPreview(posterUrl) {
         // Создаем overlay если его еще нет
@@ -662,7 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function closePosterPreview() {
-        if (posterPreviewOverlay) {
+        if (posterPreviewOverlay && posterPreviewOverlay.classList.contains('active')) {
             posterPreviewOverlay.classList.remove('active');
             // Удаляем содержимое после анимации
             setTimeout(() => {
@@ -671,7 +674,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }, 200);
         }
-        isMouseDown = false;
+        isLongPress = false;
+        currentPreviewCard = null;
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+        }
     }
 
     // Обработчик для карточек фильмов
@@ -682,39 +690,67 @@ document.addEventListener('DOMContentLoaded', () => {
             const img = card.querySelector('img');
             if (!img) return;
 
-            // Mousedown - показываем постер
-            img.addEventListener('mousedown', (e) => {
+            // Удаляем старые обработчики если есть
+            img.removeEventListener('mousedown', img._posterMouseDown);
+            img.removeEventListener('mouseup', img._posterMouseUp);
+            img.removeEventListener('mouseleave', img._posterMouseLeave);
+
+            // Mousedown - начинаем отсчет для длинного нажатия
+            img._posterMouseDown = (e) => {
                 // Только левая кнопка мыши
                 if (e.button !== 0) return;
                 
-                e.preventDefault();
-                e.stopPropagation();
-                
                 const posterUrl = card.dataset.moviePoster;
-                if (posterUrl && posterUrl !== 'https://via.placeholder.com/200x300.png?text=No+Image') {
-                    isMouseDown = true;
-                    createPosterPreview(posterUrl);
+                if (!posterUrl || posterUrl === 'https://via.placeholder.com/200x300.png?text=No+Image') {
+                    return; // Позволяем обычному клику работать
                 }
-            });
 
-            // Предотвращаем клик при зажатии
-            img.addEventListener('click', (e) => {
-                if (isMouseDown) {
-                    e.stopPropagation();
+                currentPreviewCard = card;
+                
+                // Запускаем таймер для длинного нажатия
+                longPressTimer = setTimeout(() => {
+                    isLongPress = true;
+                    createPosterPreview(posterUrl);
+                    // Предотвращаем клик только при длинном нажатии
+                    e.preventDefault();
+                }, LONG_PRESS_DURATION);
+            };
+
+            // Mouseup - отменяем или закрываем
+            img._posterMouseUp = (e) => {
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
                 }
-            });
+
+                if (isLongPress) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closePosterPreview();
+                }
+                // Если не было длинного нажатия - позволяем обычному клику сработать
+            };
+
+            // Mouseleave - отменяем превью
+            img._posterMouseLeave = () => {
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+                if (isLongPress) {
+                    closePosterPreview();
+                }
+            };
+
+            img.addEventListener('mousedown', img._posterMouseDown);
+            img.addEventListener('mouseup', img._posterMouseUp);
+            img.addEventListener('mouseleave', img._posterMouseLeave);
         });
     }
 
     // Глобальные обработчики для закрытия превью
-    document.addEventListener('mouseup', () => {
-        if (isMouseDown) {
-            closePosterPreview();
-        }
-    });
-
-    document.addEventListener('mouseleave', () => {
-        if (isMouseDown) {
+    document.addEventListener('mouseup', (e) => {
+        if (isLongPress && !e.target.closest('.poster-preview-overlay')) {
             closePosterPreview();
         }
     });
