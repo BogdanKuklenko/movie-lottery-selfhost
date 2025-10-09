@@ -730,3 +730,66 @@ def remove_movie_badge(movie_id):
     db.session.commit()
     
     return jsonify({"success": True, "message": "Бейдж удалён"})
+
+@api_bp.route('/library/badges/stats', methods=['GET'])
+def get_badge_stats():
+    """Получение статистики по бейджам в библиотеке"""
+    from sqlalchemy import func
+    
+    badge_stats = db.session.query(
+        LibraryMovie.badge,
+        func.count(LibraryMovie.id).label('count')
+    ).filter(
+        LibraryMovie.badge.isnot(None)
+    ).group_by(
+        LibraryMovie.badge
+    ).all()
+    
+    stats = {badge: count for badge, count in badge_stats}
+    
+    # Добавляем все типы бейджей с нулевыми значениями для отсутствующих
+    all_badges = ['favorite', 'watchlist', 'top', 'watched', 'new']
+    result = {badge: stats.get(badge, 0) for badge in all_badges}
+    
+    return jsonify(result)
+
+@api_bp.route('/library/badges/<badge_type>/movies', methods=['GET'])
+def get_movies_by_badge(badge_type):
+    """Получение списка фильмов с определённым бейджем для создания опроса"""
+    allowed_badges = ['favorite', 'watchlist', 'top', 'watched', 'new']
+    
+    if badge_type not in allowed_badges:
+        return jsonify({"error": "Недопустимый тип бейджа"}), 400
+    
+    movies = LibraryMovie.query.filter_by(badge=badge_type).all()
+    
+    if len(movies) < 2:
+        return jsonify({"error": f"Недостаточно фильмов с бейджем '{badge_type}' для создания опроса (минимум 2)"}), 400
+    
+    # Ограничиваем количество фильмов до 25
+    limited = False
+    if len(movies) > 25:
+        movies = movies[:25]
+        limited = True
+    
+    movies_data = []
+    for movie in movies:
+        movies_data.append({
+            'id': movie.id,
+            'kinopoisk_id': movie.kinopoisk_id,
+            'name': movie.name,
+            'search_name': movie.search_name,
+            'year': movie.year,
+            'poster': movie.poster,
+            'description': movie.description,
+            'rating_kp': movie.rating_kp,
+            'genres': movie.genres,
+            'countries': movie.countries,
+            'badge': movie.badge
+        })
+    
+    return jsonify({
+        'movies': movies_data,
+        'total': len(movies),
+        'limited': limited
+    })

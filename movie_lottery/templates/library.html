@@ -19,11 +19,88 @@
                 Мои опросы
                 <span id="my-polls-badge" class="badge" style="display: none;"></span>
             </button>
+            <div class="badge-poll-dropdown">
+                <button id="badge-poll-btn" class="badge-poll-button">
+                    🎯 Опрос по бейджу
+                    <span class="dropdown-arrow">▼</span>
+                </button>
+                <div id="badge-poll-menu" class="badge-poll-menu">
+                    <div class="badge-poll-menu-header">Выберите бейдж для опроса:</div>
+                    <div class="badge-poll-options">
+                        <button class="badge-poll-option" data-badge="favorite" disabled>
+                            <span class="badge-icon">⭐</span>
+                            <span class="badge-name">Любимое</span>
+                            <span class="badge-count">(0)</span>
+                        </button>
+                        <button class="badge-poll-option" data-badge="watchlist" disabled>
+                            <span class="badge-icon">👁️</span>
+                            <span class="badge-name">Хочу посмотреть</span>
+                            <span class="badge-count">(0)</span>
+                        </button>
+                        <button class="badge-poll-option" data-badge="top" disabled>
+                            <span class="badge-icon">🏆</span>
+                            <span class="badge-name">Топ</span>
+                            <span class="badge-count">(0)</span>
+                        </button>
+                        <button class="badge-poll-option" data-badge="watched" disabled>
+                            <span class="badge-icon">✅</span>
+                            <span class="badge-name">Просмотрено</span>
+                            <span class="badge-count">(0)</span>
+                        </button>
+                        <button class="badge-poll-option" data-badge="new" disabled>
+                            <span class="badge-icon">🔥</span>
+                            <span class="badge-name">Новинка</span>
+                            <span class="badge-count">(0)</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
             <button id="toggle-select-mode-btn" class="nav-button">Выбрать фильмы</button>
             <a href="{{ url_for('main.index') }}" class="nav-button">&larr; Вернуться к созданию</a>
             <a href="{{ url_for('main.history') }}" class="nav-button">История</a>
         </div>
     </header>
+
+    <div id="badge-filters-panel" class="badge-filters-panel">
+        <div class="badge-filter-header">Фильтр по бейджам:</div>
+        <div class="badge-filters">
+            <button class="badge-filter active" data-badge="all">
+                <span class="badge-filter-icon">🎬</span>
+                <span class="badge-filter-name">Все</span>
+                <span class="badge-filter-count">(0)</span>
+            </button>
+            <button class="badge-filter" data-badge="favorite">
+                <span class="badge-filter-icon">⭐</span>
+                <span class="badge-filter-name">Любимое</span>
+                <span class="badge-filter-count">(0)</span>
+            </button>
+            <button class="badge-filter" data-badge="watchlist">
+                <span class="badge-filter-icon">👁️</span>
+                <span class="badge-filter-name">Хочу посмотреть</span>
+                <span class="badge-filter-count">(0)</span>
+            </button>
+            <button class="badge-filter" data-badge="top">
+                <span class="badge-filter-icon">🏆</span>
+                <span class="badge-filter-name">Топ</span>
+                <span class="badge-filter-count">(0)</span>
+            </button>
+            <button class="badge-filter" data-badge="watched">
+                <span class="badge-filter-icon">✅</span>
+                <span class="badge-filter-name">Просмотрено</span>
+                <span class="badge-filter-count">(0)</span>
+            </button>
+            <button class="badge-filter" data-badge="new">
+                <span class="badge-filter-icon">🔥</span>
+                <span class="badge-filter-name">Новинка</span>
+                <span class="badge-filter-count">(0)</span>
+            </button>
+            <button class="badge-filter" data-badge="none">
+                <span class="badge-filter-icon">⚪</span>
+                <span class="badge-filter-name">Без бейджа</span>
+                <span class="badge-filter-count">(0)</span>
+            </button>
+        </div>
+    </div>
     
     <div id="selection-panel" class="selection-panel" style="display: none;">
         <div class="selection-info">

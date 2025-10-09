@@ -378,6 +378,261 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Конец функционала опросов ---
 
+    // --- Функционал "Опрос по бейджу" ---
+    const badgePollBtn = document.getElementById('badge-poll-btn');
+    const badgePollDropdown = document.querySelector('.badge-poll-dropdown');
+    const badgePollMenu = document.getElementById('badge-poll-menu');
+    const badgePollOptions = document.querySelectorAll('.badge-poll-option');
+
+    // Загружаем статистику по бейджам
+    async function loadBadgeStats() {
+        try {
+            const response = await fetch('/api/library/badges/stats');
+            if (!response.ok) throw new Error('Не удалось загрузить статистику');
+            
+            const stats = await response.json();
+            
+            // Обновляем счетчики и состояние кнопок
+            badgePollOptions.forEach(option => {
+                const badgeType = option.dataset.badge;
+                const count = stats[badgeType] || 0;
+                const countElement = option.querySelector('.badge-count');
+                if (countElement) {
+                    countElement.textContent = `(${count})`;
+                }
+                
+                // Активируем только если фильмов >= 2
+                option.disabled = count < 2;
+            });
+        } catch (error) {
+            console.error('Ошибка загрузки статистики бейджей:', error);
+        }
+    }
+
+    // Загружаем статистику при загрузке страницы
+    loadBadgeStats();
+
+    // Открытие/закрытие выпадающего меню
+    badgePollBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        badgePollDropdown.classList.toggle('active');
+        loadBadgeStats(); // Обновляем статистику при открытии
+    });
+
+    // Закрытие при клике вне меню
+    document.addEventListener('click', (e) => {
+        if (!badgePollDropdown.contains(e.target)) {
+            badgePollDropdown.classList.remove('active');
+        }
+    });
+
+    // Создание опроса по бейджу
+    badgePollOptions.forEach(option => {
+        option.addEventListener('click', async (e) => {
+            e.preventDefault();
+            if (option.disabled) return;
+
+            const badgeType = option.dataset.badge;
+            const badgeName = option.querySelector('.badge-name').textContent;
+            const badgeIcon = option.querySelector('.badge-icon').textContent;
+
+            // Закрываем меню
+            badgePollDropdown.classList.remove('active');
+
+            // Показываем модальное окно подтверждения
+            const confirmHtml = `
+                <h2>Создать опрос по бейджу</h2>
+                <div style="text-align: center; margin: 20px 0;">
+                    <span style="font-size: 48px;">${badgeIcon}</span>
+                    <h3 style="margin: 10px 0;">${badgeName}</h3>
+                </div>
+                <p>Вы действительно хотите создать опрос со всеми фильмами, имеющими бейдж "${badgeName}"?</p>
+                <p style="font-size: 14px; color: #adb5bd; margin-top: 10px;">
+                    Опрос будет доступен друзьям по ссылке в течение 24 часов.
+                </p>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button class="secondary-button" id="cancel-badge-poll" style="flex: 1;">Отмена</button>
+                    <button class="cta-button" id="confirm-badge-poll" style="flex: 1;">Создать опрос</button>
+                </div>
+            `;
+
+            modal.open();
+            modal.renderCustomContent(confirmHtml);
+
+            // Обработка кнопок подтверждения
+            const confirmBtn = document.getElementById('confirm-badge-poll');
+            const cancelBtn = document.getElementById('cancel-badge-poll');
+
+            cancelBtn.addEventListener('click', () => {
+                modal.close();
+            });
+
+            confirmBtn.addEventListener('click', async () => {
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Создание...';
+
+                try {
+                    // Получаем фильмы с выбранным бейджем
+                    const response = await fetch(`/api/library/badges/${badgeType}/movies`);
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Не удалось получить фильмы');
+                    }
+
+                    // Показываем уведомление, если список был ограничен до 25
+                    if (data.limited) {
+                        showToast(`Внимание: в опрос добавлены только первые 25 фильмов из ${data.total}`, 'warning');
+                    }
+
+                    // Создаём опрос
+                    const createResponse = await fetch('/api/polls/create', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ movies: data.movies })
+                    });
+
+                    const createData = await createResponse.json();
+
+                    if (!createResponse.ok) {
+                        throw new Error(createData.error || 'Не удалось создать опрос');
+                    }
+
+                    // Сохраняем токен создателя в localStorage
+                    const creatorTokens = JSON.parse(localStorage.getItem('pollCreatorTokens') || '{}');
+                    creatorTokens[createData.poll_id] = createData.creator_token;
+                    localStorage.setItem('pollCreatorTokens', JSON.stringify(creatorTokens));
+
+                    // Показываем модальное окно с результатом
+                    showPollCreatedModal(createData.poll_url, createData.poll_id);
+
+                    // Обновляем кнопку "Мои опросы"
+                    loadMyPolls();
+
+                    showToast(`Опрос "${badgeName}" успешно создан!`, 'success');
+
+                } catch (error) {
+                    showToast(error.message, 'error');
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = 'Создать опрос';
+                }
+            });
+        });
+    });
+
+    // --- Конец функционала "Опрос по бейджу" ---
+
+    // --- Функционал фильтрации по бейджам ---
+    const badgeFilters = document.querySelectorAll('.badge-filter');
+    let currentFilter = 'all';
+
+    // Обновляем счетчики фильтров
+    async function updateBadgeFilterStats() {
+        try {
+            const response = await fetch('/api/library/badges/stats');
+            if (!response.ok) throw new Error('Не удалось загрузить статистику');
+            
+            const stats = await response.json();
+            
+            // Подсчитываем общее количество фильмов и фильмы без бейджа
+            const allCards = document.querySelectorAll('.library-card');
+            const totalMovies = allCards.length;
+            
+            let moviesWithBadges = 0;
+            Object.values(stats).forEach(count => {
+                moviesWithBadges += count;
+            });
+            
+            const noBadgeCount = totalMovies - moviesWithBadges;
+            
+            // Обновляем счетчики
+            badgeFilters.forEach(filter => {
+                const badgeType = filter.dataset.badge;
+                const countElement = filter.querySelector('.badge-filter-count');
+                
+                if (countElement) {
+                    let count = 0;
+                    if (badgeType === 'all') {
+                        count = totalMovies;
+                    } else if (badgeType === 'none') {
+                        count = noBadgeCount;
+                    } else {
+                        count = stats[badgeType] || 0;
+                    }
+                    countElement.textContent = `(${count})`;
+                }
+            });
+        } catch (error) {
+            console.error('Ошибка загрузки статистики фильтров:', error);
+        }
+    }
+
+    // Фильтрация карточек фильмов
+    function applyBadgeFilter(filterType) {
+        currentFilter = filterType;
+        const allCards = document.querySelectorAll('.library-card');
+        let visibleCount = 0;
+        
+        allCards.forEach(card => {
+            const cardBadge = card.dataset.badge || '';
+            let shouldShow = false;
+            
+            if (filterType === 'all') {
+                shouldShow = true;
+            } else if (filterType === 'none') {
+                shouldShow = cardBadge === '';
+            } else {
+                shouldShow = cardBadge === filterType;
+            }
+            
+            if (shouldShow) {
+                card.style.display = '';
+                visibleCount++;
+            } else {
+                card.style.display = 'none';
+            }
+        });
+        
+        // Показываем/скрываем сообщение о пустой библиотеке
+        const emptyMessage = document.querySelector('.library-empty-message');
+        if (emptyMessage) {
+            emptyMessage.style.display = visibleCount === 0 ? 'block' : 'none';
+            if (visibleCount === 0 && filterType !== 'all') {
+                emptyMessage.textContent = 'Фильмов с выбранным бейджем не найдено.';
+            } else if (visibleCount === 0) {
+                emptyMessage.textContent = 'В библиотеке пока нет фильмов.';
+            }
+        }
+    }
+
+    // Обработчики кликов на фильтры
+    badgeFilters.forEach(filter => {
+        filter.addEventListener('click', () => {
+            const filterType = filter.dataset.badge;
+            
+            // Обновляем активное состояние
+            badgeFilters.forEach(f => f.classList.remove('active'));
+            filter.classList.add('active');
+            
+            // Применяем фильтр
+            applyBadgeFilter(filterType);
+        });
+    });
+
+    // Загружаем статистику фильтров при загрузке страницы
+    updateBadgeFilterStats();
+
+    // Переопределяем функции setBadge и removeBadge для обновления фильтров
+    const originalUpdateBadgeOnCard = updateBadgeOnCard;
+    window.updateBadgeOnCard = function(card, badgeType) {
+        originalUpdateBadgeOnCard(card, badgeType);
+        updateBadgeFilterStats();
+        // Применяем текущий фильтр заново
+        applyBadgeFilter(currentFilter);
+    };
+
+    // --- Конец функционала фильтрации по бейджам ---
+
     const getMovieDataFromCard = (card) => {
         const ds = card.dataset;
         return {
@@ -506,6 +761,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateBadgeOnCard(currentBadgeCard, badgeType);
                 showToast('Бейдж установлен', 'success');
                 closeBadgeSelector();
+                // Обновляем статистику бейджей
+                loadBadgeStats();
             } catch (error) {
                 // Ошибка уже обработана в setBadge
             }
@@ -523,6 +780,8 @@ document.addEventListener('DOMContentLoaded', () => {
             updateBadgeOnCard(currentBadgeCard, null);
             showToast('Бейдж удалён', 'success');
             closeBadgeSelector();
+            // Обновляем статистику бейджей
+            loadBadgeStats();
         } catch (error) {
             // Ошибка уже обработана в removeBadge
         }
