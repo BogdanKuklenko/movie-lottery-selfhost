@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кино-лотерея: Опрос</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body class="poll-body">
+    <div class="background-rotator"></div>
+    
+    <div class="container poll-container">
+        <header>
+            <h1>Опрос: Какой фильм посмотрим?</h1>
+            <p id="poll-description">Выберите один фильм из списка ниже</p>
+        </header>
+
+        <div id="poll-grid" class="poll-grid">
+            <!-- Сетка фильмов будет загружена через JavaScript -->
+        </div>
+
+        <div id="poll-message" class="poll-message" style="display: none;">
+            <!-- Сообщения будут отображаться здесь -->
+        </div>
+    </div>
+
+    <!-- Модальное окно подтверждения голосования -->
+    <div id="vote-confirm-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content vote-confirm-content">
+            <h2>Подтверждение выбора</h2>
+            <div class="vote-confirm-movie">
+                <img id="vote-confirm-poster" src="" alt="Постер">
+                <div class="vote-confirm-info">
+                    <h3 id="vote-confirm-title"></h3>
+                    <p id="vote-confirm-year"></p>
+                </div>
+            </div>
+            <p>Вы уверены, что хотите проголосовать за этот фильм?</p>
+            <div class="modal-buttons">
+                <button id="vote-confirm-btn" class="cta-button">Да, проголосовать</button>
+                <button id="vote-cancel-btn" class="secondary-button">Отменить</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const pollId = {{ poll.id|tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/pages/poll.js') }}"></script>
+    
+    <script>
+        var backgroundPhotos = {{ background_photos|tojson|safe }};
+    </script>
+    <script type="module" src="{{ url_for('static', filename='js/background.js') }}"></script>
+</body>
+</html>
+

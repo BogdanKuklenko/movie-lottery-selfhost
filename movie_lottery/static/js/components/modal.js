@@ -64,6 +64,41 @@ function createWinnerCardHTML(movieData, isLibrary) {
         ? `<button class="danger-button modal-delete-btn">Удалить из библиотеки</button>`
         : `<button class="secondary-button add-library-modal-btn">Добавить в библиотеку</button>`;
 
+    // Секция выбора бейджа (только для библиотеки)
+    const badgeIcons = {
+        'favorite': '⭐',
+        'watchlist': '👁️',
+        'top': '🏆',
+        'watched': '✅',
+        'new': '🔥'
+    };
+    
+    const badgeLabels = {
+        'favorite': 'Любимое',
+        'watchlist': 'Хочу посмотреть',
+        'top': 'Топ',
+        'watched': 'Просмотрено',
+        'new': 'Новинка'
+    };
+    
+    const badgeTypes = ['favorite', 'watchlist', 'top', 'watched', 'new'];
+    const currentBadge = movieData.badge || null;
+
+    const badgeSectionHTML = isLibrary ? `
+        <div class="movie-badge-section">
+            <h4>Бейдж фильма</h4>
+            <div class="badge-options-inline">
+                ${badgeTypes.map(type => `
+                    <div class="badge-option-inline ${currentBadge === type ? 'selected' : ''}" data-badge="${type}">
+                        <span class="badge-icon">${badgeIcons[type]}</span>
+                        <span class="badge-label">${badgeLabels[type]}</span>
+                    </div>
+                `).join('')}
+            </div>
+            ${currentBadge ? '<button class="secondary-button modal-remove-badge-btn" style="margin-top: 10px;">Убрать бейдж</button>' : ''}
+        </div>
+    ` : '';
+
     return `
         <div class="winner-card">
             <div class="winner-poster">
@@ -82,8 +117,17 @@ function createWinnerCardHTML(movieData, isLibrary) {
                         <div class="magnet-actions">
                             <button class="action-button save-magnet-btn">Сохранить</button>
                             ${movieData.has_magnet ? '<button class="action-button-delete delete-magnet-btn">Удалить</button>' : ''}
+                            <button class="action-button-rutracker search-rutracker-btn" title="Найти на RuTracker">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <path d="m21 21-4.35-4.35"></path>
+                                </svg>
+                                RuTracker
+                            </button>
                         </div>
                     </div>` : '<p class="meta-info">Kinopoisk ID не указан, работа с magnet-ссылкой недоступна.</p>'}
+                
+                ${badgeSectionHTML}
                 
                 <div class="library-modal-actions">
                     <button class="secondary-button modal-download-btn"${movieData.has_magnet ? '' : ' disabled'}>Скачать</button>
@@ -134,11 +178,88 @@ export class ModalManager {
             this.close();
         }
     }
+
+    renderCustomContent(htmlContent) {
+        this.body.innerHTML = htmlContent;
+    }
     
     renderError(message) {
         this.body.innerHTML = `<p class="error-message">${escapeHtml(message)}</p>`;
     }
-    
+
+    /**
+     * Рендерит содержимое модального окна ожидания результата лотереи.
+     * @param {object} lotteryData - Данные лотереи.
+     */
+    renderWaitingModal(lotteryData = {}) {
+        const playUrl = lotteryData.play_url || '';
+        const telegramShareUrl = playUrl
+            ? `https://t.me/share/url?url=${encodeURIComponent(playUrl)}&text=${encodeURIComponent('Посмотри розыгрыш фильма!')}`
+            : '';
+
+        this.body.innerHTML = `
+            <div class="waiting-modal">
+                <h2>Розыгрыш еще не завершен</h2>
+                <p class="waiting-status">Информация о победителе появится позже.</p>
+                ${playUrl ? `
+                    <div class="waiting-link-block">
+                        <label for="waiting-play-url">Ссылка на розыгрыш:</label>
+                        <div class="waiting-link-row">
+                            <input type="text" id="waiting-play-url" class="waiting-play-url" value="${escapeHtml(playUrl)}" readonly>
+                            <button type="button" class="action-button waiting-copy-btn">Скопировать</button>
+                        </div>
+                        <button type="button" class="secondary-button waiting-share-btn" data-share-url="${escapeHtml(telegramShareUrl)}"${telegramShareUrl ? '' : ' disabled'}>Поделиться в Telegram</button>
+                    </div>
+                ` : '<p class="waiting-status">Ссылка на розыгрыш недоступна.</p>'}
+            </div>
+        `;
+
+        if (playUrl) {
+            this.initializeWaitingActions(playUrl, telegramShareUrl);
+        }
+    }
+
+    /**
+     * Инициализирует обработчики действий в модальном окне ожидания.
+     * @param {string} playUrl - Ссылка на страницу розыгрыша.
+     * @param {string} telegramShareUrl - Ссылка для поделиться в Telegram.
+     */
+    initializeWaitingActions(playUrl, telegramShareUrl) {
+        const copyBtn = this.body.querySelector('.waiting-copy-btn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', async () => {
+                try {
+                    await navigator.clipboard.writeText(playUrl);
+                    if (typeof showToast === 'function') {
+                        showToast('Ссылка скопирована в буфер обмена.', 'success');
+                    }
+                } catch (error) {
+                    const input = this.body.querySelector('#waiting-play-url');
+                    if (input && typeof input.select === 'function') {
+                        input.select();
+                        if (typeof document.execCommand === 'function') {
+                            document.execCommand('copy');
+                        }
+                    }
+                    if (typeof showToast === 'function') {
+                        showToast('Не удалось автоматически скопировать ссылку. Скопируйте ее вручную.', 'error');
+                    }
+                }
+            });
+        }
+
+        const shareBtn = this.body.querySelector('.waiting-share-btn');
+        if (shareBtn && telegramShareUrl) {
+            shareBtn.addEventListener('click', (event) => {
+                event.preventDefault();
+                window.open(telegramShareUrl, '_blank', 'noopener');
+                if (typeof showToast === 'function') {
+                    showToast('Открылось окно Telegram для отправки ссылки.', 'info');
+                }
+            });
+        }
+    }
+
     /**
      * Рендерит содержимое для модального окна Истории.
      * @param {object} lotteryData - Полные данные о лотерее.
@@ -180,6 +301,50 @@ export class ModalManager {
         const deleteMagnetBtn = this.body.querySelector('.delete-magnet-btn');
         if (deleteMagnetBtn) {
             deleteMagnetBtn.addEventListener('click', () => actions.onSaveMagnet(movieData.kinopoisk_id, ''));
+        }
+
+        // Кнопка "Найти на RuTracker"
+        const searchRutrackerBtn = this.body.querySelector('.search-rutracker-btn');
+        if (searchRutrackerBtn) {
+            searchRutrackerBtn.addEventListener('click', () => {
+                // Формируем поисковый запрос: "Название год"
+                const searchQuery = `${movieData.name}${movieData.year ? ' ' + movieData.year : ''}`;
+                
+                // Кодируем запрос для URL
+                const encodedQuery = encodeURIComponent(searchQuery);
+                
+                // Формируем URL RuTracker (используем несколько зеркал)
+                const rutrackerUrls = [
+                    `https://rutracker.org/forum/tracker.php?nm=${encodedQuery}`,
+                    `https://rutracker.net/forum/tracker.php?nm=${encodedQuery}`
+                ];
+                
+                // Открываем первое зеркало в новой вкладке
+                window.open(rutrackerUrls[0], '_blank');
+                
+                // Показываем уведомление
+                if (window.showToast) {
+                    window.showToast(`Открыт поиск на RuTracker: "${searchQuery}"`, 'info');
+                }
+            });
+        }
+
+        // Управление бейджами (только для библиотеки)
+        const badgeOptions = this.body.querySelectorAll('.badge-option-inline');
+        if (badgeOptions.length > 0 && actions.onSetBadge) {
+            badgeOptions.forEach(option => {
+                option.addEventListener('click', async () => {
+                    const badgeType = option.dataset.badge;
+                    await actions.onSetBadge(movieData.id, badgeType);
+                });
+            });
+        }
+
+        const removeBadgeBtn = this.body.querySelector('.modal-remove-badge-btn');
+        if (removeBadgeBtn && actions.onRemoveBadge) {
+            removeBadgeBtn.addEventListener('click', async () => {
+                await actions.onRemoveBadge(movieData.id);
+            });
         }
 
         // Кнопка "Добавить/Удалить из библиотеки"

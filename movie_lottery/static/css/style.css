@@ -11,5 +11,5 @@
 @import url('components/_modal.css');      /* Модальное окно */
 @import url('components/_slider.css');     /* Ползунок удаления */
 @import url('components/_toast.css');      /* Всплывающие уведомления */
-@import url('components/_widget.css');     /* Виджет статуса загрузок */
+@import url('components/_polls.css');      /* Опросы */
 @import url('components/_other.css');      /* Остальные misc стили */

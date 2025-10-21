@@ -31,6 +31,10 @@
             <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
             <path d="m16 16 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
         </symbol>
+        <symbol id="icon-copy" viewBox="0 0 24 24">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" transform="translate(-7 -7)"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
         <symbol id="icon-delete" viewBox="0 0 24 24">
             <path d="M6 6 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -47,6 +51,7 @@
                      data-lottery-id="{{ lottery.id }}"
                      data-kinopoisk-id="{{ winner_movie.kinopoisk_id if winner_movie else '' }}"
                      data-movie-name="{{ lottery.result_name|e }}"
+                     data-movie-search-name="{{ (winner_movie.search_name|default('', true))|e if winner_movie else '' }}"
                      data-movie-year="{{ lottery.result_year or '' }}"
                      data-movie-poster="{{ (lottery.result_poster or '')|e }}"
                      data-movie-description="{{ (winner_movie.description|default('', true)|replace('\n', ' '))|e if winner_movie else '' }}"
@@ -62,13 +67,13 @@
 
                     <div class="action-buttons">
                         {% if has_identifier %}
-                            <button type="button" class="icon-button download-button" title="Скачать фильм" aria-label="Скачать фильм">
-                                <svg class="icon-svg icon-download" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                    <use href="#icon-download"></use>
+                            <button type="button" class="icon-button copy-magnet-button" title="Скопировать magnet-ссылку" aria-label="Скопировать magnet-ссылку">
+                                <svg class="icon-svg icon-copy" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <use href="#icon-copy"></use>
                                 </svg>
                             </button>
                         {% else %}
-                            <button type="button" class="icon-button search-button" title="Искать торрент" aria-label="Искать торрент">
+                            <button type="button" class="icon-button search-rutracker-button" title="Найти на RuTracker" aria-label="Найти на RuTracker">
                                 <svg class="icon-svg icon-search" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                                     <use href="#icon-search"></use>
                                 </svg>
@@ -110,23 +115,12 @@
             <div></div> </div>
     </div>
 
-    <div id="torrent-status-widget" class="status-widget" style="display: none;">
-        <div class="widget-header">
-            <h4>Статус загрузки</h4>
-            <button id="widget-toggle-btn" class="widget-toggle-btn">&mdash;</button>
-        </div>
-        <div id="widget-body" class="widget-body">
-            <p class="widget-empty">Активных загрузок нет.</p>
-            <div id="widget-downloads"></div>
-        </div>
-    </div>
-
     <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/torrentUpdater.js') }}"></script> <script type="module" src="{{ url_for('static', filename='js/pages/history.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/pages/history.js') }}"></script>
     
     <script>
         var backgroundPhotos = {{ background_photos|tojson|safe }};
     </script>
-    <script src="{{ url_for('static', filename='js/background.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/background.js') }}"></script>
 </body>
 </html>

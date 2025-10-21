@@ -15,10 +15,102 @@
     <header class="gallery-header">
         <h1>Библиотека фильмов</h1>
         <div class="gallery-actions">
+            <button id="my-polls-btn" class="nav-button" style="display: none;">
+                Мои опросы
+                <span id="my-polls-badge" class="badge" style="display: none;"></span>
+            </button>
+            <div class="badge-poll-dropdown">
+                <button id="badge-poll-btn" class="badge-poll-button">
+                    🎯 Опрос по бейджу
+                    <span class="dropdown-arrow">▼</span>
+                </button>
+                <div id="badge-poll-menu" class="badge-poll-menu">
+                    <div class="badge-poll-menu-header">Выберите бейдж для опроса:</div>
+                    <div class="badge-poll-options">
+                        <button class="badge-poll-option" data-badge="favorite" disabled>
+                            <span class="badge-icon">⭐</span>
+                            <span class="badge-name">Любимое</span>
+                            <span class="badge-count">(0)</span>
+                        </button>
+                        <button class="badge-poll-option" data-badge="watchlist" disabled>
+                            <span class="badge-icon">👁️</span>
+                            <span class="badge-name">Хочу посмотреть</span>
+                            <span class="badge-count">(0)</span>
+                        </button>
+                        <button class="badge-poll-option" data-badge="top" disabled>
+                            <span class="badge-icon">🏆</span>
+                            <span class="badge-name">Топ</span>
+                            <span class="badge-count">(0)</span>
+                        </button>
+                        <button class="badge-poll-option" data-badge="watched" disabled>
+                            <span class="badge-icon">✅</span>
+                            <span class="badge-name">Просмотрено</span>
+                            <span class="badge-count">(0)</span>
+                        </button>
+                        <button class="badge-poll-option" data-badge="new" disabled>
+                            <span class="badge-icon">🔥</span>
+                            <span class="badge-name">Новинка</span>
+                            <span class="badge-count">(0)</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <button id="toggle-select-mode-btn" class="nav-button">Выбрать фильмы</button>
             <a href="{{ url_for('main.index') }}" class="nav-button">&larr; Вернуться к созданию</a>
             <a href="{{ url_for('main.history') }}" class="nav-button">История</a>
         </div>
     </header>
+
+    <div id="badge-filters-panel" class="badge-filters-panel">
+        <div class="badge-filter-header">Фильтр по бейджам:</div>
+        <div class="badge-filters">
+            <button class="badge-filter active" data-badge="all">
+                <span class="badge-filter-icon">🎬</span>
+                <span class="badge-filter-name">Все</span>
+                <span class="badge-filter-count">(0)</span>
+            </button>
+            <button class="badge-filter" data-badge="favorite">
+                <span class="badge-filter-icon">⭐</span>
+                <span class="badge-filter-name">Любимое</span>
+                <span class="badge-filter-count">(0)</span>
+            </button>
+            <button class="badge-filter" data-badge="watchlist">
+                <span class="badge-filter-icon">👁️</span>
+                <span class="badge-filter-name">Хочу посмотреть</span>
+                <span class="badge-filter-count">(0)</span>
+            </button>
+            <button class="badge-filter" data-badge="top">
+                <span class="badge-filter-icon">🏆</span>
+                <span class="badge-filter-name">Топ</span>
+                <span class="badge-filter-count">(0)</span>
+            </button>
+            <button class="badge-filter" data-badge="watched">
+                <span class="badge-filter-icon">✅</span>
+                <span class="badge-filter-name">Просмотрено</span>
+                <span class="badge-filter-count">(0)</span>
+            </button>
+            <button class="badge-filter" data-badge="new">
+                <span class="badge-filter-icon">🔥</span>
+                <span class="badge-filter-name">Новинка</span>
+                <span class="badge-filter-count">(0)</span>
+            </button>
+            <button class="badge-filter" data-badge="none">
+                <span class="badge-filter-icon">⚪</span>
+                <span class="badge-filter-name">Без бейджа</span>
+                <span class="badge-filter-count">(0)</span>
+            </button>
+        </div>
+    </div>
+    
+    <div id="selection-panel" class="selection-panel" style="display: none;">
+        <div class="selection-info">
+            <span id="selection-count">Выбрано: 0</span>
+        </div>
+        <div class="selection-actions">
+            <button id="create-poll-from-selection-btn" class="cta-button" disabled>Создать опрос</button>
+            <button id="cancel-selection-btn" class="secondary-button">Отменить</button>
+        </div>
+    </div>
 
     <svg class="icon-sprite" aria-hidden="true" focusable="false">
         <symbol id="icon-download" viewBox="0 0 24 24">
@@ -29,6 +121,10 @@
         <symbol id="icon-search" viewBox="0 0 24 24">
             <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
             <path d="m16 16 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="icon-copy" viewBox="0 0 24 24">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" transform="translate(-7 -7)"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
         </symbol>
         <symbol id="icon-delete" viewBox="0 0 24 24">
             <path d="M6 6 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -44,6 +140,7 @@
                     data-movie-id="{{ movie.id }}"
                     data-kinopoisk-id="{{ movie.kinopoisk_id or '' }}"
                     data-movie-name="{{ movie.name|e }}"
+                    data-movie-search-name="{{ (movie.search_name or '')|e }}"
                     data-movie-year="{{ movie.year or '' }}"
                     data-movie-poster="{{ (movie.poster or '')|e }}"
                     data-movie-description="{{ (movie.description|default('', true)|replace('\n', ' '))|e }}"
@@ -55,27 +152,44 @@
                     data-magnet-link="{{ (movie.magnet_link or '')|e }}"
                     data-is-on-client="{{ 'true' if movie.is_on_client else 'false' }}"
                     data-torrent-hash="{{ movie.torrent_hash|e if movie.torrent_hash else '' }}"
+                    data-badge="{{ movie.badge or '' }}"
                 >
+                    <input type="checkbox" class="movie-checkbox" style="display: none;" data-movie-id="{{ movie.id }}">
                     <div class="torrent-status-indicator"></div>
+
+                    {% if movie.badge %}
+                    <div class="movie-badge" data-badge-type="{{ movie.badge }}">
+                        {% if movie.badge == 'favorite' %}⭐
+                        {% elif movie.badge == 'watchlist' %}👁️
+                        {% elif movie.badge == 'top' %}🏆
+                        {% elif movie.badge == 'watched' %}✅
+                        {% elif movie.badge == 'new' %}🔥
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <button type="button" class="badge-control-btn" title="Управление бейджем" aria-label="Управление бейджем">
+                        🏷️
+                    </button>
 
                     <div class="action-buttons">
                         {% if movie.has_magnet %}
                             <button
                                 type="button"
-                                class="icon-button download-button"
-                                title="Скачать торрент"
-                                aria-label="Скачать торрент"
+                                class="icon-button copy-magnet-button"
+                                title="Скопировать magnet-ссылку"
+                                aria-label="Скопировать magnet-ссылку"
                             >
-                                <svg class="icon-svg icon-download" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                    <use href="#icon-download"></use>
+                                <svg class="icon-svg icon-copy" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <use href="#icon-copy"></use>
                                 </svg>
                             </button>
                         {% else %}
                             <button
                                 type="button"
-                                class="icon-button search-button"
-                                title="Искать торрент"
-                                aria-label="Искать торрент"
+                                class="icon-button search-rutracker-button"
+                                title="Найти на RuTracker"
+                                aria-label="Найти на RuTracker"
                             >
                                 <svg class="icon-svg icon-search" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                                     <use href="#icon-search"></use>
@@ -108,23 +222,44 @@
             <div></div> </div>
     </div>
 
-    <div id="torrent-status-widget" class="status-widget" style="display: none;">
-        <div class="widget-header">
-            <h4>Статус загрузки</h4>
-            <button id="widget-toggle-btn" class="widget-toggle-btn">&mdash;</button>
-        </div>
-        <div id="widget-body" class="widget-body">
-            <p class="widget-empty">Активных загрузок нет.</p>
-            <div id="widget-downloads"></div>
+    <div id="badge-selector-modal" class="badge-selector-modal">
+        <div class="badge-selector-content">
+            <h3>Выберите бейдж</h3>
+            <div class="badge-options">
+                <div class="badge-option" data-badge="favorite">
+                    <span class="badge-icon">⭐</span>
+                    <span class="badge-label">Любимое</span>
+                </div>
+                <div class="badge-option" data-badge="watchlist">
+                    <span class="badge-icon">👁️</span>
+                    <span class="badge-label">Хочу посмотреть</span>
+                </div>
+                <div class="badge-option" data-badge="top">
+                    <span class="badge-icon">🏆</span>
+                    <span class="badge-label">Топ</span>
+                </div>
+                <div class="badge-option" data-badge="watched">
+                    <span class="badge-icon">✅</span>
+                    <span class="badge-label">Просмотрено</span>
+                </div>
+                <div class="badge-option" data-badge="new">
+                    <span class="badge-icon">🔥</span>
+                    <span class="badge-label">Новинка</span>
+                </div>
+            </div>
+            <div class="badge-selector-actions">
+                <button class="remove-badge-btn">Убрать бейдж</button>
+                <button class="cancel-badge-btn">Отмена</button>
+            </div>
         </div>
     </div>
 
     <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/torrentUpdater.js') }}"></script> <script type="module" src="{{ url_for('static', filename='js/pages/library.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/pages/library.js') }}"></script>
 
     <script>
         var backgroundPhotos = {{ background_photos|tojson|safe }};
     </script>
-    <script src="{{ url_for('static', filename='js/background.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/background.js') }}"></script>
 </body>
 </html>

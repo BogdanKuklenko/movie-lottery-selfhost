@@ -1,13 +1,12 @@
 /* F:\GPT\movie-lottery V2\movie_lottery\static\css\base\_variables.css */
 :root {
     --primary-color: #ffc107; /* Яркий желтый */
+    --primary-color-rgb: 255, 193, 7; /* RGB значение для primary-color */
     --secondary-color: #343a40; /* Темно-серый */
     --background-color: #121212; /* Почти черный */
     --text-color: #f8f9fa; /* Светло-серый */
     --card-bg-color: #1e1e1e; /* Цвет карточек */
     --danger-color: #dc3545; /* Красный для удаления */
-    --torrent-color: #0d6efd; /* Синий для статуса торрента */
-    --torrent-done-color: #28a745; /* Зеленый для завершенного */
     --rating-high: #28a745; /* Зеленый для высокого рейтинга */
     --rating-medium: #fd7e14; /* Оранжевый для среднего */
     --rating-low: #6c757d; /* Серый для низкого */

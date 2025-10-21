@@ -1,33 +1,57 @@
 // static/js/background.js
 
-document.addEventListener('DOMContentLoaded', () => {
-    // Эта функция отрисовывает статичный фон на основе данных от сервера
-    const renderStaticBackground = (photos) => {
-        const rotator = document.querySelector('.background-rotator');
-        if (!rotator) return;
+import { loadBackgroundInBatches } from './utils/backgroundLoader.js';
+import { clearCachedBackground, loadCachedBackground } from './utils/backgroundCache.js';
 
-        // Очищаем фон от старых изображений
-        rotator.innerHTML = '';
-
-        // Проходим по каждому объекту фото и создаем для него div
-        photos.forEach(photo => {
-            const div = document.createElement('div');
-            div.className = 'bg-image';
-            
-            // Устанавливаем все стили напрямую из данных, полученных от сервера
-            div.style.backgroundImage = `url(${photo.poster_url})`;
-            div.style.top = `${photo.pos_top}%`;
-            div.style.left = `${photo.pos_left}%`;
-            div.style.zIndex = photo.z_index;
-            div.style.transform = `rotate(${photo.rotation}deg) scale(1)`;
-            div.style.opacity = '1'; // Сразу делаем видимым, без анимации падения
-
-            rotator.appendChild(div);
-        });
-    };
-
-    // Проверяем, передал ли сервер данные для фона в глобальной переменной
-    if (typeof backgroundPhotos !== 'undefined' && Array.isArray(backgroundPhotos)) {
-        renderStaticBackground(backgroundPhotos);
+function computeBackgroundVersion(photos) {
+    if (!Array.isArray(photos) || photos.length === 0) {
+        return 'empty';
     }
+
+    const hashSource = photos.map((photo) => [
+        photo.poster_url,
+        photo.pos_top,
+        photo.pos_left,
+        photo.rotation,
+        photo.z_index,
+    ]);
+
+    const serialized = JSON.stringify(hashSource);
+    let hash = 0;
+
+    for (let index = 0; index < serialized.length; index += 1) {
+        hash = (hash * 31 + serialized.charCodeAt(index)) >>> 0;
+    }
+
+    return `${photos.length}:${hash}`;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const rotator = document.querySelector('.background-rotator');
+    if (!rotator) {
+        return;
+    }
+
+    if (typeof backgroundPhotos === 'undefined' || !Array.isArray(backgroundPhotos)) {
+        return;
+    }
+
+    const cacheVersion = computeBackgroundVersion(backgroundPhotos);
+    const cachedBackground = loadCachedBackground(cacheVersion);
+
+    if (cachedBackground && cachedBackground.markup) {
+        rotator.innerHTML = cachedBackground.markup;
+        requestAnimationFrame(() => {
+            rotator.querySelectorAll('.bg-image').forEach((element) => {
+                element.classList.add('is-loaded');
+            });
+        });
+        return;
+    }
+
+    clearCachedBackground();
+
+    loadBackgroundInBatches(rotator, backgroundPhotos, {
+        cacheVersion,
+    });
 });

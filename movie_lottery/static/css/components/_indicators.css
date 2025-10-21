@@ -1,54 +1,5 @@
 /* F:\GPT\movie-lottery V2\movie_lottery\static\css\components\_indicators.css */
 
-/* Индикатор статуса торрента */
-.torrent-status-indicator {
-    position: absolute;
-    bottom: 5px; /* Располагаем букву чуть выше края */
-    left: 5px;   /* и чуть правее */
-    width: 22px; /* Размер контейнера буквы */
-    height: 22px;
-    opacity: 0;
-    transition: opacity 0.4s ease, transform 0.3s ease;
-    pointer-events: none;
-    z-index: 3;
-    transform: scale(0.8); /* Начальный размер для анимации появления */
-}
-
-/* Класс, который добавляется через JS, чтобы показать индикатор */
-.gallery-item.has-torrent-on-client .torrent-status-indicator {
-    opacity: 1;
-    transform: scale(1); /* Анимация появления */
-}
-
-/* Стилизуем псевдоэлемент как букву "q" */
-.torrent-status-indicator::before {
-    content: 'q'; /* Наш символ */
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    
-    /* Стили для текста */
-    font-family: 'Montserrat', sans-serif;
-    font-weight: 900; /* Делаем букву очень жирной */
-    font-size: 18px;
-    color: var(--torrent-color); /* Основной синий цвет */
-    
-    /* Стили для контейнера */
-    background-color: rgba(10, 10, 10, 0.7); /* Полупрозрачный фон */
-    border-radius: 50%; /* Делаем фон круглым */
-    backdrop-filter: blur(3px); /* Размываем фон под буквой */
-    
-    /* Тень для эффекта свечения */
-    text-shadow: 0 0 8px var(--torrent-color), 0 0 12px rgba(255, 255, 255, 0.5);
-    
-    /* Выравнивание буквы по центру круга */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-}
-
-
 /* Рейтинговая плашка на постере в модальном окне */
 .rating-badge {
     position: absolute;

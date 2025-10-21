@@ -1,0 +1,200 @@
+﻿2025-10-03T063427.725850196Z              ^
+2025-10-03T063427.725852566Z 
+2025-10-03T063427.725855926Z [SQL SELECT poll.id AS poll_id, poll.created_at AS poll_created_at, poll.expires_at AS poll_expires_at, poll.creator_token AS poll_creator_token 
+2025-10-03T063427.725858696Z FROM poll 
+2025-10-03T063427.725861376Z WHERE poll.id = %(pk_1)s]
+2025-10-03T063427.725863716Z [parameters {'pk_1' '70qncdyf'}]
+2025-10-03T063427.725865956Z (Background on this error at httpssqlalche.mee20f405)
+2025-10-03T071342.495013101Z [DIAGNOSTIC] Running job Cleanup expired polls (trigger interval[10000], next run at 2025-10-03 071342 UTC) (scheduled at 2025-10-03 071342.494061+0000)
+2025-10-03T071342.54728121Z Ошибка при очистке опросов (psycopg2.errors.UndefinedTable) relation poll does not exist
+2025-10-03T071342.54729648Z LINE 2 FROM poll 
+2025-10-03T071342.547300631Z              ^
+2025-10-03T071342.547304341Z 
+2025-10-03T071342.547308691Z [SQL SELECT poll.id AS poll_id, poll.created_at AS poll_created_at, poll.expires_at AS poll_expires_at, poll.creator_token AS poll_creator_token 
+2025-10-03T071342.547312521Z FROM poll 
+2025-10-03T071342.547317001Z WHERE poll.expires_at = %(expires_at_1)s]
+2025-10-03T071342.547321311Z [parameters {'expires_at_1' datetime.datetime(2025, 10, 3, 7, 13, 42, 495207)}]
+2025-10-03T071342.547325541Z (Background on this error at httpssqlalche.mee20f405)
+2025-10-03T071342.547329881Z [DIAGNOSTIC] Job Cleanup expired polls (trigger interval[10000], next run at 2025-10-03 081342 UTC) executed successfully
+2025-10-03T071425.917373019Z [DIAGNOSTIC] Exception on apipollscreate [POST]
+2025-10-03T071425.91740123Z Traceback (most recent call last)
+2025-10-03T071425.91740661Z   File optrenderprojectsrc.venvlibpython3.13site-packagessqlalchemyenginebase.py, line 1967, in _exec_single_context
+2025-10-03T071425.91741112Z     self.dialect.do_execute(
+2025-10-03T071425.91741473Z     ~~~~~~~~~~~~~~~~~~~~~~~^
+2025-10-03T071425.91741852Z         cursor, str_statement, effective_parameters, context
+2025-10-03T071425.91742211Z         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-03T071425.91742573Z     )
+2025-10-03T071425.917429301Z     ^
+2025-10-03T071425.91743363Z   File optrenderprojectsrc.venvlibpython3.13site-packagessqlalchemyenginedefault.py, line 951, in do_execute
+2025-10-03T071425.917437211Z     cursor.execute(statement, parameters)
+2025-10-03T071425.917440941Z     ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-03T071425.917444641Z psycopg2.errors.UndefinedTable relation poll does not exist
+2025-10-03T071425.917449051Z LINE 2 FROM poll 
+2025-10-03T071425.917452721Z              ^
+2025-10-03T071425.917456041Z 
+2025-10-03T071425.917459321Z 
+2025-10-03T071425.917463431Z The above exception was the direct cause of the following exception
+2025-10-03T071425.917466811Z 
+2025-10-03T071425.917470271Z Traceback (most recent call last)
+2025-10-03T071425.917474581Z   File optrenderprojectsrc.venvlibpython3.13site-packagesflaskapp.py, line 1511, in wsgi_app
+2025-10-03T071425.917478231Z     response = self.full_dispatch_request()
+2025-10-03T071425.917484971Z   File optrenderprojectsrc.venvlibpython3.13site-packagesflaskapp.py, line 919, in full_dispatch_request
+2025-10-03T071425.917488432Z     rv = self.handle_user_exception(e)
+2025-10-03T071425.917492092Z   File optrenderprojectsrc.venvlibpython3.13site-packagesflaskapp.py, line 917, in full_dispatch_request
+2025-10-03T071425.917508132Z     rv = self.dispatch_request()
+2025-10-03T071425.917511342Z   File optrenderprojectsrc.venvlibpython3.13site-packagesflaskapp.py, line 902, in dispatch_request
+2025-10-03T071425.917513662Z     return self.ensure_sync(self.view_functions[rule.endpoint])(view_args)  # type ignore[no-any-return]
+2025-10-03T071425.917515892Z            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+2025-10-03T071425.917518722Z   File optrenderprojectsrcmovie_lotteryroutesapi_routes.py, line 476, in create_poll
+2025-10-03T071425.917520822Z     new_poll = Poll(id=generate_unique_poll_id())
+2025-10-03T071425.917522952Z                        ~~~~~~~~~~~~~~~~~~~~~~~^^
+2025-10-03T071425.917525032Z   File optrenderprojectsrcmovie_lotteryutilshelpers.py, line 19, in generate_unique_poll_id
+2025-10-03T071425.917527223Z     if not Poll.query.get(poll_id)
+2025-10-03T071425.917529312Z            ~~~~~~~~~~~~~~^^^^^^^^^
+2025-10-03T071425.917531452Z   File string, line 2, in get
+2025-10-03T071425.917533503Z   File optrenderprojectsrc.venvlibpython3.13site-packagessqlalchemyutildeprecations.py, line 386, in warned
+2025-10-03T071425.917535713Z     return fn(args, kwargs)  # type ignore[no-any-return]
+2025-10-03T071425.917537893Z   File optrenderprojectsrc.venvlibpython3.13site-packagessqlalchemyormquery.py, line 1126, in get
+2025-10-03T071425.917540003Z     return self._get_impl(ident, loading.load_on_pk_identity)
+2025-10-03T071425.917542413Z            ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-03T071425.917544563Z   File optrenderprojectsrc.venvlibpython3.13site-packagessqlalchemyormquery.py, line 1135, in _get_impl
+2025-10-03T071425.917546573Z     return self.session._get_impl(
+2025-10-03T071425.917548953Z            ~~~~~~~~~~~~~~~~~~~~~~^
+2025-10-03T071425.917551083Z         mapper,
+2025-10-03T071425.917553223Z         ^^^^^^^
+2025-10-03T071425.917555293Z     ...6 lines...
+2025-10-03T071425.917557303Z         execution_options=self._execution_options,
+2025-10-03T071425.917559453Z         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-03T071425.917561513Z     )
+2025-10-03T071425.917563683Z     ^
+2025-10-03T071425.917565873Z   File optrenderprojectsrc.venvlibpython3.13site-packagessqlalchemyormsession.py, line 3873, in _get_impl
+2025-10-03T071425.917567963Z     return db_load_fn(
+2025-10-03T071425.917570053Z         self,
+2025-10-03T071425.917572043Z     ...5 lines...
+2025-10-03T071425.917573993Z         bind_arguments=bind_arguments,
+2025-10-03T071425.917576053Z     )
+2025-10-03T071425.917578233Z   File optrenderprojectsrc.venvlibpython3.13site-packagessqlalchemyormloading.py, line 695, in load_on_pk_identity
+2025-10-03T071425.917580344Z     session.execute(
+2025-10-03T071425.917582424Z     ~~~~~~~~~~~~~~~^
+2025-10-03T071425.917584454Z         q,
+2025-10-03T071425.917586504Z         ^^
+2025-10-03T071425.917588584Z     ...2 lines...
+2025-10-03T071425.917590754Z         bind_arguments=bind_arguments,
+2025-10-03T071425.917592874Z         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-03T071425.917594954Z     )
+2025-10-03T071425.917597014Z     ^
+2025-10-03T071425.917599124Z   File optrenderprojectsrc.venvlibpython3.13site-packagessqlalchemyormsession.py, line 2365, in execute
+2025-10-03T071425.917601244Z     return self._execute_internal(
+2025-10-03T071425.917603334Z            ~~~~~~~~~~~~~~~~~~~~~~^
+2025-10-03T071425.917610314Z         statement,
+2025-10-03T071425.917612664Z         ^^^^^^^^^^
+2025-10-03T071425.917614974Z     ...4 lines...
+2025-10-03T071425.918167345Z         _add_event=_add_event,
+2025-10-03T071425.918183446Z         ^^^^^^^^^^^^^^^^^^^^^^
+2025-10-03T071425.918186416Z     )
+2025-10-03T071425.918188696Z     ^
+2025-10-03T071425.918190936Z   File optrenderprojectsrc.venvlibpython3.13site-packagessqlalchemyormsession.py, line 2251, in _execute_internal
+2025-10-03T071425.918193456Z     result Result[Any] = compile_state_cls.orm_execute_statement(
+2025-10-03T071425.918195636Z                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+2025-10-03T071425.918197676Z         self,
+2025-10-03T071425.918199736Z         ^^^^^
+2025-10-03T071425.918202436Z     ...4 lines...
+2025-10-03T071425.918204706Z         conn,
+2025-10-03T071425.918206966Z         ^^^^^
+2025-10-03T071425.918208946Z     )
+2025-10-03T071425.918211066Z     ^
+2025-10-03T071425.918213697Z   File optrenderprojectsrc.venvlibpython3.13site-packagessqlalchemyormcontext.py, line 306, in orm_execute_statement
+2025-10-03T071425.918215766Z     result = conn.execute(
+2025-10-03T071425.918250917Z         statement, params or {}, execution_options=execution_options
+2025-10-03T071425.918253937Z     )
+2025-10-03T071425.918256387Z   File optrenderprojectsrc.venvlibpython3.13site-packagessqlalchemyenginebase.py, line 1419, in execute
+2025-10-03T071425.918258618Z     return meth(
+2025-10-03T071425.918260658Z         self,
+2025-10-03T071425.918262818Z         distilled_parameters,
+2025-10-03T071425.918265638Z         execution_options or NO_OPTIONS,
+2025-10-03T071425.918267718Z     )
+2025-10-03T071425.918270148Z   File optrenderprojectsrc.venvlibpython3.13site-packagessqlalchemysqlelements.py, line 526, in _execute_on_connection
+2025-10-03T071425.918272448Z     return connection._execute_clauseelement(
+2025-10-03T071425.918274588Z            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+2025-10-03T071425.918276978Z         self, distilled_params, execution_options
+2025-10-03T071425.918279038Z         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-03T071425.918281088Z     )
+2025-10-03T071425.918283288Z     ^
+2025-10-03T071425.918285298Z   File optrenderprojectsrc.venvlibpython3.13site-packagessqlalchemyenginebase.py, line 1641, in _execute_clauseelement
+2025-10-03T071425.918287518Z     ret = self._execute_context(
+2025-10-03T071425.918289618Z         dialect,
+2025-10-03T071425.918291778Z     ...8 lines...
+2025-10-03T071425.918293908Z         cache_hit=cache_hit,
+2025-10-03T071425.918295898Z     )
+2025-10-03T071425.918298088Z   File optrenderprojectsrc.venvlibpython3.13site-packagessqlalchemyenginebase.py, line 1846, in _execute_context
+2025-10-03T071425.918300318Z     return self._exec_single_context(
+2025-10-03T071425.918302478Z            ~~~~~~~~~~~~~~~~~~~~~~~~~^
+2025-10-03T071425.918304718Z         dialect, context, statement, parameters
+2025-10-03T071425.918306759Z         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-03T071425.918308859Z     )
+2025-10-03T071425.918310939Z     ^
+2025-10-03T071425.918313108Z   File optrenderprojectsrc.venvlibpython3.13site-packagessqlalchemyenginebase.py, line 1986, in _exec_single_context
+2025-10-03T071425.918315289Z     self._handle_dbapi_exception(
+2025-10-03T071425.918317349Z     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+2025-10-03T071425.918319589Z         e, str_statement, effective_parameters, cursor, context
+2025-10-03T071425.918329399Z         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-03T071425.91835892Z     )
+2025-10-03T071425.918361529Z     ^
+2025-10-03T071425.91836377Z   File optrenderprojectsrc.venvlibpython3.13site-packagessqlalchemyenginebase.py, line 2355, in _handle_dbapi_exception
+2025-10-03T071425.91836661Z     raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+2025-10-03T071425.91836877Z   File optrenderprojectsrc.venvlibpython3.13site-packagessqlalchemyenginebase.py, line 1967, in _exec_single_context
+2025-10-03T071425.91837101Z     self.dialect.do_execute(
+2025-10-03T071425.91837298Z     ~~~~~~~~~~~~~~~~~~~~~~~^
+2025-10-03T071425.91837518Z         cursor, str_statement, effective_parameters, context
+2025-10-03T071425.91837722Z         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-03T071425.91837934Z     )
+2025-10-03T071425.91838137Z     ^
+2025-10-03T071425.91838344Z   File optrenderprojectsrc.venvlibpython3.13site-packagessqlalchemyenginedefault.py, line 951, in do_execute
+2025-10-03T071425.91838571Z     cursor.execute(statement, parameters)
+2025-10-03T071425.91838777Z     ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+2025-10-03T071425.91839052Z sqlalchemy.exc.ProgrammingError (psycopg2.errors.UndefinedTable) relation poll does not exist
+2025-10-03T071425.91839298Z LINE 2 FROM poll 
+2025-10-03T071425.91839515Z              ^
+2025-10-03T071425.91839717Z 
+2025-10-03T071425.9184001Z [SQL SELECT poll.id AS poll_id, poll.created_at AS poll_created_at, poll.expires_at AS poll_expires_at, poll.creator_token AS poll_creator_token 
+2025-10-03T071425.91840228Z FROM poll 
+2025-10-03T071425.91840445Z WHERE poll.id = %(pk_1)s]
+2025-10-03T071425.91840655Z [parameters {'pk_1' '1ba0pdqr'}]
+2025-10-03T071425.91840885Z (Background on this error at httpssqlalche.mee20f405)
+2025-10-03T071708.77675035Z == Deploying...
+2025-10-03T071800.69956006Z == Your service is live 🎉
+2025-10-03T071800.735333356Z == 
+2025-10-03T071800.764046183Z == 
+2025-10-03T071800.79271376Z == 
+2025-10-03T071800.822541507Z == Available at your primary URL httpsmovie-lottery.onrender.com
+2025-10-03T071801.275051116Z == 
+2025-10-03T071801.302748242Z == 
+2025-10-03T071804.057604555Z [DIAGNOSTIC]    PID 69
+2025-10-03T071804.057607726Z [DIAGNOSTIC]    DATABASE_URL Set
+2025-10-03T071804.057610635Z [DIAGNOSTIC] ================================================================================
+2025-10-03T071804.156211065Z [DIAGNOSTIC] [OK] Diagnostics initialized                     0.10s     57.8 MB  +   0.0 MB
+2025-10-03T071804.163279805Z [DIAGNOSTIC] [OK] create_app() started                        0.10s     57.8 MB  +   0.0 MB
+2025-10-03T071804.163293555Z [DIAGNOSTIC] [OK] Flask instance created                      0.10s     57.8 MB  +   0.0 MB
+2025-10-03T071804.163296775Z [DIAGNOSTIC] [OK] Config loaded                               0.10s     57.9 MB  +   0.1 MB
+2025-10-03T071804.246495833Z [DIAGNOSTIC] [OK] ProxyFix configured                         0.19s     57.9 MB  +   0.1 MB
+2025-10-03T071804.348405886Z [DIAGNOSTIC] [OK] SQLAlchemy initialized                      0.29s     60.3 MB  +   2.5 MB
+2025-10-03T071804.35013287Z [DIAGNOSTIC] [OK] Flask-Migrate initialized                   0.29s     60.3 MB  +   2.5 MB
+2025-10-03T071804.451733856Z [DIAGNOSTIC] [OK] Models imported                             0.39s     60.8 MB  +   3.0 MB
+2025-10-03T071804.46012418Z [DIAGNOSTIC] [OK] main_routes imported                        0.40s     60.8 MB  +   3.0 MB
+2025-10-03T071806.446409742Z [DIAGNOSTIC] [OK] api_routes imported                         2.30s     70.0 MB  +  12.2 MB
+2025-10-03T071806.54811655Z [DIAGNOSTIC] [OK] Blueprints registered                       2.49s     70.0 MB  +  12.2 MB
+2025-10-03T071806.548326785Z [DIAGNOSTIC] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2025-10-03T071806.549736441Z [DIAGNOSTIC] Added job Cleanup expired polls to job store default
+2025-10-03T071806.549744841Z [DIAGNOSTIC] Scheduler started
+2025-10-03T071806.550339036Z [DIAGNOSTIC] [OK] Scheduler started                           2.49s     70.0 MB  +  12.2 MB
+2025-10-03T071806.55048808Z [DIAGNOSTIC] ================================================================================
+2025-10-03T071806.55049466Z [DIAGNOSTIC] DIAGNOSTIC SUMMARY
+2025-10-03T071806.550533332Z [DIAGNOSTIC]   Total startup time 2.49s
+2025-10-03T071806.550537302Z [DIAGNOSTIC]   Final memory 70.0 MB
+2025-10-03T071806.550549782Z [DIAGNOSTIC]   Memory growth +12.2 MB
+2025-10-03T071806.550588183Z [DIAGNOSTIC] ================================================================================
+2025-10-03T071806.773394473Z [DIAGNOSTIC] Circuit Breaker initialized failures=2, timeout=60.0s, successes=2
+2025-10-03T071900.344939793Z [2025-10-03 071900 +0000] [68] [INFO] Handling signal term
+2025-10-03T071900.345581656Z [2025-10-03 071900 +0000] [69] [INFO] Worker exiting (pid 69)
+2025-10-03T071900.346018865Z [DIAGNOSTIC] Scheduler has been shut down
+2025-10-03T071901.847663544Z [2025-10-03 071901 +0000] [68] [INFO] Shutting down Master

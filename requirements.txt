@@ -3,5 +3,5 @@ Flask-SQLAlchemy
 psycopg2-binary
 gunicorn
 requests
-qbittorrent-api
-torrentp
+Flask-Migrate
+APScheduler
