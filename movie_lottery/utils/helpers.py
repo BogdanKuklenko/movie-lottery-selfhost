@@ -5,18 +5,32 @@ from sqlalchemy.exc import ProgrammingError
 from .. import db
 from ..models import BackgroundPhoto, Lottery, Poll
 
+def _is_unique(model, identifier):
+    """Helper to check identifier uniqueness, resilient to missing tables."""
+    try:
+        return model.query.get(identifier) is None
+    except ProgrammingError:
+        # Таблица ещё не создана (например, до применения миграций).
+        # Откатываем сессию и считаем идентификатор уникальным.
+        db.session.rollback()
+        return True
+
+
 def generate_unique_id(length=6):
     """Generate a unique ID for lottery."""
+    characters = string.ascii_lowercase + string.digits
     while True:
-        lottery_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
-        if not Lottery.query.get(lottery_id):
+        lottery_id = ''.join(random.choices(characters, k=length))
+        if _is_unique(Lottery, lottery_id):
             return lottery_id
+
 
 def generate_unique_poll_id(length=8):
     """Generate a unique ID for poll."""
+    characters = string.ascii_lowercase + string.digits
     while True:
-        poll_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
-        if not Poll.query.get(poll_id):
+        poll_id = ''.join(random.choices(characters, k=length))
+        if _is_unique(Poll, poll_id):
             return poll_id
 
 
