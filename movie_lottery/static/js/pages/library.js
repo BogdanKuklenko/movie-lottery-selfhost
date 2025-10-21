@@ -1,9 +1,7 @@
 // F:\GPT\movie-lottery V2\movie_lottery\static\js\pages\library.js
 
 import { ModalManager } from '../components/modal.js';
-import { StatusWidgetManager } from '../components/statusWidget.js';
 import * as movieApi from '../api/movies.js';
-import * as torrentApi from '../api/torrents.js';
 
 function formatDate(isoString) {
     if (!isoString) return '';
@@ -46,12 +44,10 @@ function toggleDownloadIcon(card, hasMagnet) {
 document.addEventListener('DOMContentLoaded', () => {
     const gallery = document.querySelector('.library-gallery');
     const modalElement = document.getElementById('library-modal');
-    const widgetElement = document.getElementById('torrent-status-widget');
 
-    if (!gallery || !modalElement || !widgetElement) return;
+    if (!gallery || !modalElement) return;
 
     const modal = new ModalManager(modalElement);
-    const widget = new StatusWidgetManager(widgetElement, 'libraryActiveDownloads');
 
     // --- Функционал выбора фильмов и создания опросов ---
     const toggleSelectModeBtn = document.getElementById('toggle-select-mode-btn');
@@ -959,12 +955,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     showToast(data.message, data.success ? 'success' : 'error');
                 });
             },
-            onDownload: () => torrentApi.startLibraryDownload(movieData.id).then(data => showToast(data.message, data.success ? 'success' : 'error')),
-            onDeleteTorrent: async (torrentHash) => {
-                await torrentApi.deleteTorrentFromClient(torrentHash);
-                card.classList.remove('has-torrent-on-client');
-                handleOpenModal(card);
-            },
             onSetBadge: async (movieId, badgeType) => {
                 try {
                     await setBadge(movieId, badgeType);
@@ -1046,8 +1036,4 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.date-badge').forEach(badge => {
         badge.textContent = formatDate(badge.dataset.date);
     });
-
-    if (window.torrentUpdater) {
-        window.torrentUpdater.updateUi();
-    }
 });

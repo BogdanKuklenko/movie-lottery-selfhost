@@ -1,9 +1,7 @@
 // F:\GPT\movie-lottery V2\movie_lottery\static\js\pages\history.js
 
 import { ModalManager } from '../components/modal.js';
-import { StatusWidgetManager } from '../components/statusWidget.js';
 import * as movieApi from '../api/movies.js';
-import * as torrentApi from '../api/torrents.js';
 
 function formatDate(isoString) {
     if (!isoString) return '';
@@ -49,12 +47,10 @@ function toggleDownloadIcon(card, hasMagnet) {
 document.addEventListener('DOMContentLoaded', () => {
     const gallery = document.querySelector('.history-gallery');
     const modalElement = document.getElementById('history-modal');
-    const widgetElement = document.getElementById('torrent-status-widget');
 
-    if (!gallery || !modalElement || !widgetElement) return;
+    if (!gallery || !modalElement) return;
 
     const modal = new ModalManager(modalElement);
-    const widget = new StatusWidgetManager(widgetElement, 'lotteryActiveDownloads');
 
     const handleOpenModal = async (lotteryId) => {
         const card = document.querySelector(`.gallery-item[data-lottery-id="${lotteryId}"]`);
@@ -80,13 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         handleOpenModal(lotteryId);
                     },
-                    onAddToLibrary: (movieData) => movieApi.addOrUpdateLibraryMovie(movieData).then(data => showToast(data.message, data.success ? 'success' : 'error')),
-                    onDownload: () => torrentApi.startDownloadByKpId(lotteryData.result.kinopoisk_id).then(data => showToast(data.message, data.success ? 'success' : 'error')),
-                    onDeleteTorrent: async (torrentHash) => {
-                        await torrentApi.deleteTorrentFromClient(torrentHash);
-                        if (card) card.classList.remove('has-torrent-on-client');
-                        handleOpenModal(lotteryId);
-                    }
+                    onAddToLibrary: (movieData) => movieApi.addOrUpdateLibraryMovie(movieData).then(data => showToast(data.message, data.success ? 'success' : 'error'))
                 });
             } else {
                 modal.renderWaitingModal(lotteryData);
@@ -139,8 +129,4 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.date-badge').forEach(badge => {
         badge.textContent = formatDate(badge.dataset.date);
     });
-
-    if (window.torrentUpdater) {
-        window.torrentUpdater.updateUi();
-    }
 });

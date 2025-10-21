@@ -254,19 +254,8 @@
         </div>
     </div>
 
-    <div id="torrent-status-widget" class="status-widget" style="display: none;">
-        <div class="widget-header">
-            <h4>Статус загрузки</h4>
-            <button id="widget-toggle-btn" class="widget-toggle-btn">&mdash;</button>
-        </div>
-        <div id="widget-body" class="widget-body">
-            <p class="widget-empty">Активных загрузок нет.</p>
-            <div id="widget-downloads"></div>
-        </div>
-    </div>
-
     <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/torrentUpdater.js') }}"></script> <script type="module" src="{{ url_for('static', filename='js/pages/library.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/pages/library.js') }}"></script>
 
     <script>
         var backgroundPhotos = {{ background_photos|tojson|safe }};

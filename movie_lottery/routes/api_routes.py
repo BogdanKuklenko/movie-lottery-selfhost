@@ -1,17 +1,12 @@
 import random
-import requests
 import secrets
 from datetime import datetime
-from flask import Blueprint, request, jsonify, url_for, current_app
-from qbittorrentapi import Client, exceptions as qbittorrent_exceptions
+from flask import Blueprint, request, jsonify, url_for
 
 from .. import db
 from ..models import Movie, Lottery, MovieIdentifier, LibraryMovie, Poll, PollMovie, Vote
 from ..utils.kinopoisk import get_movie_data_from_kinopoisk
 from ..utils.helpers import generate_unique_id, ensure_background_photo, generate_unique_poll_id
-from ..utils.qbittorrent import get_active_torrents_map
-from ..utils.torrent_status import qbittorrent_client, torrent_to_json
-from ..utils.qbittorrent_circuit_breaker import get_circuit_breaker
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -124,32 +119,9 @@ def get_result_data(lottery_id):
 @api_bp.route('/delete-lottery/<lottery_id>', methods=['POST'])
 def delete_lottery(lottery_id):
     lottery_to_delete = Lottery.query.get_or_404(lottery_id)
-    message = ""
-    config = current_app.config
-    try:
-        qbt_client = Client(host=config['QBIT_HOST'], port=config['QBIT_PORT'], username=config['QBIT_USERNAME'], password=config['QBIT_PASSWORD'])
-        qbt_client.auth_log_in()
-        
-        category = f"lottery-{lottery_id}"
-        torrents_to_delete = qbt_client.torrents_info(category=category)
-        
-        if torrents_to_delete:
-            hashes_to_delete = [t.hash for t in torrents_to_delete]
-            qbt_client.torrents_delete(delete_files=True, torrent_hashes=hashes_to_delete)
-            message = "Лотерея и связанный торрент успешно удалены."
-        else:
-            message = "Торрент не найден в клиенте. Лотерея удалена из истории."
-            
-        qbt_client.auth_log_out()
-
-    except (qbittorrent_exceptions.APIConnectionError, requests.exceptions.RequestException):
-        message = "Не удалось подключиться к qBittorrent. Лотерея будет удалена только из истории."
-    except Exception as e:
-        message = f"Произошла ошибка qBittorrent: {e}. Лотерея будет удалена только из истории."
-    
     db.session.delete(lottery_to_delete)
     db.session.commit()
-    return jsonify({"success": True, "message": message})
+    return jsonify({"success": True, "message": "Лотерея успешно удалена."})
 
 # --- Маршруты для Библиотеки ---
 
@@ -230,242 +202,7 @@ def save_movie_magnet():
     })
 
 
-@api_bp.route('/search-magnet/<int:kinopoisk_id>', methods=['GET', 'POST'])
-def search_magnet(kinopoisk_id):
-    """
-    Autosearch is disabled. Users should manually add magnet links via RuTracker button.
-    This endpoint is kept for backward compatibility.
-    """
-    return jsonify({
-        "status": "disabled",
-        "kinopoisk_id": kinopoisk_id,
-        "has_magnet": False,
-        "magnet_link": "",
-        "message": "Автопоиск магнет-ссылок отключен. Используйте кнопку RuTracker для поиска и вставьте ссылку вручную.",
-    }), 200
-
-@api_bp.route('/start-download/<int:kinopoisk_id>', methods=['POST'])
-def start_download(kinopoisk_id):
-    identifier = MovieIdentifier.query.get_or_404(kinopoisk_id)
-    # Определяем категорию
-    movie_in_lottery = Movie.query.filter_by(kinopoisk_id=kinopoisk_id).order_by(Movie.id.desc()).first()
-    category = f"lottery-{movie_in_lottery.lottery_id}" if movie_in_lottery else "lottery-default"
-    
-    config = current_app.config
-    try:
-        qbt_client = Client(host=config['QBIT_HOST'], port=config['QBIT_PORT'], username=config['QBIT_USERNAME'], password=config['QBIT_PASSWORD'])
-        qbt_client.auth_log_in()
-        qbt_client.torrents_add(
-            urls=identifier.magnet_link, category=category,
-            is_sequential_download=True, is_first_last_piece_priority=True,
-            tags=f"kp-{kinopoisk_id}",
-        )
-        qbt_client.auth_log_out()
-        return jsonify({"success": True, "message": "Загрузка началась!"})
-    except Exception as e:
-        return jsonify({"success": False, "message": f"Ошибка qBittorrent: {e}"}), 500
-
-@api_bp.route('/library/start-download/<int:movie_id>', methods=['POST'])
-def start_library_download(movie_id):
-    library_movie = LibraryMovie.query.get_or_404(movie_id)
-    if not library_movie.kinopoisk_id:
-        return jsonify({"success": False, "message": "Для фильма не указан kinopoisk_id."}), 400
-
-    identifier = MovieIdentifier.query.get_or_404(library_movie.kinopoisk_id, description="Magnet-ссылка не найдена.")
-    
-    config = current_app.config
-    try:
-        qbt_client = Client(host=config['QBIT_HOST'], port=config['QBIT_PORT'], username=config['QBIT_USERNAME'], password=config['QBIT_PASSWORD'])
-        qbt_client.auth_log_in()
-        qbt_client.torrents_add(
-            urls=identifier.magnet_link, category=f"library-{movie_id}",
-            is_sequential_download=True, is_first_last_piece_priority=True,
-            tags=f"kp-{library_movie.kinopoisk_id}",
-        )
-        qbt_client.auth_log_out()
-        return jsonify({"success": True, "message": "Загрузка началась!"})
-    except Exception as e:
-        return jsonify({"success": False, "message": f"Ошибка qBittorrent: {e}"}), 500
-
-@api_bp.route('/delete-torrent/<string:torrent_hash>', methods=['POST'])
-def delete_torrent_from_client(torrent_hash):
-    if not torrent_hash:
-        return jsonify({"success": False, "message": "Не указан хеш торрента"}), 400
-    
-    config = current_app.config
-    try:
-        qbt_client = Client(host=config['QBIT_HOST'], port=config['QBIT_PORT'], username=config['QBIT_USERNAME'], password=config['QBIT_PASSWORD'])
-        qbt_client.auth_log_in()
-        qbt_client.torrents_delete(delete_files=True, torrent_hashes=torrent_hash)
-        qbt_client.auth_log_out()
-        return jsonify({"success": True, "message": "Торрент и файлы удалены с клиента."})
-    
-    except qbittorrent_exceptions.NotFound404Error:
-        return jsonify({"success": False, "message": "Торрент не найден в клиенте."}), 404
-    except Exception as e:
-        return jsonify({"success": False, "message": f"Ошибка qBittorrent: {e}"}), 500
-
-
-def _normalize_tags(tag_string):
-    if not tag_string:
-        return []
-    return [tag.strip().lower() for tag in tag_string.split(',') if tag.strip()]
-
-
-def _find_first_torrent(torrents, *, tag=None):
-    if not torrents:
-        return None
-    if tag:
-        tag = tag.lower()
-        for torrent in torrents:
-            if tag in _normalize_tags(getattr(torrent, 'tags', '')):
-                return torrent
-    return torrents[0]
-
-
-@api_bp.route('/download-status/<int:kinopoisk_id>')
-def get_download_status(kinopoisk_id):
-    tag = f"kp-{kinopoisk_id}"
-    try:
-        with qbittorrent_client() as client:
-            torrents = client.torrents_info(tag=tag)
-            torrent = _find_first_torrent(torrents, tag=tag)
-            if not torrent:
-                return jsonify({"status": "not_found", "message": "Торрент с указанным ID не найден."})
-
-            status_payload = torrent_to_json(torrent)
-
-            movie = Movie.query.filter_by(kinopoisk_id=kinopoisk_id).order_by(Movie.id.desc()).first()
-            if movie:
-                status_payload["name"] = movie.name
-
-            return jsonify(status_payload)
-    except (qbittorrent_exceptions.APIConnectionError, requests.exceptions.RequestException):
-        return jsonify({"status": "error", "message": "Не удалось подключиться к qBittorrent."}), 503
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"Ошибка qBittorrent: {e}"}), 500
-
-
-@api_bp.route('/torrent-status/<lottery_id>')
-def get_torrent_status_for_lottery(lottery_id):
-    lottery = Lottery.query.get(lottery_id)
-    if not lottery:
-        return jsonify({"status": "error", "message": "Лотерея не найдена."}), 404
-
-    category = f"lottery-{lottery_id}"
-    try:
-        with qbittorrent_client() as client:
-            torrents = client.torrents_info(category=category)
-            torrent = _find_first_torrent(torrents)
-            if not torrent:
-                return jsonify({"status": "not_found", "message": "Торрент для лотереи не найден."})
-
-            status_payload = torrent_to_json(torrent)
-            if lottery.result_name:
-                status_payload["name"] = lottery.result_name
-
-            return jsonify(status_payload)
-    except (qbittorrent_exceptions.APIConnectionError, requests.exceptions.RequestException):
-        return jsonify({"status": "error", "message": "Не удалось подключиться к qBittorrent."}), 503
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"Ошибка qBittorrent: {e}"}), 500
-
-
-@api_bp.route('/library/torrent-status/<int:movie_id>')
-def get_torrent_status_for_library(movie_id):
-    library_movie = LibraryMovie.query.get(movie_id)
-    if not library_movie:
-        return jsonify({"status": "error", "message": "Фильм не найден в библиотеке."}), 404
-
-    tag = f"kp-{library_movie.kinopoisk_id}" if library_movie.kinopoisk_id else None
-    category = f"library-{movie_id}"
-
-    try:
-        with qbittorrent_client() as client:
-            torrents = client.torrents_info(category=category)
-            torrent = _find_first_torrent(torrents, tag=tag)
-            if not torrent and tag:
-                torrents = client.torrents_info(tag=tag)
-                torrent = _find_first_torrent(torrents, tag=tag)
-
-            if not torrent:
-                return jsonify({"status": "not_found", "message": "Торрент для фильма не найден."})
-
-            status_payload = torrent_to_json(torrent)
-            status_payload["name"] = library_movie.name
-            return jsonify(status_payload)
-    except (qbittorrent_exceptions.APIConnectionError, requests.exceptions.RequestException):
-        return jsonify({"status": "error", "message": "Не удалось подключиться к qBittorrent."}), 503
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"Ошибка qBittorrent: {e}"}), 500
-
-
-# --- НОВЫЙ МАРШРУТ ДЛЯ ОПТИМИЗАЦИИ ---
-@api_bp.route('/active-downloads')
-def get_all_active_downloads():
-    """Возвращает словарь всех активных торрентов для быстрой проверки на клиенте."""
-    torrents_payload = get_active_torrents_map() or {}
-
-    def _stringify_keys(data):
-        if not isinstance(data, dict):
-            return {}
-        return {str(key): value for key, value in data.items()}
-
-    active_map = torrents_payload.get("active") if isinstance(torrents_payload, dict) else {}
-    kp_map = torrents_payload.get("kp") if isinstance(torrents_payload, dict) else {}
-    qbit_available = torrents_payload.get("qbittorrent_available", False)
-
-    response_payload = {
-        "active": _stringify_keys(active_map),
-        "kp": _stringify_keys(kp_map),
-        "qbittorrent_available": qbit_available,
-    }
-
-    # Для обратной совместимости: если карта "kp" пуста, а верхний уровень похож на старый формат,
-    # возвращаем старую структуру ключ-значение.
-    if not response_payload["kp"] and isinstance(torrents_payload, dict) and torrents_payload and "active" not in torrents_payload:
-        response_payload["kp"] = _stringify_keys(torrents_payload)
-        response_payload["active"] = _stringify_keys(torrents_payload)
-
-    return jsonify(response_payload)
-
-
-@api_bp.route('/qbittorrent-status')
-def get_qbittorrent_status():
-    """
-    Возвращает статус доступности qBittorrent и рекомендуемый интервал опроса.
-    
-    Response:
-    {
-        "available": bool,           # Доступен ли qBittorrent
-        "state": str,                # closed/open/half_open
-        "poll_interval": int,        # Рекомендуемый интервал опроса в секундах
-        "retry_in": float,          # Через сколько секунд повторить проверку
-        "message": str               # Человекочитаемое сообщение
-    }
-    """
-    circuit_breaker = get_circuit_breaker()
-    breaker_state = circuit_breaker.get_state()
-    
-    # Определяем рекомендуемый интервал опроса
-    if breaker_state["available"]:
-        if breaker_state["state"] == "half_open":
-            poll_interval = 15  # При восстановлении - средний интервал
-            message = "qBittorrent восстанавливается, опрос каждые 15 секунд"
-        else:  # closed
-            poll_interval = 5   # Нормальная работа - частый опрос
-            message = "qBittorrent доступен, нормальный режим"
-    else:  # open
-        poll_interval = 60  # Недоступен - редкий опрос
-        message = f"qBittorrent недоступен, следующая проверка через {int(breaker_state['retry_in'])} сек"
-    
-    return jsonify({
-        "available": breaker_state["available"],
-        "state": breaker_state["state"],
-        "poll_interval": poll_interval,
-        "retry_in": breaker_state["retry_in"],
-        "message": message
-    })
+# Torrent functionality removed - магнет-ссылки сохраняются, но без автоматической загрузки
 
 
 # --- Маршруты для опросов ---
