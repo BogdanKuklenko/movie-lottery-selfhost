@@ -35,4 +35,5 @@ class Config:
     QBIT_PASSWORD = os.environ.get('QBIT_PASSWORD')
     
     # Kinopoisk API key
-    KINOPOISK_API_TOKEN = os.environ.get('KINOPOISK_API_TOKEN')
+    KINOPOISK_API_TOKEN = os.environ.get('KINOPOISK_API_TOKEN') or os.environ.get('KINOPOISK_API_KEY')
+    KINOPOISK_API_KEY = KINOPOISK_API_TOKEN
