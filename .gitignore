@@ -1,26 +1,21 @@
-# secrets / env
-.env
-.env.*
-
-# python
+# Игнорировать кэш и скомпилированные файлы Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.venv/
+*.py[cod]
+*$py.class
+
+# Игнорировать папки виртуальных окружений
 venv/
-*.log
+env/
+.venv/
+.env
 
-# editors
-.vscode/
-.idea/
-
-# os
+# Игнорировать файлы операционной системы
 .DS_Store
 Thumbs.db
 
-# tests/cache
-**/.pytest_cache/
+# Игнорировать папки редакторов кода
+.idea/
+.vscode/
 
-# docker (если появятся локальные каталоги)
-*.pid
+# Игнорировать зависимости npm
+node_modules/
