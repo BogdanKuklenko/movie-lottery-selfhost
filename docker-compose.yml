@@ -25,9 +25,10 @@ services:
     env_file:
       - .env
     environment:
-      - KINOPOISK_API_KEY=${KINOPOISK_API_KEY}
-      - KINOPOISK_TOKEN=${KINOPOISK_API_KEY}
-      - KP_TOKEN=${KINOPOISK_API_KEY}  
+      - KINOPOISK_API_TOKEN=${KINOPOISK_API_TOKEN}
+      - KINOPOISK_API_KEY=${KINOPOISK_API_TOKEN}
+      - KINOPOISK_TOKEN=${KINOPOISK_API_TOKEN}
+      - KP_TOKEN=${KINOPOISK_API_TOKEN}
     ports:
       - "8888:8000"  # Откроет сайт на http://<IP_твоего_ПК>:8080
     networks:
