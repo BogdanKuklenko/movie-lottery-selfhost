@@ -193,9 +193,9 @@ export class ModalManager {
      */
     renderWaitingModal(lotteryData = {}) {
         const playUrl = lotteryData.play_url || '';
-        const telegramShareUrl = playUrl
+        const telegramShareUrl = lotteryData.telegram_share_url || (playUrl
             ? `https://t.me/share/url?url=${encodeURIComponent(playUrl)}&text=${encodeURIComponent('Посмотри розыгрыш фильма!')}`
-            : '';
+            : '');
 
         this.body.innerHTML = `
             <div class="waiting-modal">

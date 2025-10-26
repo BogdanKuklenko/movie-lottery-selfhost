@@ -1,6 +1,10 @@
-from flask import Blueprint, render_template, url_for
+from flask import Blueprint, render_template
 from ..models import Lottery, LibraryMovie, MovieIdentifier, Poll
-from ..utils.helpers import get_background_photos
+from ..utils.helpers import (
+    get_background_photos,
+    build_external_url,
+    build_telegram_share_url,
+)
 
 main_bp = Blueprint('main', __name__)
 
@@ -16,12 +20,14 @@ def index():
 @main_bp.route('/wait/<lottery_id>')
 def wait_for_result(lottery_id):
     lottery = Lottery.query.get_or_404(lottery_id)
-    play_url = url_for('main.play_lottery', lottery_id=lottery.id, _external=True)
+    play_url = build_external_url('main.play_lottery', lottery_id=lottery.id)
+    telegram_share_url = build_telegram_share_url(play_url)
     return render_template(
         'wait.html',
         lottery_id=lottery_id,
         background_photos=get_background_photos(),
-        play_url=play_url
+        play_url=play_url,
+        telegram_share_url=telegram_share_url,
     )
 
 @main_bp.route('/history')

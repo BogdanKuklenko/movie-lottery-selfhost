@@ -24,7 +24,13 @@
             <button class="copy-btn" data-target="play-link-wait">Копировать</button>
         </div>
 
-        <a href="#" id="telegram-share-btn-wait" class="action-button-tg" target="_blank">
+        <a
+            href="{{ telegram_share_url }}"
+            id="telegram-share-btn-wait"
+            class="action-button-tg"
+            target="_blank"
+            data-share-url="{{ telegram_share_url }}"
+        >
             Поделиться в Telegram
         </a>
 
@@ -44,11 +50,16 @@
             const playUrlInput = document.getElementById('play-link-wait');
             const telegramShareBtn = document.getElementById('telegram-share-btn-wait');
             let pollInterval = null;
-            
+
             const playUrl = playUrlInput.value;
-            const text = encodeURIComponent('Привет! Предлагаю тебе определить, какой фильм мы посмотрим. Нажми на ссылку и испытай удачу!');
-            const url = encodeURIComponent(playUrl);
-            telegramShareBtn.href = `https://t.me/share/url?url=${url}&text=${text}`;
+            if (telegramShareBtn) {
+                const presetShareUrl = telegramShareBtn.dataset.shareUrl;
+                if (!presetShareUrl) {
+                    const text = encodeURIComponent('Привет! Предлагаю тебе определить, какой фильм мы посмотрим. Нажми на ссылку и испытай удачу!');
+                    const url = encodeURIComponent(playUrl);
+                    telegramShareBtn.href = `https://t.me/share/url?url=${url}&text=${text}`;
+                }
+            }
 
             // --- НОВАЯ ФУНКЦИЯ ДЛЯ АВТО-ЗАГРУЗКИ ---
             const startAutoDownload = async () => {
