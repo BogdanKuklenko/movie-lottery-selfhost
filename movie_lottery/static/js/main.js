@@ -1,5 +1,7 @@
 // static/js/main.js
 
+import { loadMyPolls } from './utils/polls.js';
+
 var movies = [];
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -23,7 +25,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Проверяем и загружаем "Мои опросы"
-    loadMyPolls();
+    const refreshMyPolls = () => loadMyPolls({
+        myPollsButton: myPollsBtn,
+        myPollsBadgeElement: myPollsBadge,
+    });
+    refreshMyPolls();
 
     const updateCreateButtonState = () => {
         const canCreate = movies.length >= 2 && movies.length <= 25;
@@ -227,7 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateCreateButtonState();
 
             // Обновляем кнопку "Мои опросы"
-            loadMyPolls();
+            refreshMyPolls();
 
         } catch (error) {
             errorMessage.textContent = error.message;
@@ -274,51 +280,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    async function loadMyPolls() {
-        const creatorTokens = JSON.parse(localStorage.getItem('pollCreatorTokens') || '{}');
-        const tokens = Object.values(creatorTokens);
-        
-        if (tokens.length === 0) {
-            myPollsBtn.style.display = 'none';
-            return;
-        }
-
-        try {
-            // Проверяем каждый токен и собираем все опросы
-            let allPolls = [];
-            for (const token of tokens) {
-                const response = await fetch(`/api/polls/my-polls?creator_token=${token}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    allPolls = allPolls.concat(data.polls);
-                }
-            }
-
-            if (allPolls.length > 0) {
-                myPollsBtn.style.display = 'inline-block';
-                
-                // Подсчитываем новые результаты
-                const viewedPolls = JSON.parse(localStorage.getItem('viewedPolls') || '{}');
-                const newResults = allPolls.filter(poll => !viewedPolls[poll.poll_id]);
-                
-                if (newResults.length > 0) {
-                    myPollsBadge.textContent = newResults.length;
-                    myPollsBadge.style.display = 'inline-block';
-                } else {
-                    myPollsBadge.style.display = 'none';
-                }
-            } else {
-                myPollsBtn.style.display = 'none';
-            }
-        } catch (error) {
-            console.error('Ошибка загрузки опросов:', error);
-        }
-    }
-
     myPollsBtn.addEventListener('click', () => {
         window.location.href = '/library';
     });
 
     // Периодически проверяем новые результаты
-    setInterval(loadMyPolls, 10000); // Каждые 10 секунд
+    setInterval(refreshMyPolls, 10000); // Каждые 10 секунд
 });
