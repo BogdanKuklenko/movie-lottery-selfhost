@@ -100,19 +100,23 @@ def _format_movie_payload(movie_data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def get_movie_data_from_kinopoisk(query: str) -> Optional[Dict[str, Any]]:
+ErrorInfo = Dict[str, Any]
+
+
+def get_movie_data_from_kinopoisk(query: str) -> Tuple[Optional[Dict[str, Any]], Optional[ErrorInfo]]:
     """
     Search for a movie by name or ID on Kinopoisk and return structured data.
     """
     if not query or not query.strip():
         _log_warning("Пустой запрос к Кинопоиску.")
-        return None
+        return None, {"code": "empty_query", "message": "Пустой запрос к Кинопоиску."}
 
     api_token = _resolve_api_token()
 
     if not api_token:
-        _log_warning("Kinopoisk API token is not configured.")
-        return None
+        message = "Kinopoisk API token is not configured."
+        _log_warning(message)
+        return None, {"code": "missing_token", "message": message}
 
     headers = {
         "X-API-KEY": api_token,
@@ -131,20 +135,39 @@ def get_movie_data_from_kinopoisk(query: str) -> Optional[Dict[str, Any]]:
         response = requests.get(search_url, headers=headers, params=params, timeout=10)
         response.raise_for_status()
     except requests.exceptions.HTTPError as exc:
-        status_code = getattr(exc.response, "status_code", "unknown")
-        _log_warning(f"Kinopoisk API returned status {status_code} for query '{query}': {exc}")
-        return None
+        status_code = getattr(exc.response, "status_code", None)
+        response_text = ""
+        if exc.response is not None:
+            try:
+                response_text = exc.response.text or ""
+            except Exception:
+                response_text = ""
+        log_message = (
+            f"Kinopoisk API returned status {status_code or 'unknown'} for query '{query}'."
+        )
+        if response_text:
+            log_message = f"{log_message} Response: {response_text}"
+        else:
+            response_text = str(exc)
+        _log_warning(log_message)
+        return None, {
+            "code": "http_error",
+            "message": response_text,
+            "status": status_code,
+        }
     except requests.exceptions.RequestException as exc:
-        _log_error(f"Ошибка при запросе к API Кинопоиска: {exc}")
-        return None
+        message = f"Ошибка при запросе к API Кинопоиска: {exc}"
+        _log_error(message)
+        return None, {"code": "network_error", "message": message}
 
     try:
         data = response.json()
     except ValueError:
-        _log_error("Некорректный JSON-ответ от API Кинопоиска.")
-        return None
+        message = "Некорректный JSON-ответ от API Кинопоиска."
+        _log_error(message)
+        return None, {"code": "invalid_response", "message": message}
     if not data:
-        return None
+        return None, None
 
     movie_data: Optional[Dict[str, Any]] = None
 
@@ -156,20 +179,27 @@ def get_movie_data_from_kinopoisk(query: str) -> Optional[Dict[str, Any]]:
             movie_data = data  # direct lookup by ID
 
     if not movie_data:
-        return None
+        return None, None
 
-    return _format_movie_payload(movie_data)
+    return _format_movie_payload(movie_data), None
 
 
 def _run_real_checks(queries: Iterable[str]) -> Tuple[int, Dict[str, Optional[Dict[str, Any]]]]:
     results: Dict[str, Optional[Dict[str, Any]]] = {}
     failures = 0
     for query in queries:
-        movie = get_movie_data_from_kinopoisk(query)
+        movie, error = get_movie_data_from_kinopoisk(query)
         results[query] = movie
         if movie is None:
             failures += 1
-            _log_error(f"Тест не прошёл: не удалось получить данные для запроса '{query}'.")
+            if error and error.get("message"):
+                _log_error(
+                    f"Тест не прошёл для запроса '{query}': {error['message']}"
+                )
+            else:
+                _log_error(
+                    f"Тест не прошёл: не удалось получить данные для запроса '{query}'."
+                )
         else:
             _log_info(f"Тест успешен для запроса '{query}'.")
     return failures, results

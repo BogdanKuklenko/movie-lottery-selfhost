@@ -1,7 +1,7 @@
 import random
 import secrets
 from datetime import datetime
-from flask import Blueprint, request, jsonify, url_for
+from flask import Blueprint, request, jsonify, url_for, current_app
 
 from .. import db
 from ..models import Movie, Lottery, MovieIdentifier, LibraryMovie, Poll, PollMovie, Vote
@@ -17,14 +17,46 @@ def get_movie_info():
     query = request.json.get('query')
     if not query:
         return jsonify({"error": "Пустой запрос"}), 400
-    movie_data = get_movie_data_from_kinopoisk(query)
+    movie_data, error = get_movie_data_from_kinopoisk(query)
     if movie_data:
         # Add poster to background when fetched from Kinopoisk
         if poster := movie_data.get('poster'):
             ensure_background_photo(poster)
+        current_app.logger.info(
+            "Успешно получены данные Кинопоиска для запроса '%s'.", query
+        )
         return jsonify(movie_data)
-    else:
-        return jsonify({"error": "Фильм не найден"}), 404
+    if error:
+        code = error.get('code')
+        message = error.get('message') or 'Неизвестная ошибка при обращении к Кинопоиску.'
+
+        if code == 'missing_token':
+            current_app.logger.error(message)
+            payload = {"error": message, "message": message, "code": code}
+            return jsonify(payload), 503
+
+        if code == 'http_error':
+            status = error.get('status') or 502
+            current_app.logger.warning(message)
+            current_app.logger.debug(
+                "Kinopoisk API error (%s) for query '%s'.", status, query
+            )
+            payload = {"error": message, "message": message, "code": code, "status": status}
+            return jsonify(payload), status
+
+        if code == 'network_error':
+            current_app.logger.error(message)
+            payload = {"error": message, "message": message, "code": code}
+            return jsonify(payload), 502
+
+        current_app.logger.error(message)
+        payload = {"error": message, "message": message, "code": code}
+        return jsonify(payload), 500
+
+    not_found_message = "Фильм не найден"
+    current_app.logger.info(not_found_message)
+    current_app.logger.debug("Фильм не найден для запроса '%s'.", query)
+    return jsonify({"error": not_found_message, "message": not_found_message}), 404
 
 @api_bp.route('/create', methods=['POST'])
 def create_lottery():

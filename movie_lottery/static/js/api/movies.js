@@ -12,8 +12,8 @@ export async function fetchMovieInfo(query) {
         body: JSON.stringify({ query })
     });
     if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Не удалось найти фильм');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.error || 'Не удалось найти фильм');
     }
     return await response.json();
 }
