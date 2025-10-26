@@ -3,8 +3,9 @@ import os
 
 class Config:
     """Base configuration class for the application."""
-    
+
     SECRET_KEY = os.environ.get('SECRET_KEY', 'a_super_secret_key')
+    PUBLIC_BASE_URL = os.environ.get('PUBLIC_BASE_URL')
     
     # Database settings
     SQLALCHEMY_TRACK_MODIFICATIONS = False

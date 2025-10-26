@@ -1,7 +1,11 @@
 import random
 import string
 from datetime import datetime
+from urllib.parse import urljoin
+
+from flask import current_app, url_for
 from sqlalchemy.exc import ProgrammingError
+
 from .. import db
 from ..models import BackgroundPhoto, Lottery, Poll
 
@@ -95,3 +99,16 @@ def cleanup_expired_polls():
         db.session.rollback()
         print(f"Ошибка при очистке опросов: {e}")
         return 0
+
+
+def build_external_url(endpoint, **values):
+    """Построить абсолютный URL, учитывая публичный базовый адрес если он задан."""
+    public_base = current_app.config.get('PUBLIC_BASE_URL')
+    if public_base:
+        relative_url = url_for(endpoint, _external=False, **values)
+        base = public_base.rstrip('/') + '/'
+        return urljoin(base, relative_url.lstrip('/'))
+
+    return url_for(endpoint, _external=True, **values)
+
+
