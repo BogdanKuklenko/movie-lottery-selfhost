@@ -1,7 +1,7 @@
 import random
 import string
 from datetime import datetime
-from urllib.parse import urljoin
+from urllib.parse import urljoin, quote_plus
 
 from flask import current_app, url_for
 from sqlalchemy.exc import ProgrammingError
@@ -110,5 +110,16 @@ def build_external_url(endpoint, **values):
         return urljoin(base, relative_url.lstrip('/'))
 
     return url_for(endpoint, _external=True, **values)
+
+
+def build_telegram_share_url(target_url, message=None):
+    """Сформировать ссылку для шаринга в Telegram с заданным текстом."""
+    if not target_url:
+        return ''
+
+    text = message or 'Привет! Предлагаю тебе определить, какой фильм мы посмотрим. Нажми на ссылку и испытай удачу!'
+    encoded_url = quote_plus(target_url)
+    encoded_text = quote_plus(text)
+    return f'https://t.me/share/url?url={encoded_url}&text={encoded_text}'
 
 

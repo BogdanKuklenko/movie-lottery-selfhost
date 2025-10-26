@@ -11,6 +11,7 @@ from ..utils.helpers import (
     ensure_background_photo,
     generate_unique_poll_id,
     build_external_url,
+    build_telegram_share_url,
 )
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -146,11 +147,14 @@ def get_result_data(lottery_id):
         })
 
     result_data = next((m for m in movies_data if m["name"] == lottery.result_name), None) if lottery.result_name else None
+    play_url = build_external_url('main.play_lottery', lottery_id=lottery.id)
+    telegram_share_url = build_telegram_share_url(play_url)
     return jsonify({
         "movies": movies_data,
         "result": result_data,
         "createdAt": lottery.created_at.isoformat() + "Z",
-        "play_url": build_external_url('main.play_lottery', lottery_id=lottery.id)
+        "play_url": play_url,
+        "telegram_share_url": telegram_share_url,
     })
     
 @api_bp.route('/delete-lottery/<lottery_id>', methods=['POST'])
