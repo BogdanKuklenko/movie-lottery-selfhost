@@ -1,6 +1,29 @@
 #!/usr/bin/env bash
 set -e
 
+# Normalize Kinopoisk token environment variables without overriding provided values
+if [ -z "${KINOPOISK_API_TOKEN:-}" ]; then
+  if [ -n "${KINOPOISK_API_KEY:-}" ]; then
+    export KINOPOISK_API_TOKEN="$KINOPOISK_API_KEY"
+  elif [ -n "${KINOPOISK_TOKEN:-}" ]; then
+    export KINOPOISK_API_TOKEN="$KINOPOISK_TOKEN"
+  elif [ -n "${KP_TOKEN:-}" ]; then
+    export KINOPOISK_API_TOKEN="$KP_TOKEN"
+  fi
+fi
+
+if [ -z "${KINOPOISK_API_KEY:-}" ] && [ -n "${KINOPOISK_API_TOKEN:-}" ]; then
+  export KINOPOISK_API_KEY="$KINOPOISK_API_TOKEN"
+fi
+
+if [ -z "${KINOPOISK_TOKEN:-}" ] && [ -n "${KINOPOISK_API_TOKEN:-}" ]; then
+  export KINOPOISK_TOKEN="$KINOPOISK_API_TOKEN"
+fi
+
+if [ -z "${KP_TOKEN:-}" ] && [ -n "${KINOPOISK_API_TOKEN:-}" ]; then
+  export KP_TOKEN="$KINOPOISK_API_TOKEN"
+fi
+
 echo "[entrypoint] Waiting for DB at ${DB_HOST}:${DB_PORT}..."
 until python -c "import socket,sys; s=socket.socket(); s.settimeout(1); 
 import os; host=os.environ.get('DB_HOST','db'); port=int(os.environ.get('DB_PORT','5432'));
