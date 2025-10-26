@@ -1,12 +1,17 @@
 import random
 import secrets
 from datetime import datetime
-from flask import Blueprint, request, jsonify, url_for, current_app
+from flask import Blueprint, request, jsonify, current_app
 
 from .. import db
 from ..models import Movie, Lottery, MovieIdentifier, LibraryMovie, Poll, PollMovie, Vote
 from ..utils.kinopoisk import get_movie_data_from_kinopoisk
-from ..utils.helpers import generate_unique_id, ensure_background_photo, generate_unique_poll_id
+from ..utils.helpers import (
+    generate_unique_id,
+    ensure_background_photo,
+    generate_unique_poll_id,
+    build_external_url,
+)
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -86,7 +91,7 @@ def create_lottery():
 
     db.session.commit()
 
-    wait_url = url_for('main.wait_for_result', lottery_id=new_lottery.id)
+    wait_url = build_external_url('main.wait_for_result', lottery_id=new_lottery.id)
     return jsonify({"wait_url": wait_url})
 
 @api_bp.route('/draw/<lottery_id>', methods=['POST'])
@@ -145,7 +150,7 @@ def get_result_data(lottery_id):
         "movies": movies_data,
         "result": result_data,
         "createdAt": lottery.created_at.isoformat() + "Z",
-        "play_url": url_for('main.play_lottery', lottery_id=lottery.id, _external=True)
+        "play_url": build_external_url('main.play_lottery', lottery_id=lottery.id)
     })
     
 @api_bp.route('/delete-lottery/<lottery_id>', methods=['POST'])
@@ -271,7 +276,7 @@ def create_poll():
 
     db.session.commit()
 
-    poll_url = url_for('main.view_poll', poll_id=new_poll.id, _external=True)
+    poll_url = build_external_url('main.view_poll', poll_id=new_poll.id)
     return jsonify({
         "poll_id": new_poll.id,
         "poll_url": poll_url,
@@ -450,7 +455,7 @@ def get_my_polls():
             "total_votes": len(poll.votes),
             "movies_count": len(poll.movies),
             "winners": [{"id": w.id, "name": w.name, "poster": w.poster, "year": w.year, "votes": vote_counts.get(w.id, 0)} for w in winners],
-            "poll_url": url_for('main.view_poll', poll_id=poll.id, _external=True)
+            "poll_url": build_external_url('main.view_poll', poll_id=poll.id)
         })
     
     return jsonify({"polls": polls_data})
