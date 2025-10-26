@@ -1,4 +1,5 @@
 import os
+import sys
 from contextlib import contextmanager
 from logging.config import fileConfig
 
@@ -8,6 +9,7 @@ from sqlalchemy import engine_from_config, pool
 # --- НАЧАЛО ИСПРАВЛЕНИЯ ---
 # Импортируем наше приложение и базу данных
 # Это позволяет Alembic "увидеть" ваши модели и конфигурацию
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from movie_lottery import create_app, db
 
 # Создаем экземпляр приложения Flask, чтобы получить его конфигурацию
