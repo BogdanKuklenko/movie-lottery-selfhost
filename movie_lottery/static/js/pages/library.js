@@ -3,7 +3,17 @@
 import { ModalManager } from '../components/modal.js';
 import * as movieApi from '../api/movies.js';
 import { downloadTorrentToClient, deleteTorrentFromClient } from '../api/torrents.js';
-import { loadMyPolls } from '../utils/polls.js';
+import { loadMyPolls, storeCreatorToken } from '../utils/polls.js';
+
+const escapeHtml = (unsafeValue) => {
+    const value = unsafeValue == null ? '' : String(unsafeValue);
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+};
 
 function formatDate(isoString) {
     if (!isoString) return '';
@@ -152,12 +162,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Сохраняем токен создателя в localStorage
-            const creatorTokens = JSON.parse(localStorage.getItem('pollCreatorTokens') || '{}');
-            creatorTokens[data.poll_id] = data.creator_token;
-            localStorage.setItem('pollCreatorTokens', JSON.stringify(creatorTokens));
+            storeCreatorToken({ token: data.creator_token, pollId: data.poll_id });
 
             // Показываем модальное окно с результатом
-            showPollCreatedModal(data.poll_url, data.poll_id);
+            showPollCreatedModal({
+                pollUrl: data.poll_url,
+                resultsUrl: data.results_url,
+            });
 
             // Сбрасываем выбор
             toggleSelectionMode();
@@ -172,15 +183,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function showPollCreatedModal(pollUrl, pollId) {
+    function showPollCreatedModal({ pollUrl, resultsUrl }) {
         const modalContent = `
             <h2>Опрос создан!</h2>
             <p>Поделитесь этой ссылкой с друзьями:</p>
             <div class="link-box">
-                <input type="text" id="poll-share-link" value="${pollUrl}" readonly>
-                <button class="copy-btn" onclick="copyPollLink()">Копировать</button>
+                <input type="text" id="poll-share-link" value="${escapeHtml(pollUrl)}" readonly>
+                <button class="copy-btn" data-copy-target="poll-share-link">Копировать</button>
             </div>
-            <a href="https://t.me/share/url?url=${encodeURIComponent(pollUrl)}&text=${encodeURIComponent('Приглашаю принять участие в опросе')}" 
+            <p class="poll-info"><strong>Важно:</strong> сохраните ссылку ниже — она содержит ваш токен организатора и позволит открывать результаты с любого устройства.</p>
+            <div class="link-box">
+                <input type="text" id="poll-results-link" value="${escapeHtml(resultsUrl || '')}" readonly>
+                <button class="copy-btn" data-copy-target="poll-results-link">Копировать</button>
+            </div>
+            <a href="https://t.me/share/url?url=${encodeURIComponent(pollUrl)}&text=${encodeURIComponent('Приглашаю принять участие в опросе')}"
                class="action-button-tg" target="_blank">
                 Поделиться в Telegram
             </a>
@@ -189,13 +205,30 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.open();
         modal.renderCustomContent(modalContent);
 
-        // Добавляем функцию копирования
-        window.copyPollLink = () => {
-            const input = document.getElementById('poll-share-link');
-            input.select();
-            document.execCommand('copy');
-            showToast('Ссылка скопирована!', 'success');
-        };
+        const modalBody = modal.body;
+        if (!modalBody) return;
+
+        modalBody.querySelectorAll('.copy-btn').forEach((button) => {
+            button.addEventListener('click', () => {
+                const targetId = button.getAttribute('data-copy-target');
+                const input = modalBody.querySelector(`#${targetId}`);
+                if (!input) return;
+
+                input.select();
+                input.setSelectionRange(0, input.value.length);
+
+                const copied = document.execCommand('copy');
+                if (copied) {
+                    showToast('Ссылка скопирована!', 'success');
+                } else if (navigator.clipboard && input.value) {
+                    navigator.clipboard.writeText(input.value).then(() => {
+                        showToast('Ссылка скопирована!', 'success');
+                    }).catch(() => {
+                        showToast('Не удалось скопировать ссылку', 'error');
+                    });
+                }
+            });
+        });
     }
 
     myPollsBtn.addEventListener('click', () => {
@@ -308,11 +341,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     // Сохраняем токен создателя
-                    const creatorTokens = JSON.parse(localStorage.getItem('pollCreatorTokens') || '{}');
-                    creatorTokens[data.poll_id] = data.creator_token;
-                    localStorage.setItem('pollCreatorTokens', JSON.stringify(creatorTokens));
+                    storeCreatorToken({ token: data.creator_token, pollId: data.poll_id });
 
-                    showPollCreatedModal(data.poll_url, data.poll_id);
+                    showPollCreatedModal({
+                        pollUrl: data.poll_url,
+                        resultsUrl: data.results_url,
+                    });
                     refreshMyPolls();
 
                 } catch (error) {
@@ -450,12 +484,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     // Сохраняем токен создателя в localStorage
-                    const creatorTokens = JSON.parse(localStorage.getItem('pollCreatorTokens') || '{}');
-                    creatorTokens[createData.poll_id] = createData.creator_token;
-                    localStorage.setItem('pollCreatorTokens', JSON.stringify(creatorTokens));
+                    storeCreatorToken({ token: createData.creator_token, pollId: createData.poll_id });
 
                     // Показываем модальное окно с результатом
-                    showPollCreatedModal(createData.poll_url, createData.poll_id);
+                    showPollCreatedModal({
+                        pollUrl: createData.poll_url,
+                        resultsUrl: createData.results_url,
+                    });
 
                     // Обновляем кнопку "Мои опросы"
                     refreshMyPolls();
