@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кино-лотерея: Результаты опроса</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body class="poll-body poll-results-body">
+    <div class="background-rotator"></div>
+
+    <div class="container poll-container poll-results-container">
+        <header class="poll-results-header">
+            <h1>Результаты опроса</h1>
+            <p id="poll-results-description">Загружаем статистику...</p>
+        </header>
+
+        <div class="poll-results-actions">
+            <div class="link-box">
+                <label for="poll-results-link">Ссылка на эту страницу (с токеном организатора)</label>
+                <input type="text" id="poll-results-link" readonly>
+                <button class="copy-btn" data-copy-target="poll-results-link">Копировать</button>
+            </div>
+            <div class="poll-results-buttons">
+                <a id="open-poll-link" class="secondary-button" href="{{ poll_url }}" target="_blank" rel="noopener">Открыть опрос</a>
+                <a id="open-library-link" class="secondary-button" href="{{ url_for('main.library') }}">Мои опросы</a>
+            </div>
+        </div>
+
+        <div id="poll-results-message" class="poll-message" style="display: none;"></div>
+
+        <section id="poll-winners-section" class="poll-winners-section" style="display: none;">
+            <h2 id="poll-winners-title">Победитель</h2>
+            <div id="poll-winners" class="poll-winners"></div>
+        </section>
+
+        <section id="poll-results-section" class="poll-results-section">
+            <h2>Распределение голосов</h2>
+            <div id="poll-results-list" class="poll-results-list"></div>
+        </section>
+    </div>
+
+    <script>
+        const pollId = {{ poll.id|tojson }};
+        const pollViewUrl = {{ poll_url|tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/pages/poll_results.js') }}"></script>
+
+    <script>
+        var backgroundPhotos = {{ background_photos|tojson|safe }};
+    </script>
+    <script type="module" src="{{ url_for('static', filename='js/background.js') }}"></script>
+</body>
+</html>

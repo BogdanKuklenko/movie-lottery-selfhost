@@ -105,6 +105,17 @@ def view_poll(poll_id):
         background_photos=get_background_photos()
     )
 
+
+@main_bp.route('/p/<poll_id>/results')
+def view_poll_results(poll_id):
+    poll = Poll.query.get_or_404(poll_id)
+    return render_template(
+        'poll_results.html',
+        poll=poll,
+        poll_url=build_external_url('main.view_poll', poll_id=poll.id),
+        background_photos=get_background_photos(),
+    )
+
 @main_bp.route('/init-db/super-secret-key-for-db-init-12345')
 def init_db():
     from .. import db

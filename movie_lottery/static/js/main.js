@@ -262,11 +262,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 <input type="text" id="poll-share-link" value="${escapeHtml(pollUrl)}" readonly>
                 <button class="copy-btn" data-copy-target="poll-share-link">Копировать</button>
             </div>
-            <p class="poll-info"><strong>Важно:</strong> сохраните ссылку ниже — она содержит ваш токен организатора и понадобится, чтобы открывать результаты с другого устройства.</p>
+            <p class="poll-info"><strong>Важно:</strong> сохраните ссылку на страницу результатов ниже — она содержит ваш токен организатора и позволит открыть статистику на любом устройстве.</p>
             <div class="link-box">
                 <input type="text" id="poll-results-link" value="${escapeHtml(resultsUrl || '')}" readonly>
                 <button class="copy-btn" data-copy-target="poll-results-link">Копировать</button>
             </div>
+            ${resultsUrl ? `<a href="${escapeHtml(resultsUrl)}" class="secondary-button" target="_blank" rel="noopener">Открыть страницу результатов</a>` : ''}
             <a href="https://t.me/share/url?url=${encodeURIComponent(pollUrl)}&text=${encodeURIComponent('Приглашаю принять участие в опросе')}"
                class="action-button-tg" target="_blank">
                 Поделиться в Telegram
