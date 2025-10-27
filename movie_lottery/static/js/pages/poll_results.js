@@ -16,6 +16,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const searchParams = new URLSearchParams(window.location.search);
     const creatorToken = (searchParams.get('creator_token') || '').trim();
+    const currentPollId = window.pollId;
+
+    if (currentPollId == null || currentPollId === '') {
+        console.error('Идентификатор опроса не найден на странице.');
+        showMessage('Не удалось определить, результаты какого опроса нужно показать. Попробуйте обновить страницу или открыть ссылку из приглашения снова.', 'error');
+        return;
+    }
 
     if (resultsLinkInput) {
         const baseLink = `${window.location.origin}${window.location.pathname}`;
@@ -56,7 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    await storeCreatorToken({ token: normalizedToken, pollId });
+    await storeCreatorToken({ token: normalizedToken, pollId: currentPollId });
 
     await loadMyPolls({
         myPollsButton,
@@ -70,7 +77,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
-        const response = await fetch(`/api/polls/${pollId}/results?creator_token=${encodeURIComponent(normalizedToken)}`);
+        const response = await fetch(`/api/polls/${currentPollId}/results?creator_token=${encodeURIComponent(normalizedToken)}`);
         const payload = await response.json();
 
         if (!response.ok) {
