@@ -191,11 +191,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 <input type="text" id="poll-share-link" value="${escapeHtml(pollUrl)}" readonly>
                 <button class="copy-btn" data-copy-target="poll-share-link">Копировать</button>
             </div>
-            <p class="poll-info"><strong>Важно:</strong> сохраните ссылку ниже — она содержит ваш токен организатора и позволит открывать результаты с любого устройства.</p>
+            <p class="poll-info"><strong>Важно:</strong> сохраните ссылку на страницу результатов ниже — она содержит ваш токен организатора и позволит открывать статистику с любого устройства.</p>
             <div class="link-box">
                 <input type="text" id="poll-results-link" value="${escapeHtml(resultsUrl || '')}" readonly>
                 <button class="copy-btn" data-copy-target="poll-results-link">Копировать</button>
             </div>
+            ${resultsUrl ? `<a href="${escapeHtml(resultsUrl)}" class="secondary-button" target="_blank" rel="noopener">Открыть страницу результатов</a>` : ''}
             <a href="https://t.me/share/url?url=${encodeURIComponent(pollUrl)}&text=${encodeURIComponent('Приглашаю принять участие в опросе')}"
                class="action-button-tg" target="_blank">
                 Поделиться в Telegram
@@ -282,6 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             Найти на RuTracker
                         </button>
                         <a href="${poll.poll_url}" class="secondary-button" target="_blank">Открыть опрос</a>
+                        ${poll.results_url ? `<a href="${poll.results_url}" class="secondary-button" target="_blank" rel="noopener">Результаты</a>` : ''}
                     </div>
                     <a href="https://t.me/share/url?url=${encodeURIComponent(poll.poll_url)}&text=${encodeURIComponent('Приглашаю принять участие в опросе')}"
                        class="action-button-tg" target="_blank">

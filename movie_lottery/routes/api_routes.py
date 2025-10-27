@@ -281,7 +281,11 @@ def create_poll():
     db.session.commit()
 
     poll_url = build_external_url('main.view_poll', poll_id=new_poll.id)
-    results_url = f"{build_external_url('main.library')}?creator_token={new_poll.creator_token}"
+    results_url = build_external_url(
+        'main.view_poll_results',
+        poll_id=new_poll.id,
+        creator_token=new_poll.creator_token,
+    )
     return jsonify({
         "poll_id": new_poll.id,
         "poll_url": poll_url,
@@ -462,7 +466,11 @@ def get_my_polls():
             "movies_count": len(poll.movies),
             "winners": [{"id": w.id, "name": w.name, "poster": w.poster, "year": w.year, "votes": vote_counts.get(w.id, 0)} for w in winners],
             "poll_url": build_external_url('main.view_poll', poll_id=poll.id),
-            "results_url": f"{build_external_url('main.library')}?creator_token={poll.creator_token}"
+            "results_url": build_external_url(
+                'main.view_poll_results',
+                poll_id=poll.id,
+                creator_token=poll.creator_token,
+            )
         })
     
     return jsonify({"polls": polls_data})
