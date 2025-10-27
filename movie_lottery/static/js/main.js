@@ -1,6 +1,6 @@
 // static/js/main.js
 
-import { loadMyPolls, storeCreatorToken } from './utils/polls.js';
+import { loadMyPolls, storeCreatorToken, syncCreatorTokensFromUrl } from './utils/polls.js';
 
 const escapeHtml = (unsafeValue) => {
     const value = unsafeValue == null ? '' : String(unsafeValue);
@@ -14,7 +14,7 @@ const escapeHtml = (unsafeValue) => {
 
 var movies = [];
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const movieInput = document.getElementById('movie-input');
     const addMovieBtn = document.getElementById('add-movie-btn');
     const createLotteryBtn = document.getElementById('create-lottery-btn');
@@ -34,12 +34,14 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('autoDownloadEnabled', autoDownloadCheckbox.checked);
     });
 
-    // Проверяем и загружаем "Мои опросы"
+    // Синхронизируем токены из URL и загружаем "Мои опросы"
+    await syncCreatorTokensFromUrl();
+
     const refreshMyPolls = () => loadMyPolls({
         myPollsButton: myPollsBtn,
         myPollsBadgeElement: myPollsBadge,
     });
-    refreshMyPolls();
+    await refreshMyPolls();
 
     const updateCreateButtonState = () => {
         const canCreate = movies.length >= 2 && movies.length <= 25;
@@ -229,8 +231,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(data.error || 'Не удалось создать опрос');
             }
 
-            // Сохраняем токен создателя в localStorage
-            storeCreatorToken({ token: data.creator_token, pollId: data.poll_id });
+            // Сохраняем токен создателя локально и на сервере
+            await storeCreatorToken({ token: data.creator_token, pollId: data.poll_id });
 
             // Показываем модальное окно с результатом
             showPollCreatedModal({
@@ -244,7 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateCreateButtonState();
 
             // Обновляем кнопку "Мои опросы"
-            refreshMyPolls();
+            await refreshMyPolls();
 
         } catch (error) {
             errorMessage.textContent = error.message;

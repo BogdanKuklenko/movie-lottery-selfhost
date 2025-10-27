@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, current_app
 from ..models import Lottery, LibraryMovie, MovieIdentifier, Poll
 from ..utils.helpers import (
     get_background_photos,
@@ -7,6 +7,11 @@ from ..utils.helpers import (
 )
 
 main_bp = Blueprint('main', __name__)
+
+
+@main_bp.app_context_processor
+def inject_poll_creator_secret():
+    return {'poll_creator_secret': current_app.config.get('POLL_CREATOR_TOKEN_SECRET')}
 
 @main_bp.route('/health')
 def health():

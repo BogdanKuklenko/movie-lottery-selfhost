@@ -52,6 +52,19 @@ class BackgroundPhoto(db.Model):
     z_index = db.Column(db.Integer, nullable=False)
     added_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
+
+class PollCreatorToken(db.Model):
+    __tablename__ = 'poll_creator_token'
+
+    id = db.Column(db.Integer, primary_key=True)
+    creator_token = db.Column(db.String(64), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    last_seen = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    def touch(self):
+        self.last_seen = datetime.utcnow()
+
+
 class Poll(db.Model):
     id = db.Column(db.String(8), primary_key=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
