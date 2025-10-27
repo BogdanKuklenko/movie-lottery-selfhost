@@ -44,8 +44,8 @@
     </div>
 
     <script>
-        const pollId = {{ poll.id|tojson }};
-        const pollViewUrl = {{ poll_url|tojson }};
+        window.pollId = {{ poll.id|tojson }};
+        window.pollViewUrl = {{ poll_url|tojson }};
     </script>
     <script>
         window.appConfig = window.appConfig || {};
