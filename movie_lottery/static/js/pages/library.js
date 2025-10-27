@@ -3,7 +3,7 @@
 import { ModalManager } from '../components/modal.js';
 import * as movieApi from '../api/movies.js';
 import { downloadTorrentToClient, deleteTorrentFromClient } from '../api/torrents.js';
-import { loadMyPolls, storeCreatorToken } from '../utils/polls.js';
+import { loadMyPolls, storeCreatorToken, syncCreatorTokensFromUrl } from '../utils/polls.js';
 
 const escapeHtml = (unsafeValue) => {
     const value = unsafeValue == null ? '' : String(unsafeValue);
@@ -53,7 +53,7 @@ function toggleDownloadIcon(card, hasMagnet) {
     actionButtons.prepend(newButton);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const gallery = document.querySelector('.library-gallery');
     const modalElement = document.getElementById('library-modal');
 
@@ -73,12 +73,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectionMode = false;
     let selectedMovies = new Set();
 
+    await syncCreatorTokensFromUrl();
+
     // Проверяем и загружаем "Мои опросы"
     const refreshMyPolls = () => loadMyPolls({
         myPollsButton: myPollsBtn,
         myPollsBadgeElement: myPollsBadge,
     });
-    refreshMyPolls();
+    await refreshMyPolls();
 
     function toggleSelectionMode() {
         selectionMode = !selectionMode;
@@ -161,8 +163,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(data.error || 'Не удалось создать опрос');
             }
 
-            // Сохраняем токен создателя в localStorage
-            storeCreatorToken({ token: data.creator_token, pollId: data.poll_id });
+            // Сохраняем токен создателя локально и на сервере
+            await storeCreatorToken({ token: data.creator_token, pollId: data.poll_id });
 
             // Показываем модальное окно с результатом
             showPollCreatedModal({
@@ -174,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
             toggleSelectionMode();
 
             // Обновляем кнопку "Мои опросы"
-            refreshMyPolls();
+            await refreshMyPolls();
 
         } catch (error) {
             showToast(error.message, 'error');
@@ -343,13 +345,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     // Сохраняем токен создателя
-                    storeCreatorToken({ token: data.creator_token, pollId: data.poll_id });
+                    await storeCreatorToken({ token: data.creator_token, pollId: data.poll_id });
 
                     showPollCreatedModal({
                         pollUrl: data.poll_url,
                         resultsUrl: data.results_url,
                     });
-                    refreshMyPolls();
+                    await refreshMyPolls();
 
                 } catch (error) {
                     showToast(error.message, 'error');
@@ -485,8 +487,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         throw new Error(createData.error || 'Не удалось создать опрос');
                     }
 
-                    // Сохраняем токен создателя в localStorage
-                    storeCreatorToken({ token: createData.creator_token, pollId: createData.poll_id });
+                    // Сохраняем токен создателя в localStorage и на сервере
+                    await storeCreatorToken({ token: createData.creator_token, pollId: createData.poll_id });
 
                     // Показываем модальное окно с результатом
                     showPollCreatedModal({
@@ -495,7 +497,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
 
                     // Обновляем кнопку "Мои опросы"
-                    refreshMyPolls();
+                    await refreshMyPolls();
 
                     showToast(`Опрос "${badgeName}" успешно создан!`, 'success');
 

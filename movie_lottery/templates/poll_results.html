@@ -47,6 +47,10 @@
         const pollId = {{ poll.id|tojson }};
         const pollViewUrl = {{ poll_url|tojson }};
     </script>
+    <script>
+        window.appConfig = window.appConfig || {};
+        window.appConfig.pollCreatorSecret = {{ poll_creator_secret|tojson }};
+    </script>
     <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
     <script type="module" src="{{ url_for('static', filename='js/pages/poll_results.js') }}"></script>
 

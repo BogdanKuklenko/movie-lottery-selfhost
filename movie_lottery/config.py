@@ -6,6 +6,7 @@ class Config:
 
     SECRET_KEY = os.environ.get('SECRET_KEY', 'a_super_secret_key')
     PUBLIC_BASE_URL = os.environ.get('PUBLIC_BASE_URL')
+    POLL_CREATOR_TOKEN_SECRET = os.environ.get('POLL_CREATOR_TOKEN_SECRET')
     
     # Database settings
     SQLALCHEMY_TRACK_MODIFICATIONS = False

@@ -1,6 +1,6 @@
 // movie_lottery/static/js/pages/poll_results.js
 
-import { storeCreatorToken } from '../utils/polls.js';
+import { loadMyPolls, storeCreatorToken } from '../utils/polls.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     const descriptionEl = document.getElementById('poll-results-description');
@@ -11,6 +11,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const resultsList = document.getElementById('poll-results-list');
     const resultsLinkInput = document.getElementById('poll-results-link');
     const libraryLink = document.getElementById('open-library-link');
+    const myPollsButton = document.getElementById('my-polls-btn');
+    const myPollsBadge = document.getElementById('my-polls-badge');
 
     const searchParams = new URLSearchParams(window.location.search);
     const creatorToken = (searchParams.get('creator_token') || '').trim();
@@ -54,7 +56,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    storeCreatorToken({ token: normalizedToken, pollId });
+    await storeCreatorToken({ token: normalizedToken, pollId });
+
+    await loadMyPolls({
+        myPollsButton,
+        myPollsBadgeElement: myPollsBadge,
+    });
 
     if (libraryLink) {
         libraryLink.href = `/library?creator_token=${encodeURIComponent(normalizedToken)}`;

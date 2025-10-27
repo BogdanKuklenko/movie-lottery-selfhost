@@ -4,7 +4,16 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app
 
 from .. import db
-from ..models import Movie, Lottery, MovieIdentifier, LibraryMovie, Poll, PollMovie, Vote
+from ..models import (
+    Movie,
+    Lottery,
+    MovieIdentifier,
+    LibraryMovie,
+    Poll,
+    PollCreatorToken,
+    PollMovie,
+    Vote,
+)
 from ..utils.kinopoisk import get_movie_data_from_kinopoisk
 from ..utils.helpers import (
     generate_unique_id,
@@ -15,6 +24,44 @@ from ..utils.helpers import (
 )
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
+
+
+def _extract_creator_secret(payload=None):
+    payload = payload or {}
+    header_secret = request.headers.get('X-Poll-Secret') or request.headers.get('X-Poll-Creator-Secret')
+    if header_secret:
+        return header_secret
+
+    if isinstance(payload, dict):
+        json_secret = payload.get('secret')
+        if json_secret:
+            return json_secret
+
+    query_secret = request.args.get('secret')
+    if query_secret:
+        return query_secret
+
+    return None
+
+
+def _validate_creator_secret(provided_secret):
+    expected_secret = current_app.config.get('POLL_CREATOR_TOKEN_SECRET')
+    if not expected_secret:
+        current_app.logger.warning('POLL_CREATOR_TOKEN_SECRET не настроен. Запрос отклонён.')
+        return False, 'Сервер не настроен для синхронизации токенов.'
+
+    if not provided_secret:
+        return False, 'Не передан секрет доступа.'
+
+    try:
+        is_valid = secrets.compare_digest(str(provided_secret), str(expected_secret))
+    except Exception:
+        return False, 'Неверный секрет доступа.'
+
+    if not is_valid:
+        return False, 'Неверный секрет доступа.'
+
+    return True, None
 
 # --- Routes for movies and lotteries ---
 
@@ -247,6 +294,66 @@ def save_movie_magnet():
 
 
 # --- Маршруты для опросов ---
+
+
+@api_bp.route('/polls/creator-tokens', methods=['POST'])
+def register_poll_creator_token():
+    payload = request.get_json(silent=True) or {}
+    secret = _extract_creator_secret(payload)
+    is_valid, error_message = _validate_creator_secret(secret)
+    if not is_valid:
+        return jsonify({"error": error_message}), 403
+
+    creator_token = (payload.get('creator_token') or '').strip()
+    if not creator_token:
+        return jsonify({"error": "Не указан токен организатора."}), 400
+
+    now = datetime.utcnow()
+    token_entry = PollCreatorToken.query.filter_by(creator_token=creator_token).first()
+    if token_entry:
+        token_entry.last_seen = now
+    else:
+        token_entry = PollCreatorToken(
+            creator_token=creator_token,
+            created_at=now,
+            last_seen=now,
+        )
+        db.session.add(token_entry)
+
+    db.session.commit()
+
+    return jsonify({
+        "creator_token": token_entry.creator_token,
+        "created_at": token_entry.created_at.isoformat() + 'Z',
+        "last_seen": token_entry.last_seen.isoformat() + 'Z',
+    })
+
+
+@api_bp.route('/polls/creator-tokens', methods=['GET'])
+def list_poll_creator_tokens():
+    payload = request.get_json(silent=True) or {}
+    secret = _extract_creator_secret(payload)
+    is_valid, error_message = _validate_creator_secret(secret)
+    if not is_valid:
+        return jsonify({"error": error_message}), 403
+
+    tokens = (
+        PollCreatorToken.query
+        .order_by(PollCreatorToken.last_seen.desc())
+        .all()
+    )
+
+    return jsonify({
+        "tokens": [
+            {
+                "creator_token": token.creator_token,
+                "created_at": token.created_at.isoformat() + 'Z',
+                "last_seen": token.last_seen.isoformat() + 'Z',
+            }
+            for token in tokens
+        ]
+    })
+
 
 @api_bp.route('/polls/create', methods=['POST'])
 def create_poll():
