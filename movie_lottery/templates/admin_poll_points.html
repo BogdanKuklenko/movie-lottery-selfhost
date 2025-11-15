@@ -18,6 +18,7 @@
                 <p class="admin-subtitle">Следите за активностью, устройствами и начисленными баллами в режиме реального времени.</p>
             </div>
             <div class="nav-links">
+                <a href="{{ url_for('main.admin_poll_points') }}" class="nav-button secondary" aria-current="page">Баллы и участники</a>
                 <a href="{{ url_for('main.index') }}" class="nav-button secondary">Создать лотерею</a>
                 <a href="{{ url_for('main.history') }}" class="nav-button secondary">История</a>
                 <a href="{{ url_for('main.library') }}" class="nav-button secondary">Библиотека</a>
