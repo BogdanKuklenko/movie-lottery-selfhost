@@ -217,7 +217,7 @@ def delete_lottery(lottery_id):
 def add_library_movie():
     movie_data = request.json.get('movie', {})
     if not movie_data.get('name'):
-        return jsonify({"success": False, "message": "Could not determine movie title."}), 400
+        return jsonify({"success": False, "message": "Не удалось определить название фильма."}), 400
 
     existing_movie = None
     kinopoisk_id = movie_data.get('kinopoisk_id')
@@ -235,11 +235,11 @@ def add_library_movie():
             if hasattr(existing_movie, key) and value is not None:
                 setattr(existing_movie, key, value)
         existing_movie.added_at = db.func.now()
-        message = "Movie information updated in library."
+        message = "Информация о фильме в библиотеке обновлена."
     else:
         new_movie = LibraryMovie(**movie_data)
         db.session.add(new_movie)
-        message = "Movie added to library."
+        message = "Фильм добавлен в библиотеку."
 
     # Add poster to background when movie is added to library
     if poster := movie_data.get('poster'):
