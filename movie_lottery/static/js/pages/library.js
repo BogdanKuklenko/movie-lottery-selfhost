@@ -3,7 +3,7 @@
 import { ModalManager } from '../components/modal.js';
 import * as movieApi from '../api/movies.js';
 import { downloadTorrentToClient, deleteTorrentFromClient } from '../api/torrents.js';
-import { loadMyPolls, storeCreatorToken, syncCreatorTokensFromUrl } from '../utils/polls.js';
+import { buildPollApiUrl, loadMyPolls, storeCreatorToken, syncCreatorTokensFromUrl } from '../utils/polls.js';
 
 const escapeHtml = (unsafeValue) => {
     const value = unsafeValue == null ? '' : String(unsafeValue);
@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         try {
-            const response = await fetch('/api/polls/create', {
+            const response = await fetch(buildPollApiUrl('/api/polls/create'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ movies: moviesData })
@@ -348,7 +348,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 btn.textContent = 'Создание...';
 
                 try {
-                    const response = await fetch('/api/polls/create', {
+                    const response = await fetch(buildPollApiUrl('/api/polls/create'), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ movies: winners })
@@ -491,7 +491,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
 
                     // Создаём опрос
-                    const createResponse = await fetch('/api/polls/create', {
+                    const createResponse = await fetch(buildPollApiUrl('/api/polls/create'), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ movies: data.movies })

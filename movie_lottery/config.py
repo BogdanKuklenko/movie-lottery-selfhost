@@ -18,7 +18,11 @@ class Config:
         POLL_POINTS_PER_VOTE = int(os.environ.get('POLL_POINTS_PER_VOTE', 1))
     except (TypeError, ValueError):
         POLL_POINTS_PER_VOTE = 1
-    
+
+    # Дополнительные настройки API опросов
+    POLL_API_BASE_URL = os.environ.get('POLL_API_BASE_URL')
+    POLL_API_ALLOWED_ORIGINS = os.environ.get('POLL_API_ALLOWED_ORIGINS')
+
     # Database settings
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     db_uri = os.environ.get('DATABASE_URL')

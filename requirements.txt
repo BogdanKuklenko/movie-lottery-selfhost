@@ -5,3 +5,4 @@ gunicorn
 requests
 Flask-Migrate
 APScheduler
+Flask-Cors

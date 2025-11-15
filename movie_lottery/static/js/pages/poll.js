@@ -1,6 +1,6 @@
 // movie_lottery/static/js/pages/poll.js
 
-import { getStoredCreatorToken } from '../utils/polls.js';
+import { buildPollApiUrl, getStoredCreatorToken } from '../utils/polls.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     const pollGrid = document.getElementById('poll-grid');
@@ -73,7 +73,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Загружаем данные опроса
     try {
-        const response = await fetch(`/api/polls/${pollId}`);
+        const response = await fetch(buildPollApiUrl(`/api/polls/${pollId}`));
 
         if (!response.ok) {
             const error = await response.json();
@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         voteConfirmBtn.textContent = 'Отправка...';
 
         try {
-            const response = await fetch(`/api/polls/${pollId}/vote`, {
+            const response = await fetch(buildPollApiUrl(`/api/polls/${pollId}/vote`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ movie_id: selectedMovie.id })

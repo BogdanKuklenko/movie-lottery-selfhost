@@ -1,6 +1,6 @@
 // movie_lottery/static/js/pages/poll_results.js
 
-import { getStoredCreatorToken, loadMyPolls, storeCreatorToken } from '../utils/polls.js';
+import { buildPollApiUrl, getStoredCreatorToken, loadMyPolls, storeCreatorToken } from '../utils/polls.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     const descriptionEl = document.getElementById('poll-results-description');
@@ -218,7 +218,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         try {
-            const response = await fetch(`/api/polls/${currentPollId}/results?creator_token=${encodeURIComponent(normalizedToken)}`);
+            const response = await fetch(buildPollApiUrl(`/api/polls/${currentPollId}/results?creator_token=${encodeURIComponent(normalizedToken)}`));
             const payload = await response.json();
 
             if (!response.ok) {
