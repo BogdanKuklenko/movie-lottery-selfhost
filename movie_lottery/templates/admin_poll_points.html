@@ -26,22 +26,6 @@
         </header>
 
         <section class="admin-card">
-            <h2>Доступ</h2>
-            <p class="admin-hint">Маршрут защищён. Укажите секрет, если браузер не отправляет Basic Auth автоматически.</p>
-            <form id="admin-secret-form" class="secret-form">
-                <label for="admin-secret-input">Админский секрет</label>
-                <div class="secret-row">
-                    <input type="password" id="admin-secret-input" placeholder="Введите секрет" autocomplete="off">
-                    <button type="submit" class="cta-button secondary">Сохранить</button>
-                </div>
-                <label class="remember-secret">
-                    <input type="checkbox" id="remember-secret-checkbox">
-                    Запомнить секрет в браузере
-                </label>
-            </form>
-        </section>
-
-        <section class="admin-card">
             <div class="filters-header">
                 <div>
                     <h2>Фильтры</h2>
@@ -115,11 +99,6 @@
         </section>
     </div>
 
-    <script>
-        window.adminConfig = {
-            initialSecret: {{ initial_admin_secret|tojson }}
-        };
-    </script>
     <script type="module" src="{{ url_for('static', filename='js/pages/admin_poll_points.js') }}"></script>
 </body>
 </html>
