@@ -25,8 +25,6 @@ from ..utils.helpers import (
     build_telegram_share_url,
     ensure_voter_profile,
     change_voter_points_balance,
-    extract_admin_secret,
-    validate_admin_secret,
 )
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -847,11 +845,6 @@ def get_movies_by_badge(badge_type):
 
 @api_bp.route('/polls/voter-stats', methods=['GET'])
 def list_voter_stats():
-    admin_secret = extract_admin_secret(request, request.args)
-    is_valid, message, status_code = validate_admin_secret(admin_secret)
-    if not is_valid:
-        return jsonify({'error': message}), status_code
-
     filters = _prepare_voter_filters(request.args)
 
     try:
@@ -928,11 +921,6 @@ def list_voter_stats():
 
 @api_bp.route('/polls/voter-stats/<string:voter_token>', methods=['GET'])
 def voter_stats_details(voter_token):
-    admin_secret = extract_admin_secret(request, request.args)
-    is_valid, message, status_code = validate_admin_secret(admin_secret)
-    if not is_valid:
-        return jsonify({'error': message}), status_code
-
     filters = _prepare_voter_filters(request.args)
     profile = PollVoterProfile.query.get_or_404(voter_token)
     votes_map = _group_votes_by_token([profile.token], filters)

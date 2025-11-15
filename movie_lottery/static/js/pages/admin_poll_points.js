@@ -1,5 +1,3 @@
-const SECRET_STORAGE_KEY = 'movieLotteryAdminSecret';
-
 const state = {
     page: 1,
     perPage: 25,
@@ -9,8 +7,7 @@ const state = {
     pollId: '',
     deviceLabel: '',
     dateFrom: '',
-    dateTo: '',
-    adminSecret: ''
+    dateTo: ''
 };
 
 const elements = {};
@@ -30,41 +27,7 @@ function initElements() {
     elements.dateTo = document.getElementById('date-to');
     elements.messageBox = document.getElementById('admin-messages');
     elements.refreshButton = document.getElementById('refresh-table');
-    elements.secretForm = document.getElementById('admin-secret-form');
-    elements.secretInput = document.getElementById('admin-secret-input');
-    elements.rememberSecret = document.getElementById('remember-secret-checkbox');
     elements.table = document.getElementById('stats-table');
-}
-
-function restoreSecretFromStorage() {
-    const initialSecret = window.adminConfig?.initialSecret || '';
-    let storedSecret = '';
-    try {
-        storedSecret = localStorage.getItem(SECRET_STORAGE_KEY) || '';
-    } catch (error) {
-        storedSecret = '';
-    }
-
-    const secret = initialSecret || storedSecret;
-    state.adminSecret = secret;
-    if (elements.secretInput) {
-        elements.secretInput.value = secret;
-    }
-    if (elements.rememberSecret && storedSecret) {
-        elements.rememberSecret.checked = true;
-    }
-}
-
-function persistSecret(value) {
-    try {
-        if (value && elements.rememberSecret?.checked) {
-            localStorage.setItem(SECRET_STORAGE_KEY, value);
-        } else {
-            localStorage.removeItem(SECRET_STORAGE_KEY);
-        }
-    } catch (error) {
-        console.warn('Не удалось сохранить секрет в localStorage', error);
-    }
 }
 
 function setMessage(text, type = '') {
@@ -215,11 +178,7 @@ function updateSortIndicators() {
 }
 
 function buildHeaders() {
-    const headers = { Accept: 'application/json' };
-    if (state.adminSecret) {
-        headers['X-Admin-Secret'] = state.adminSecret;
-    }
-    return headers;
+    return { Accept: 'application/json' };
 }
 
 function collectFiltersFromForm() {
@@ -254,8 +213,6 @@ async function fetchStats() {
     if (state.deviceLabel) params.set('device_label', state.deviceLabel);
     if (state.dateFrom) params.set('date_from', state.dateFrom);
     if (state.dateTo) params.set('date_to', state.dateTo);
-    if (state.adminSecret) params.set('admin_secret', state.adminSecret);
-
     try {
         const response = await fetch(`/api/polls/voter-stats?${params.toString()}`, {
             headers: buildHeaders(),
@@ -326,15 +283,6 @@ function handleSort(event) {
     fetchStats();
 }
 
-function handleSecretSubmit(event) {
-    event.preventDefault();
-    const secret = elements.secretInput?.value.trim() || '';
-    state.adminSecret = secret;
-    persistSecret(secret);
-    setMessage('Секрет обновлён. Перезагружаем данные…', 'success');
-    fetchStats();
-}
-
 function handleCopy(event) {
     const button = event.target.closest('[data-copy-token]');
     if (!button) return;
@@ -353,7 +301,6 @@ function attachEvents() {
     elements.refreshButton?.addEventListener('click', fetchStats);
     elements.table?.querySelector('thead')?.addEventListener('click', handleSort);
     elements.tableBody?.addEventListener('click', handleCopy);
-    elements.secretForm?.addEventListener('submit', handleSecretSubmit);
     elements.perPageSelect?.addEventListener('change', (event) => {
         const value = parseInt(event.target.value, 10);
         if (!Number.isNaN(value)) {
@@ -367,7 +314,6 @@ function attachEvents() {
 function bootstrap() {
     initElements();
     if (!elements.tableBody) return;
-    restoreSecretFromStorage();
     attachEvents();
     fetchStats();
 }

@@ -11,8 +11,6 @@ class Config:
         POLL_POINTS_PER_VOTE = int(os.environ.get('POLL_POINTS_PER_VOTE', 1))
     except (TypeError, ValueError):
         POLL_POINTS_PER_VOTE = 1
-    POLL_POINTS_ADMIN_SECRET = os.environ.get('POLL_POINTS_ADMIN_SECRET')
-    POLL_ADMIN_SECRET = os.environ.get('POLL_ADMIN_SECRET') or POLL_POINTS_ADMIN_SECRET
     
     # Database settings
     SQLALCHEMY_TRACK_MODIFICATIONS = False
