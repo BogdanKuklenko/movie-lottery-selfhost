@@ -20,6 +20,7 @@ from ..utils.kinopoisk import get_movie_data_from_kinopoisk
 from ..utils.helpers import (
     generate_unique_id,
     ensure_background_photo,
+    ensure_creator_token_record,
     generate_unique_poll_id,
     build_external_url,
     build_telegram_share_url,
@@ -422,17 +423,9 @@ def register_poll_creator_token():
     if not creator_token:
         return jsonify({"error": "Не указан токен организатора."}), 400
 
-    now = datetime.utcnow()
-    token_entry = PollCreatorToken.query.filter_by(creator_token=creator_token).first()
-    if token_entry:
-        token_entry.last_seen = now
-    else:
-        token_entry = PollCreatorToken(
-            creator_token=creator_token,
-            created_at=now,
-            last_seen=now,
-        )
-        db.session.add(token_entry)
+    token_entry = ensure_creator_token_record(creator_token)
+    if not token_entry:
+        return jsonify({"error": "Не удалось сохранить токен организатора."}), 500
 
     db.session.commit()
 
@@ -499,6 +492,7 @@ def create_poll():
         if poster := movie_data.get('poster'):
             ensure_background_photo(poster)
 
+    ensure_creator_token_record(new_poll.creator_token)
     db.session.commit()
 
     poll_url = build_external_url('main.view_poll', poll_id=new_poll.id)

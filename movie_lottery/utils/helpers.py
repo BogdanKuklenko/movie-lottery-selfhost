@@ -8,7 +8,13 @@ from sqlalchemy import inspect, text
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from .. import db
-from ..models import BackgroundPhoto, Lottery, Poll, PollVoterProfile
+from ..models import (
+    BackgroundPhoto,
+    Lottery,
+    Poll,
+    PollCreatorToken,
+    PollVoterProfile,
+)
 
 
 class _FallbackVoterProfile:
@@ -146,6 +152,38 @@ def ensure_background_photo(poster_url):
         db.session.add(new_photo)
     except Exception:
         pass
+
+
+def ensure_creator_token_record(token):
+    """Гарантирует, что токен организатора сохранён в общей таблице."""
+    if not token:
+        return None
+
+    now = datetime.utcnow()
+
+    try:
+        entry = PollCreatorToken.query.filter_by(creator_token=token).first()
+    except (ProgrammingError, OperationalError):
+        db.session.rollback()
+        return None
+
+    if entry:
+        entry.last_seen = now
+    else:
+        entry = PollCreatorToken(
+            creator_token=token,
+            created_at=now,
+            last_seen=now,
+        )
+        db.session.add(entry)
+
+    try:
+        db.session.flush()
+    except (ProgrammingError, OperationalError):
+        db.session.rollback()
+        return None
+
+    return entry
 
 
 def cleanup_expired_polls():
