@@ -21,6 +21,8 @@ from ..utils.helpers import (
     generate_unique_poll_id,
     build_external_url,
     build_telegram_share_url,
+    ensure_voter_profile,
+    change_voter_points_balance,
 )
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -40,6 +42,20 @@ def _extract_creator_secret(payload=None):
     query_secret = request.args.get('secret')
     if query_secret:
         return query_secret
+
+    return None
+
+
+def _resolve_device_label():
+    header_label = request.headers.get('X-Device-Label')
+    if header_label:
+        return header_label[:255]
+
+    user_agent = getattr(request, 'user_agent', None)
+    if user_agent:
+        agent_str = getattr(user_agent, 'string', None)
+        if agent_str:
+            return agent_str[:255]
 
     return None
 
@@ -419,7 +435,12 @@ def get_poll(poll_id):
     voter_token = request.cookies.get('voter_token')
     if not voter_token:
         voter_token = secrets.token_hex(16)
-    
+
+    device_label = _resolve_device_label()
+    profile = ensure_voter_profile(voter_token, device_label=device_label)
+    points_balance = profile.total_points or 0
+    db.session.commit()
+
     # Проверяем, голосовал ли уже этот пользователь
     existing_vote = Vote.query.filter_by(poll_id=poll_id, voter_token=voter_token).first()
     
@@ -444,13 +465,14 @@ def get_poll(poll_id):
         "created_at": poll.created_at.isoformat() + "Z",
         "expires_at": poll.expires_at.isoformat() + "Z",
         "has_voted": bool(existing_vote),
-        "total_votes": len(poll.votes)
+        "total_votes": len(poll.votes),
+        "points_balance": points_balance,
     })
-    
+
     # Устанавливаем cookie с токеном голосующего
     if not request.cookies.get('voter_token'):
         response.set_cookie('voter_token', voter_token, max_age=60*60*24*30)  # 30 дней
-    
+
     return response
 
 
@@ -475,25 +497,39 @@ def vote_in_poll(poll_id):
     voter_token = request.cookies.get('voter_token')
     if not voter_token:
         voter_token = secrets.token_hex(16)
-    
+
+    device_label = _resolve_device_label()
+
     # Проверяем, не голосовал ли уже этот пользователь
     existing_vote = Vote.query.filter_by(poll_id=poll_id, voter_token=voter_token).first()
     if existing_vote:
         return jsonify({"error": "Вы уже проголосовали в этом опросе"}), 400
-    
+
+    points_per_vote = int(current_app.config.get('POLL_POINTS_PER_VOTE', 1))
+
     # Создаём новый голос
     new_vote = Vote(
         poll_id=poll_id,
         movie_id=movie_id,
-        voter_token=voter_token
+        voter_token=voter_token,
+        points_awarded=points_per_vote,
     )
     db.session.add(new_vote)
+
+    new_balance = change_voter_points_balance(
+        voter_token,
+        points_per_vote,
+        device_label=device_label,
+    )
+
     db.session.commit()
-    
+
     response = jsonify({
         "success": True,
         "message": "Голос учтён! Приятного просмотра!",
-        "movie_name": movie.name
+        "movie_name": movie.name,
+        "points_awarded": points_per_vote,
+        "points_balance": new_balance,
     })
     
     # Устанавливаем cookie с токеном
