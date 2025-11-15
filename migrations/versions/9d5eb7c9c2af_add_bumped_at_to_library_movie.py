@@ -14,34 +14,37 @@ depends_on = None
 def upgrade():
     bind = op.get_bind()
     inspector = sa.inspect(bind)
-    column_names = {col['name'] for col in inspector.get_columns('library_movie')}
+    if inspector.has_table('library_movie'):
+        column_names = {col['name'] for col in inspector.get_columns('library_movie')}
 
-    if 'bumped_at' not in column_names:
-        op.add_column(
-            'library_movie',
-            sa.Column(
+        if 'bumped_at' not in column_names:
+            op.add_column(
+                'library_movie',
+                sa.Column(
+                    'bumped_at',
+                    sa.DateTime(),
+                    nullable=True,
+                    server_default=sa.text('CURRENT_TIMESTAMP')
+                )
+            )
+
+        op.execute(sa.text('UPDATE library_movie SET bumped_at = added_at WHERE bumped_at IS NULL'))
+
+        if bind.dialect.name != 'sqlite':
+            op.alter_column(
+                'library_movie',
                 'bumped_at',
-                sa.DateTime(),
-                nullable=True,
+                existing_type=sa.DateTime(),
+                nullable=False,
                 server_default=sa.text('CURRENT_TIMESTAMP')
             )
-        )
-
-    op.execute(sa.text('UPDATE library_movie SET bumped_at = added_at WHERE bumped_at IS NULL'))
-
-    op.alter_column(
-        'library_movie',
-        'bumped_at',
-        existing_type=sa.DateTime(),
-        nullable=False,
-        server_default=sa.text('CURRENT_TIMESTAMP')
-    )
 
 
 def downgrade():
     bind = op.get_bind()
     inspector = sa.inspect(bind)
-    column_names = {col['name'] for col in inspector.get_columns('library_movie')}
+    if inspector.has_table('library_movie'):
+        column_names = {col['name'] for col in inspector.get_columns('library_movie')}
 
-    if 'bumped_at' in column_names:
-        op.drop_column('library_movie', 'bumped_at')
+        if 'bumped_at' in column_names:
+            op.drop_column('library_movie', 'bumped_at')

@@ -21,8 +21,11 @@ def upgrade():
     bind = op.get_bind()
     inspector = sa.inspect(bind)
 
-    if 'badge' not in {col['name'] for col in inspector.get_columns('library_movie')}:
-        op.add_column('library_movie', sa.Column('badge', sa.String(length=20), nullable=True))
+    if inspector.has_table('library_movie'):
+        column_names = {col['name'] for col in inspector.get_columns('library_movie')}
+
+        if 'badge' not in column_names:
+            op.add_column('library_movie', sa.Column('badge', sa.String(length=20), nullable=True))
     # ### end Alembic commands ###
 
 
@@ -31,6 +34,9 @@ def downgrade():
     bind = op.get_bind()
     inspector = sa.inspect(bind)
 
-    if 'badge' in {col['name'] for col in inspector.get_columns('library_movie')}:
-        op.drop_column('library_movie', 'badge')
+    if inspector.has_table('library_movie'):
+        column_names = {col['name'] for col in inspector.get_columns('library_movie')}
+
+        if 'badge' in column_names:
+            op.drop_column('library_movie', 'badge')
     # ### end Alembic commands ###
