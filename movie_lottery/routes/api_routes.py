@@ -695,9 +695,12 @@ def get_my_polls():
         return jsonify({"polls": []})
     
     # Находим все опросы, созданные этим пользователем
-    polls = Poll.query.filter_by(creator_token=creator_token).filter(
-        Poll.expires_at > datetime.utcnow()
-    ).order_by(Poll.created_at.desc()).all()
+    polls = (
+        Poll.query
+        .filter_by(creator_token=creator_token)
+        .order_by(Poll.created_at.desc())
+        .all()
+    )
     
     polls_data = []
     for poll in polls:
@@ -712,6 +715,7 @@ def get_my_polls():
             "poll_id": poll.id,
             "created_at": poll.created_at.isoformat() + "Z",
             "expires_at": poll.expires_at.isoformat() + "Z",
+            "is_expired": poll.is_expired,
             "total_votes": len(poll.votes),
             "movies_count": len(poll.movies),
             "winners": [
