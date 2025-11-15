@@ -44,6 +44,12 @@ def _resolve_device_label():
     return None
 
 
+def _get_json_payload():
+    """Возвращает тело запроса в формате JSON или None, если оно некорректно."""
+    data = request.get_json(silent=True)
+    return data if isinstance(data, dict) else None
+
+
 def _parse_iso_date(raw_value, for_end=False):
     if not raw_value:
         return None
@@ -136,7 +142,11 @@ def _group_votes_by_token(tokens, filters):
 
 @api_bp.route('/fetch-movie', methods=['POST'])
 def get_movie_info():
-    query = request.json.get('query')
+    payload = _get_json_payload()
+    if payload is None:
+        return jsonify({"error": "Некорректный JSON-запрос"}), 400
+
+    query = payload.get('query')
     if not query:
         return jsonify({"error": "Пустой запрос"}), 400
     movie_data, error = get_movie_data_from_kinopoisk(query)
@@ -182,7 +192,11 @@ def get_movie_info():
 
 @api_bp.route('/create', methods=['POST'])
 def create_lottery():
-    movies_json = request.json.get('movies')
+    payload = _get_json_payload()
+    if payload is None:
+        return jsonify({"error": "Некорректный JSON-запрос"}), 400
+
+    movies_json = payload.get('movies')
     if not movies_json or len(movies_json) < 2:
         return jsonify({"error": "Нужно добавить хотя бы два фильма"}), 400
 
@@ -284,7 +298,11 @@ def delete_lottery(lottery_id):
 
 @api_bp.route('/library', methods=['POST'])
 def add_library_movie():
-    movie_data = request.json.get('movie', {})
+    payload = _get_json_payload()
+    if payload is None:
+        return jsonify({"success": False, "message": "Некорректный JSON-запрос."}), 400
+
+    movie_data = payload.get('movie', {})
     if not movie_data.get('name'):
         return jsonify({"success": False, "message": "Не удалось определить название фильма."}), 400
 
@@ -334,7 +352,9 @@ def remove_library_movie(movie_id):
 
 @api_bp.route('/movie-magnet', methods=['POST'])
 def save_movie_magnet():
-    data = request.json
+    data = _get_json_payload()
+    if data is None:
+        return jsonify({"success": False, "message": "Некорректный JSON-запрос"}), 400
     kinopoisk_id = data.get('kinopoisk_id')
     magnet_link = (data.get('magnet_link') or '').strip()
 
@@ -374,7 +394,11 @@ def save_movie_magnet():
 @api_bp.route('/polls/create', methods=['POST'])
 def create_poll():
     """Создание нового опроса"""
-    movies_json = request.json.get('movies')
+    payload = _get_json_payload()
+    if payload is None:
+        return jsonify({"error": "Некорректный JSON-запрос"}), 400
+
+    movies_json = payload.get('movies')
     if not movies_json or len(movies_json) < 2:
         return jsonify({"error": "Нужно добавить хотя бы два фильма"}), 400
     
@@ -469,11 +493,15 @@ def get_poll(poll_id):
 def vote_in_poll(poll_id):
     """Голосование в опросе"""
     poll = Poll.query.get_or_404(poll_id)
-    
+
     if poll.is_expired:
         return jsonify({"error": "Опрос истёк"}), 410
-    
-    movie_id = request.json.get('movie_id')
+
+    payload = _get_json_payload()
+    if payload is None:
+        return jsonify({"error": "Некорректный JSON-запрос"}), 400
+
+    movie_id = payload.get('movie_id')
     if not movie_id:
         return jsonify({"error": "Не указан фильм"}), 400
     
@@ -643,8 +671,12 @@ def cleanup_expired_polls():
 def set_movie_badge(movie_id):
     """Установка бейджа для фильма в библиотеке"""
     library_movie = LibraryMovie.query.get_or_404(movie_id)
-    
-    badge_type = request.json.get('badge')
+
+    payload = _get_json_payload()
+    if payload is None:
+        return jsonify({"success": False, "message": "Некорректный JSON-запрос"}), 400
+
+    badge_type = payload.get('badge')
     allowed_badges = ['favorite', 'watchlist', 'top', 'watched', 'new']
     
     if badge_type and badge_type not in allowed_badges:
