@@ -234,10 +234,16 @@ def add_library_movie():
         for key, value in movie_data.items():
             if hasattr(existing_movie, key) and value is not None:
                 setattr(existing_movie, key, value)
-        existing_movie.added_at = db.func.now()
+        existing_movie.bumped_at = db.func.now()
         message = "Информация о фильме в библиотеке обновлена."
     else:
         new_movie = LibraryMovie(**movie_data)
+        if new_movie.added_at is None:
+            now = datetime.utcnow()
+            new_movie.added_at = now
+            new_movie.bumped_at = now
+        else:
+            new_movie.bumped_at = new_movie.added_at
         db.session.add(new_movie)
         message = "Фильм добавлен в библиотеку."
 
