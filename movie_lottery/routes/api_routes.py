@@ -544,7 +544,16 @@ def get_poll_results(poll_id):
         "poll_id": poll.id,
         "movies": movies_with_votes,
         "total_votes": len(poll.votes),
-        "winners": [{"id": w.id, "name": w.name, "poster": w.poster, "year": w.year} for w in winners],
+        "winners": [
+            {
+                "id": w.id,
+                "name": w.name,
+                "search_name": w.search_name,
+                "poster": w.poster,
+                "year": w.year
+            }
+            for w in winners
+        ],
         "created_at": poll.created_at.isoformat() + "Z",
         "expires_at": poll.expires_at.isoformat() + "Z"
     })
@@ -577,7 +586,17 @@ def get_my_polls():
             "expires_at": poll.expires_at.isoformat() + "Z",
             "total_votes": len(poll.votes),
             "movies_count": len(poll.movies),
-            "winners": [{"id": w.id, "name": w.name, "poster": w.poster, "year": w.year, "votes": vote_counts.get(w.id, 0)} for w in winners],
+            "winners": [
+                {
+                    "id": w.id,
+                    "name": w.name,
+                    "search_name": w.search_name,
+                    "poster": w.poster,
+                    "year": w.year,
+                    "votes": vote_counts.get(w.id, 0)
+                }
+                for w in winners
+            ],
             "poll_url": build_external_url('main.view_poll', poll_id=poll.id),
             "results_url": build_external_url(
                 'main.view_poll_results',

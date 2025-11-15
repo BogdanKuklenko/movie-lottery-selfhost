@@ -307,8 +307,9 @@ export class ModalManager {
         const searchRutrackerBtn = this.body.querySelector('.search-rutracker-btn');
         if (searchRutrackerBtn) {
             searchRutrackerBtn.addEventListener('click', () => {
-                // Формируем поисковый запрос: "Название год"
-                const searchQuery = `${movieData.name}${movieData.year ? ' ' + movieData.year : ''}`;
+                // Формируем поисковый запрос на английском: "Название год"
+                const searchBase = movieData.search_name || movieData.name || '';
+                const searchQuery = `${searchBase}${movieData.year ? ' ' + movieData.year : ''}`.trim();
                 
                 // Кодируем запрос для URL
                 const encodedQuery = encodeURIComponent(searchQuery);
