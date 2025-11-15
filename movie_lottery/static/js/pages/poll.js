@@ -1,9 +1,13 @@
 // movie_lottery/static/js/pages/poll.js
 
+import { getStoredCreatorToken } from '../utils/polls.js';
+
 document.addEventListener('DOMContentLoaded', async () => {
     const pollGrid = document.getElementById('poll-grid');
     const pollMessage = document.getElementById('poll-message');
     const pollDescription = document.getElementById('poll-description');
+    const pollResultsBlock = document.getElementById('poll-results-block');
+    const pollResultsLink = document.getElementById('poll-results-link');
     const voteConfirmModal = document.getElementById('vote-confirm-modal');
     const voteConfirmBtn = document.getElementById('vote-confirm-btn');
     const voteCancelBtn = document.getElementById('vote-cancel-btn');
@@ -49,6 +53,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     let selectedMovie = null;
     let historyEntries = 0;
     let progressTimeoutId = null;
+    let storedCreatorToken = getStoredCreatorToken(pollId);
+
+    const ensureResultsLinkVisible = () => {
+        if (!storedCreatorToken) {
+            storedCreatorToken = getStoredCreatorToken(pollId);
+        }
+
+        if (!storedCreatorToken || !pollResultsBlock || !pollResultsLink) {
+            return;
+        }
+
+        const resultsUrl = `/p/${pollId}/results?creator_token=${encodeURIComponent(storedCreatorToken)}`;
+        pollResultsLink.href = resultsUrl;
+        pollResultsBlock.hidden = false;
+    };
 
     initializePointsWidget();
 
@@ -67,9 +86,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         updatePointsBalance(pollData.points_balance);
 
         // Если пользователь уже голосовал
+        ensureResultsLinkVisible();
+
         if (pollData.has_voted) {
             showMessage('Вы уже проголосовали в этом опросе. Спасибо за участие!', 'info');
             pollDescription.textContent = `Всего проголосовало: ${pollData.total_votes}`;
+            ensureResultsLinkVisible();
             return;
         }
 
@@ -150,6 +172,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             showMessage(result.message, 'success');
 
             handlePointsAfterVote(result);
+
+            ensureResultsLinkVisible();
 
             // Скрываем сетку фильмов
             pollGrid.style.display = 'none';
