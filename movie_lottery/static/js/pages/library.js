@@ -254,6 +254,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         allPolls.forEach(poll => {
             const createdDate = new Date(poll.created_at).toLocaleString('ru-RU');
+            const primaryWinner = poll.winners[0] || {};
+            const winnerNameAttr = escapeHtml(primaryWinner.name || '');
+            const winnerYearAttr = escapeHtml(primaryWinner.year || '');
+            const winnerSearchNameAttr = escapeHtml(primaryWinner.search_name || '');
             const winnersHtml = poll.winners.map(w => `
                 <div class="poll-winner">
                     <img src="${w.poster || 'https://via.placeholder.com/100x150.png?text=No+Image'}" alt="${w.name}">
@@ -281,7 +285,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </button>
                     ` : ''}
                     <div class="poll-actions">
-                        <button class="secondary-button search-winner-btn" data-movie-name="${poll.winners[0].name}" data-movie-year="${poll.winners[0].year || ''}">
+                        <button class="secondary-button search-winner-btn" data-movie-name="${winnerNameAttr}" data-movie-year="${winnerYearAttr}" data-movie-search-name="${winnerSearchNameAttr}">
                             Найти на RuTracker
                         </button>
                         <a href="${poll.poll_url}" class="secondary-button" target="_blank">Открыть опрос</a>
@@ -315,7 +319,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             btn.addEventListener('click', (e) => {
                 const movieName = e.target.dataset.movieName;
                 const movieYear = e.target.dataset.movieYear;
-                const searchQuery = `${movieName}${movieYear ? ' ' + movieYear : ''}`;
+                const movieSearchName = e.target.dataset.movieSearchName;
+                const searchQuery = `${movieSearchName || movieName}${movieYear ? ' ' + movieYear : ''}`;
                 const encodedQuery = encodeURIComponent(searchQuery);
                 const rutrackerUrl = `https://rutracker.org/forum/tracker.php?nm=${encodedQuery}`;
                 window.open(rutrackerUrl, '_blank');
