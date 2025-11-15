@@ -13,6 +13,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const libraryLink = document.getElementById('open-library-link');
     const myPollsButton = document.getElementById('my-polls-btn');
     const myPollsBadge = document.getElementById('my-polls-badge');
+    const hasMyPollsElements = Boolean(myPollsButton || myPollsBadge);
+
+    if (myPollsButton) {
+        myPollsButton.addEventListener('click', () => {
+            window.location.href = '/library';
+        });
+    }
 
     const searchParams = new URLSearchParams(window.location.search);
     const creatorToken = (searchParams.get('creator_token') || '').trim();
@@ -191,13 +198,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.warn('Не удалось сохранить токен организатора локально или на сервере:', error);
         }
 
-        try {
-            await loadMyPolls({
-                myPollsButton,
-                myPollsBadgeElement: myPollsBadge,
-            });
-        } catch (error) {
-            console.warn('Не удалось обновить список "Мои опросы":', error);
+        if (hasMyPollsElements) {
+            try {
+                await loadMyPolls({
+                    myPollsButton,
+                    myPollsBadgeElement: myPollsBadge,
+                });
+            } catch (error) {
+                console.warn('Не удалось обновить список "Мои опросы":', error);
+            }
+        } else {
+            console.debug('Элементы блока "Мои опросы" отсутствуют на странице.');
         }
 
         if (libraryLink) {
