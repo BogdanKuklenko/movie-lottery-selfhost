@@ -1,6 +1,7 @@
 import random
 import secrets
-from datetime import datetime
+from collections import defaultdict
+from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify, current_app
 
 from .. import db
@@ -12,6 +13,7 @@ from ..models import (
     Poll,
     PollCreatorToken,
     PollMovie,
+    PollVoterProfile,
     Vote,
 )
 from ..utils.kinopoisk import get_movie_data_from_kinopoisk
@@ -23,6 +25,8 @@ from ..utils.helpers import (
     build_telegram_share_url,
     ensure_voter_profile,
     change_voter_points_balance,
+    extract_admin_secret,
+    validate_admin_secret,
 )
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -78,6 +82,95 @@ def _validate_creator_secret(provided_secret):
         return False, 'Неверный секрет доступа.'
 
     return True, None
+
+
+def _parse_iso_date(raw_value, for_end=False):
+    if not raw_value:
+        return None
+
+    value = str(raw_value).strip()
+    if not value:
+        return None
+
+    normalized = value.replace('Z', '+00:00') if value.endswith('Z') else value
+    date_only = 'T' not in normalized and ' ' not in normalized and '+' not in normalized
+
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+
+    if parsed.tzinfo:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+
+    if date_only and for_end:
+        parsed = parsed.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    return parsed
+
+
+def _prepare_voter_filters(args):
+    token = (args.get('token') or '').strip()
+    poll_id = (args.get('poll_id') or '').strip()
+    device_label = (args.get('device_label') or '').strip()
+    date_from = _parse_iso_date(args.get('date_from'))
+    date_to = _parse_iso_date(args.get('date_to'), for_end=True)
+
+    requires_vote_filters = any([poll_id, date_from, date_to])
+
+    return {
+        'token': token,
+        'poll_id': poll_id,
+        'device_label': device_label,
+        'date_from': date_from,
+        'date_to': date_to,
+        'requires_vote_filters': requires_vote_filters,
+    }
+
+
+def _apply_vote_filters(query, filters):
+    poll_id = filters.get('poll_id')
+    date_from = filters.get('date_from')
+    date_to = filters.get('date_to')
+
+    if poll_id:
+        query = query.filter(Vote.poll_id == poll_id)
+    if date_from:
+        query = query.filter(Vote.voted_at >= date_from)
+    if date_to:
+        query = query.filter(Vote.voted_at <= date_to)
+    return query
+
+
+def _group_votes_by_token(tokens, filters):
+    votes_by_token = defaultdict(list)
+    if not tokens:
+        return votes_by_token
+
+    vote_query = (
+        db.session.query(Vote, Poll, PollMovie)
+        .join(Poll, Vote.poll_id == Poll.id)
+        .join(PollMovie, Vote.movie_id == PollMovie.id)
+        .filter(Vote.voter_token.in_(tokens))
+    )
+
+    vote_query = _apply_vote_filters(vote_query, filters)
+    vote_query = vote_query.order_by(Vote.voted_at.desc())
+
+    for vote, poll, poll_movie in vote_query.all():
+        votes_by_token[vote.voter_token].append({
+            'poll_id': vote.poll_id,
+            'poll_title': getattr(poll, 'title', None),
+            'poll_created_at': poll.created_at.isoformat() if poll and poll.created_at else None,
+            'poll_expires_at': poll.expires_at.isoformat() if poll and poll.expires_at else None,
+            'movie_id': vote.movie_id,
+            'movie_name': poll_movie.name if poll_movie else None,
+            'movie_year': poll_movie.year if poll_movie else None,
+            'points_awarded': vote.points_awarded,
+            'voted_at': vote.voted_at.isoformat() if vote.voted_at else None,
+        })
+
+    return votes_by_token
 
 # --- Routes for movies and lotteries ---
 
@@ -750,3 +843,112 @@ def get_movies_by_badge(badge_type):
         'total': len(movies),
         'limited': limited
     })
+
+
+@api_bp.route('/polls/voter-stats', methods=['GET'])
+def list_voter_stats():
+    admin_secret = extract_admin_secret(request, request.args)
+    is_valid, message, status_code = validate_admin_secret(admin_secret)
+    if not is_valid:
+        return jsonify({'error': message}), status_code
+
+    filters = _prepare_voter_filters(request.args)
+
+    try:
+        per_page = int(request.args.get('per_page', 25))
+    except (TypeError, ValueError):
+        per_page = 25
+    per_page = max(1, min(100, per_page))
+
+    try:
+        page = int(request.args.get('page', 1))
+    except (TypeError, ValueError):
+        page = 1
+    page = max(1, page)
+
+    sort_map = {
+        'token': PollVoterProfile.token,
+        'device_label': PollVoterProfile.device_label,
+        'total_points': PollVoterProfile.total_points,
+        'created_at': PollVoterProfile.created_at,
+        'updated_at': PollVoterProfile.updated_at,
+    }
+    sort_by = request.args.get('sort_by', 'updated_at')
+    sort_column = sort_map.get(sort_by, PollVoterProfile.updated_at)
+    sort_order = request.args.get('sort_order', 'desc').lower()
+    order_clause = sort_column.asc() if sort_order == 'asc' else sort_column.desc()
+
+    query = PollVoterProfile.query
+
+    if filters['token']:
+        query = query.filter(PollVoterProfile.token.ilike(f"%{filters['token']}%"))
+
+    if filters['device_label']:
+        query = query.filter(PollVoterProfile.device_label.ilike(f"%{filters['device_label']}%"))
+
+    if filters['requires_vote_filters']:
+        query = query.join(PollVoterProfile.votes)
+        query = _apply_vote_filters(query, filters)
+        query = query.distinct()
+
+    query = query.order_by(order_clause)
+
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    profiles = pagination.items
+    tokens = [profile.token for profile in profiles if profile.token]
+    votes_map = _group_votes_by_token(tokens, filters)
+
+    items = []
+    for profile in profiles:
+        votes = votes_map.get(profile.token, [])
+        filtered_points = sum((vote.get('points_awarded') or 0) for vote in votes)
+        last_vote_at = votes[0]['voted_at'] if votes else None
+        items.append({
+            'voter_token': profile.token,
+            'device_label': profile.device_label,
+            'total_points': profile.total_points or 0,
+            'filtered_points': filtered_points,
+            'created_at': profile.created_at.isoformat() if profile.created_at else None,
+            'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
+            'last_vote_at': last_vote_at,
+            'votes_count': len(votes),
+            'votes': votes,
+        })
+
+    payload = {
+        'page': pagination.page,
+        'per_page': pagination.per_page,
+        'pages': pagination.pages,
+        'total': pagination.total,
+        'items': items,
+    }
+
+    return jsonify(payload)
+
+
+@api_bp.route('/polls/voter-stats/<string:voter_token>', methods=['GET'])
+def voter_stats_details(voter_token):
+    admin_secret = extract_admin_secret(request, request.args)
+    is_valid, message, status_code = validate_admin_secret(admin_secret)
+    if not is_valid:
+        return jsonify({'error': message}), status_code
+
+    filters = _prepare_voter_filters(request.args)
+    profile = PollVoterProfile.query.get_or_404(voter_token)
+    votes_map = _group_votes_by_token([profile.token], filters)
+    votes = votes_map.get(profile.token, [])
+    filtered_points = sum((vote.get('points_awarded') or 0) for vote in votes)
+
+    payload = {
+        'voter_token': profile.token,
+        'device_label': profile.device_label,
+        'total_points': profile.total_points or 0,
+        'filtered_points': filtered_points,
+        'created_at': profile.created_at.isoformat() if profile.created_at else None,
+        'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
+        'last_vote_at': votes[0]['voted_at'] if votes else None,
+        'votes_count': len(votes),
+        'votes': votes,
+    }
+
+    return jsonify(payload)
