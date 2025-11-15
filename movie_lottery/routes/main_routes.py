@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, current_app
+from flask import Blueprint, render_template, current_app, request, Response
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from ..models import Lottery, LibraryMovie, MovieIdentifier, Poll
@@ -6,9 +6,23 @@ from ..utils.helpers import (
     get_background_photos,
     build_external_url,
     build_telegram_share_url,
+    extract_admin_secret,
+    validate_admin_secret,
 )
 
 main_bp = Blueprint('main', __name__)
+
+
+def _ensure_admin_access():
+    admin_secret = extract_admin_secret(request, request.args)
+    is_valid, message, status_code = validate_admin_secret(admin_secret)
+    if is_valid:
+        return None
+
+    response = Response(message or 'Недостаточно прав.', status=status_code)
+    if status_code in (401, 403):
+        response.headers['WWW-Authenticate'] = 'Basic realm="Poll admin", charset="UTF-8"'
+    return response
 
 
 @main_bp.app_context_processor
@@ -129,6 +143,19 @@ def view_poll_results(poll_id):
         poll=poll,
         poll_url=build_external_url('main.view_poll', poll_id=poll.id),
         background_photos=get_background_photos(),
+    )
+
+
+@main_bp.route('/admin/poll-points')
+def admin_poll_points():
+    auth_error = _ensure_admin_access()
+    if auth_error:
+        return auth_error
+
+    initial_secret = request.args.get('admin_secret', '')
+    return render_template(
+        'admin_poll_points.html',
+        initial_admin_secret=initial_secret,
     )
 
 @main_bp.route('/init-db/super-secret-key-for-db-init-12345')

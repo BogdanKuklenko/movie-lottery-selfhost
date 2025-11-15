@@ -1,4 +1,5 @@
 import random
+import secrets
 import string
 from datetime import datetime
 from urllib.parse import urljoin, quote_plus
@@ -165,5 +166,59 @@ def build_telegram_share_url(target_url, message=None):
     encoded_url = quote_plus(target_url)
     encoded_text = quote_plus(text)
     return f'https://t.me/share/url?url={encoded_url}&text={encoded_text}'
+
+
+def extract_admin_secret(req, payload=None):
+    """Извлекает админский секрет из заголовков, Basic Auth, тела или query-параметров."""
+    if req is None:
+        return None
+
+    payload = payload or {}
+
+    header_keys = (
+        'X-Admin-Secret',
+        'X-Poll-Admin-Secret',
+        'X-Poll-Secret',
+    )
+    for header in header_keys:
+        header_value = req.headers.get(header)
+        if header_value:
+            return header_value
+
+    if hasattr(payload, 'get'):
+        candidate = payload.get('admin_secret') or payload.get('secret')
+        if candidate:
+            return candidate
+
+    if req.is_json and isinstance(payload, dict):
+        candidate = payload.get('admin_secret') or payload.get('secret')
+        if candidate:
+            return candidate
+
+    auth = getattr(req, 'authorization', None)
+    if auth and getattr(auth, 'password', None):
+        return auth.password
+
+    return None
+
+
+def validate_admin_secret(provided_secret):
+    """Проверяет админский секрет и возвращает (is_valid, message, status_code)."""
+    expected_secret = current_app.config.get('POLL_ADMIN_SECRET') or current_app.config.get('POLL_POINTS_ADMIN_SECRET')
+    if not expected_secret:
+        return False, 'Админский секрет не настроен на сервере.', 503
+
+    if provided_secret in (None, ''):
+        return False, 'Требуется админский секрет.', 401
+
+    try:
+        is_valid = secrets.compare_digest(str(provided_secret), str(expected_secret))
+    except Exception:
+        return False, 'Неверный админский секрет.', 403
+
+    if not is_valid:
+        return False, 'Неверный админский секрет.', 403
+
+    return True, None, 200
 
 

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Статистика голосующих — Movie Lottery</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="admin-body">
+    <div class="admin-page">
+        <header class="admin-header">
+            <div>
+                <p class="admin-eyebrow">Админ-панель</p>
+                <h1>Баллы и голоса участников</h1>
+                <p class="admin-subtitle">Следите за активностью, устройствами и начисленными баллами в режиме реального времени.</p>
+            </div>
+            <div class="nav-links">
+                <a href="{{ url_for('main.index') }}" class="nav-button secondary">Создать лотерею</a>
+                <a href="{{ url_for('main.history') }}" class="nav-button secondary">История</a>
+                <a href="{{ url_for('main.library') }}" class="nav-button secondary">Библиотека</a>
+            </div>
+        </header>
+
+        <section class="admin-card">
+            <h2>Доступ</h2>
+            <p class="admin-hint">Маршрут защищён. Укажите секрет, если браузер не отправляет Basic Auth автоматически.</p>
+            <form id="admin-secret-form" class="secret-form">
+                <label for="admin-secret-input">Админский секрет</label>
+                <div class="secret-row">
+                    <input type="password" id="admin-secret-input" placeholder="Введите секрет" autocomplete="off">
+                    <button type="submit" class="cta-button secondary">Сохранить</button>
+                </div>
+                <label class="remember-secret">
+                    <input type="checkbox" id="remember-secret-checkbox">
+                    Запомнить секрет в браузере
+                </label>
+            </form>
+        </section>
+
+        <section class="admin-card">
+            <div class="filters-header">
+                <div>
+                    <h2>Фильтры</h2>
+                    <p class="admin-hint">Комбинируйте фильтры по токену, устройству и опросу. Диапазон дат применяется к времени голосования.</p>
+                </div>
+                <button type="button" id="refresh-table" class="cta-button">Обновить</button>
+            </div>
+            <form id="filters-form" class="filters-grid">
+                <label>
+                    <span>Токен</span>
+                    <input type="text" id="token-filter" placeholder="Часть токена или полный токен">
+                </label>
+                <label>
+                    <span>Poll ID</span>
+                    <input type="text" id="poll-filter" placeholder="Например, 8-символьный id">
+                </label>
+                <label>
+                    <span>Устройство</span>
+                    <input type="text" id="device-filter" placeholder="Метка устройства">
+                </label>
+                <label>
+                    <span>Дата с</span>
+                    <input type="date" id="date-from">
+                </label>
+                <label>
+                    <span>Дата по</span>
+                    <input type="date" id="date-to">
+                </label>
+                <label>
+                    <span>Записей на странице</span>
+                    <select id="per-page-select">
+                        <option value="10">10</option>
+                        <option value="25" selected>25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </label>
+                <div class="filters-actions">
+                    <button type="submit" class="cta-button">Применить</button>
+                    <button type="button" id="reset-filters" class="cta-button secondary">Сбросить</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="admin-card">
+            <div id="admin-messages" class="admin-messages" role="status"></div>
+            <div class="table-wrapper">
+                <table class="admin-table" id="stats-table">
+                    <thead>
+                        <tr>
+                            <th data-sort="token">Токен</th>
+                            <th data-sort="device_label">Устройство</th>
+                            <th data-sort="total_points">Баллы (всего)</th>
+                            <th data-sort="updated_at">Обновлён</th>
+                            <th>Голоса (фильтр)</th>
+                            <th>Детали</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stats-table-body">
+                        <tr>
+                            <td colspan="6">Данные загружаются…</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination-controls">
+                <button type="button" id="prev-page" class="nav-button secondary" disabled>Назад</button>
+                <p id="pagination-info">Страница 1</p>
+                <button type="button" id="next-page" class="nav-button secondary" disabled>Вперёд</button>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        window.adminConfig = {
+            initialSecret: {{ initial_admin_secret|tojson }}
+        };
+    </script>
+    <script type="module" src="{{ url_for('static', filename='js/pages/admin_poll_points.js') }}"></script>
+</body>
+</html>

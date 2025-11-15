@@ -13,3 +13,4 @@
 @import url('components/_toast.css');      /* Всплывающие уведомления */
 @import url('components/_polls.css');      /* Опросы */
 @import url('components/_other.css');      /* Остальные misc стили */
+@import url('components/_admin.css');      /* Админская панель */
