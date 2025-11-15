@@ -36,9 +36,14 @@ def create_app():
 
     db.init_app(app)
     checkpoint("SQLAlchemy initialized")
-    
+
     Migrate(app, db)
     checkpoint("Flask-Migrate initialized")
+
+    with app.app_context():
+        from .utils.helpers import ensure_vote_points_column
+
+        ensure_vote_points_column()
 
     from . import models
     checkpoint("Models imported")
