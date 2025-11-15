@@ -11,19 +11,60 @@ document.addEventListener('DOMContentLoaded', async () => {
     const voteConfirmTitle = document.getElementById('vote-confirm-title');
     const voteConfirmYear = document.getElementById('vote-confirm-year');
 
+    const TEXTS = {
+        ru: {
+            pointsTitle: 'Ваши баллы',
+            pointsStatusEmpty: 'Баллы ещё не начислены',
+            pointsStatusUpdated: (points) => `Всего начислено ${points}.`,
+            pointsBadgeEmpty: '—',
+            pointsBadgeReady: 'OK',
+            pointsBadgeError: 'ERR',
+            pointsProgressDefault: 'Начисляем баллы…',
+            pointsProgressEarned: (points) => `+${points} за голос`,
+            historyTitle: 'История начислений',
+            historyEmpty: 'Баллы ещё не начислены',
+            historyVoteEntry: (points) => `+${points} за голосование`,
+            toastPointsEarned: (points) => `+${points} баллов за голос`,
+            toastPointsError: 'Не удалось обновить баланс баллов',
+            pointsUnavailable: 'Баллы недоступны. Попробуйте обновить страницу позже.',
+        },
+    };
+
+    const locale = 'ru';
+    const T = TEXTS[locale];
+
+    const pointsBalanceCard = document.getElementById('points-widget');
+    const pointsBalanceLabel = document.getElementById('points-balance-label');
+    const pointsBalanceValue = document.getElementById('points-balance-value');
+    const pointsBalanceStatus = document.getElementById('points-balance-status');
+    const pointsStateBadge = document.getElementById('points-state-badge');
+    const pointsProgress = document.getElementById('points-progress');
+    const pointsProgressBar = document.getElementById('points-progress-bar');
+    const pointsProgressLabel = document.getElementById('points-progress-label');
+    const pointsHistoryTitle = document.getElementById('points-history-title');
+    const pointsHistoryList = document.getElementById('points-history-list');
+    const pointsHistoryEmpty = document.getElementById('points-history-empty');
+    const pointsHistoryCount = document.getElementById('points-history-count');
+
     let selectedMovie = null;
+    let historyEntries = 0;
+    let progressTimeoutId = null;
+
+    initializePointsWidget();
 
     // Загружаем данные опроса
     try {
         const response = await fetch(`/api/polls/${pollId}`);
-        
+
         if (!response.ok) {
             const error = await response.json();
             showMessage(error.error || 'Опрос не найден', 'error');
+            markPointsAsUnavailable();
             return;
         }
 
         const pollData = await response.json();
+        updatePointsBalance(pollData.points_balance);
 
         // Если пользователь уже голосовал
         if (pollData.has_voted) {
@@ -39,6 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (error) {
         console.error('Ошибка загрузки опроса:', error);
         showMessage('Не удалось загрузить опрос', 'error');
+        markPointsAsUnavailable();
     }
 
     function renderMovies(movies) {
@@ -106,7 +148,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // Показываем сообщение об успехе
             showMessage(result.message, 'success');
-            
+
+            handlePointsAfterVote(result);
+
             // Скрываем сетку фильмов
             pollGrid.style.display = 'none';
             pollDescription.textContent = 'Спасибо за участие!';
@@ -129,6 +173,129 @@ document.addEventListener('DOMContentLoaded', async () => {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    function initializePointsWidget() {
+        if (!pointsBalanceLabel || !pointsBalanceStatus || !pointsStateBadge || !pointsProgressLabel || !pointsHistoryTitle || !pointsHistoryEmpty) {
+            return;
+        }
+        pointsBalanceLabel.textContent = T.pointsTitle;
+        pointsBalanceStatus.textContent = T.pointsStatusEmpty;
+        pointsStateBadge.textContent = T.pointsBadgeEmpty;
+        pointsProgressLabel.textContent = T.pointsProgressDefault;
+        pointsHistoryTitle.textContent = T.historyTitle;
+        pointsHistoryEmpty.textContent = T.historyEmpty;
+        updateHistoryCounter();
+    }
+
+    function updatePointsBalance(balance) {
+        if (!pointsBalanceCard || !pointsBalanceValue || !pointsBalanceStatus || !pointsStateBadge) {
+            return;
+        }
+
+        if (typeof balance !== 'number' || Number.isNaN(balance)) {
+            markPointsAsUnavailable();
+            return;
+        }
+
+        pointsBalanceCard.classList.remove('points-balance-card-error');
+        pointsStateBadge.textContent = T.pointsBadgeReady;
+        pointsBalanceValue.textContent = balance;
+        pointsBalanceStatus.textContent = T.pointsStatusUpdated(formatPoints(balance));
+    }
+
+    function markPointsAsUnavailable() {
+        if (!pointsBalanceCard || !pointsStateBadge || !pointsBalanceStatus) return;
+        pointsBalanceCard.classList.add('points-balance-card-error');
+        pointsStateBadge.textContent = T.pointsBadgeError;
+        pointsBalanceStatus.textContent = T.pointsUnavailable;
+    }
+
+    function handlePointsAfterVote(result) {
+        const awarded = Number(result.points_awarded);
+        const newBalance = Number(result.points_balance);
+
+        if (!Number.isFinite(awarded) || !Number.isFinite(newBalance)) {
+            showToast(T.toastPointsError, 'error');
+            markPointsAsUnavailable();
+            return;
+        }
+
+        updatePointsBalance(newBalance);
+        showToast(T.toastPointsEarned(awarded), 'success', { duration: 4000 });
+        addHistoryEntry(awarded, T.historyVoteEntry(awarded));
+        playPointsProgress(awarded);
+    }
+
+    function addHistoryEntry(points, description) {
+        if (!pointsHistoryList) return;
+        const item = document.createElement('li');
+        item.className = 'points-history-item';
+        const timestamp = new Date();
+        const formattedPoints = `+${points}`;
+        item.innerHTML = `
+            <span class="points-history-value">${formattedPoints}</span>
+            <div class="points-history-meta">
+                <p>${escapeHtml(description)}</p>
+                <time datetime="${timestamp.toISOString()}">${formatHistoryTime(timestamp)}</time>
+            </div>
+        `;
+        pointsHistoryList.prepend(item);
+        historyEntries += 1;
+        if (pointsHistoryEmpty) {
+            pointsHistoryEmpty.style.display = 'none';
+        }
+        updateHistoryCounter();
+    }
+
+    function updateHistoryCounter() {
+        if (!pointsHistoryCount) return;
+        pointsHistoryCount.textContent = historyEntries;
+        if (pointsHistoryEmpty) {
+            pointsHistoryEmpty.style.display = historyEntries ? 'none' : 'block';
+        }
+    }
+
+    function playPointsProgress(points) {
+        if (!pointsProgress || !pointsProgressBar) return;
+        if (progressTimeoutId) {
+            clearTimeout(progressTimeoutId);
+        }
+        pointsProgress.hidden = false;
+        pointsProgressBar.style.width = '0%';
+        pointsProgressLabel.textContent = T.pointsProgressEarned(points);
+        requestAnimationFrame(() => {
+            pointsProgressBar.style.width = '100%';
+        });
+        progressTimeoutId = setTimeout(() => {
+            pointsProgress.hidden = true;
+            pointsProgressBar.style.width = '0%';
+            pointsProgressLabel.textContent = T.pointsProgressDefault;
+        }, 1600);
+    }
+
+    function formatPoints(value) {
+        const absValue = Math.abs(value);
+        const decl = declOfNum(absValue, ['балл', 'балла', 'баллов']);
+        return `${value} ${decl}`;
+    }
+
+    function declOfNum(number, titles) {
+        const cases = [2, 0, 1, 1, 1, 2];
+        return titles[(number % 100 > 4 && number % 100 < 20) ? 2 : cases[(number % 10 < 5) ? number % 10 : 5]];
+    }
+
+    function formatHistoryTime(date) {
+        try {
+            return new Intl.DateTimeFormat(locale, {
+                hour: '2-digit',
+                minute: '2-digit',
+                day: '2-digit',
+                month: '2-digit',
+            }).format(date);
+        } catch (e) {
+            return date.toLocaleTimeString();
+        }
     }
 
     // Закрытие модального окна по клику вне его

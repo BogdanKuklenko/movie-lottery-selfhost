@@ -18,6 +18,36 @@
             <p id="poll-description">Выберите один фильм из списка ниже</p>
         </header>
 
+        <section class="poll-points-panel" aria-live="polite">
+            <div class="points-widget">
+                <div class="points-balance-card" id="points-widget">
+                    <div class="points-balance-header">
+                        <div>
+                            <p class="points-balance-label" id="points-balance-label">Ваши баллы</p>
+                            <p class="points-balance-value" id="points-balance-value">—</p>
+                        </div>
+                        <span class="points-state-badge" id="points-state-badge">—</span>
+                    </div>
+                    <p class="points-balance-status" id="points-balance-status">Баллы ещё не начислены</p>
+                    <div class="points-progress" id="points-progress" hidden>
+                        <div class="points-progress-track">
+                            <span class="points-progress-bar" id="points-progress-bar"></span>
+                        </div>
+                        <p class="points-progress-label" id="points-progress-label">Начисляем баллы…</p>
+                    </div>
+                </div>
+
+                <div class="points-history-card">
+                    <div class="points-history-header">
+                        <h2 id="points-history-title">История начислений</h2>
+                        <span class="points-history-count" id="points-history-count">0</span>
+                    </div>
+                    <ul class="points-history-list" id="points-history-list"></ul>
+                    <p class="points-history-empty" id="points-history-empty">Баллы ещё не начислены</p>
+                </div>
+            </div>
+        </section>
+
         <div id="poll-grid" class="poll-grid">
             <!-- Сетка фильмов будет загружена через JavaScript -->
         </div>
