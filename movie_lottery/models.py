@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 from . import db
-import secrets
 
 class MovieIdentifier(db.Model):
     __tablename__ = 'movie_identifier'
@@ -54,32 +53,17 @@ class BackgroundPhoto(db.Model):
     added_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
-class PollCreatorToken(db.Model):
-    __tablename__ = 'poll_creator_token'
-
-    id = db.Column(db.Integer, primary_key=True)
-    creator_token = db.Column(db.String(64), unique=True, nullable=False)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    last_seen = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-
-    def touch(self):
-        self.last_seen = datetime.utcnow()
-
-
 class Poll(db.Model):
     id = db.Column(db.String(8), primary_key=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     expires_at = db.Column(db.DateTime, nullable=False)
-    creator_token = db.Column(db.String(32), nullable=False)  # Токен для идентификации создателя
     movies = db.relationship('PollMovie', backref='poll', lazy=True, cascade="all, delete-orphan")
     votes = db.relationship('Vote', backref='poll', lazy=True, cascade="all, delete-orphan")
-    
+
     def __init__(self, **kwargs):
         super(Poll, self).__init__(**kwargs)
         if not self.expires_at:
             self.expires_at = datetime.utcnow() + timedelta(hours=24)
-        if not self.creator_token:
-            self.creator_token = secrets.token_hex(16)
     
     @property
     def is_expired(self):

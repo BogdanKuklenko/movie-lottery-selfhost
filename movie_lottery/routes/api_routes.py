@@ -11,7 +11,6 @@ from ..models import (
     MovieIdentifier,
     LibraryMovie,
     Poll,
-    PollCreatorToken,
     PollMovie,
     PollVoterProfile,
     Vote,
@@ -20,7 +19,6 @@ from ..utils.kinopoisk import get_movie_data_from_kinopoisk
 from ..utils.helpers import (
     generate_unique_id,
     ensure_background_photo,
-    ensure_creator_token_record,
     generate_unique_poll_id,
     build_external_url,
     build_telegram_share_url,
@@ -30,24 +28,6 @@ from ..utils.helpers import (
 )
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
-
-
-def _extract_creator_secret(payload=None):
-    payload = payload or {}
-    header_secret = request.headers.get('X-Poll-Secret') or request.headers.get('X-Poll-Creator-Secret')
-    if header_secret:
-        return header_secret
-
-    if isinstance(payload, dict):
-        json_secret = payload.get('secret')
-        if json_secret:
-            return json_secret
-
-    query_secret = request.args.get('secret')
-    if query_secret:
-        return query_secret
-
-    return None
 
 
 def _resolve_device_label():
@@ -62,26 +42,6 @@ def _resolve_device_label():
             return agent_str[:255]
 
     return None
-
-
-def _validate_creator_secret(provided_secret):
-    expected_secret = current_app.config.get('POLL_CREATOR_TOKEN_SECRET')
-    if not expected_secret:
-        current_app.logger.warning('POLL_CREATOR_TOKEN_SECRET не настроен. Запрос отклонён.')
-        return False, 'Сервер не настроен для синхронизации токенов.'
-
-    if not provided_secret:
-        return False, 'Не передан секрет доступа.'
-
-    try:
-        is_valid = secrets.compare_digest(str(provided_secret), str(expected_secret))
-    except Exception:
-        return False, 'Неверный секрет доступа.'
-
-    if not is_valid:
-        return False, 'Неверный секрет доступа.'
-
-    return True, None
 
 
 def _parse_iso_date(raw_value, for_end=False):
@@ -411,57 +371,6 @@ def save_movie_magnet():
 # --- Маршруты для опросов ---
 
 
-@api_bp.route('/polls/creator-tokens', methods=['POST'])
-def register_poll_creator_token():
-    payload = request.get_json(silent=True) or {}
-    secret = _extract_creator_secret(payload)
-    is_valid, error_message = _validate_creator_secret(secret)
-    if not is_valid:
-        return jsonify({"error": error_message}), 403
-
-    creator_token = (payload.get('creator_token') or '').strip()
-    if not creator_token:
-        return jsonify({"error": "Не указан токен организатора."}), 400
-
-    token_entry = ensure_creator_token_record(creator_token)
-    if not token_entry:
-        return jsonify({"error": "Не удалось сохранить токен организатора."}), 500
-
-    db.session.commit()
-
-    return jsonify({
-        "creator_token": token_entry.creator_token,
-        "created_at": token_entry.created_at.isoformat() + 'Z',
-        "last_seen": token_entry.last_seen.isoformat() + 'Z',
-    })
-
-
-@api_bp.route('/polls/creator-tokens', methods=['GET'])
-def list_poll_creator_tokens():
-    payload = request.get_json(silent=True) or {}
-    secret = _extract_creator_secret(payload)
-    is_valid, error_message = _validate_creator_secret(secret)
-    if not is_valid:
-        return jsonify({"error": error_message}), 403
-
-    tokens = (
-        PollCreatorToken.query
-        .order_by(PollCreatorToken.last_seen.desc())
-        .all()
-    )
-
-    return jsonify({
-        "tokens": [
-            {
-                "creator_token": token.creator_token,
-                "created_at": token.created_at.isoformat() + 'Z',
-                "last_seen": token.last_seen.isoformat() + 'Z',
-            }
-            for token in tokens
-        ]
-    })
-
-
 @api_bp.route('/polls/create', methods=['POST'])
 def create_poll():
     """Создание нового опроса"""
@@ -492,19 +401,13 @@ def create_poll():
         if poster := movie_data.get('poster'):
             ensure_background_photo(poster)
 
-    ensure_creator_token_record(new_poll.creator_token)
     db.session.commit()
 
     poll_url = build_external_url('main.view_poll', poll_id=new_poll.id)
-    results_url = build_external_url(
-        'main.view_poll_results',
-        poll_id=new_poll.id,
-        creator_token=new_poll.creator_token,
-    )
+    results_url = build_external_url('main.view_poll_results', poll_id=new_poll.id)
     return jsonify({
         "poll_id": new_poll.id,
         "poll_url": poll_url,
-        "creator_token": new_poll.creator_token,
         "results_url": results_url
     })
 
@@ -627,13 +530,9 @@ def vote_in_poll(poll_id):
 
 @api_bp.route('/polls/<poll_id>/results', methods=['GET'])
 def get_poll_results(poll_id):
-    """Получение результатов опроса (только для создателя)"""
+    """Получение результатов опроса"""
     poll = Poll.query.get_or_404(poll_id)
-    
-    creator_token = request.args.get('creator_token')
-    if not creator_token or creator_token != poll.creator_token:
-        return jsonify({"error": "Доступ запрещён"}), 403
-    
+
     if poll.is_expired:
         return jsonify({"error": "Опрос истёк"}), 410
     
@@ -683,16 +582,11 @@ def get_poll_results(poll_id):
 
 @api_bp.route('/polls/my-polls', methods=['GET'])
 def get_my_polls():
-    """Получение всех опросов пользователя"""
-    creator_token = request.args.get('creator_token')
-    if not creator_token:
-        return jsonify({"polls": []})
-    
-    # Находим все опросы, созданные этим пользователем
+    """Получение последних опросов с результатами."""
     polls = (
         Poll.query
-        .filter_by(creator_token=creator_token)
         .order_by(Poll.created_at.desc())
+        .limit(100)
         .all()
     )
     
@@ -724,13 +618,9 @@ def get_my_polls():
                 for w in winners
             ],
             "poll_url": build_external_url('main.view_poll', poll_id=poll.id),
-            "results_url": build_external_url(
-                'main.view_poll_results',
-                poll_id=poll.id,
-                creator_token=poll.creator_token,
-            )
+            "results_url": build_external_url('main.view_poll_results', poll_id=poll.id)
         })
-    
+
     return prevent_caching(jsonify({"polls": polls_data}))
 
 

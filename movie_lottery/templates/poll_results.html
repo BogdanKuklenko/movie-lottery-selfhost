@@ -26,7 +26,7 @@
 
         <div class="poll-results-actions">
             <div class="link-box">
-                <label for="poll-results-link">Ссылка на эту страницу (с токеном организатора)</label>
+                <label for="poll-results-link">Ссылка на эту страницу с результатами</label>
                 <input type="text" id="poll-results-link" readonly>
                 <button class="copy-btn" data-copy-target="poll-results-link">Копировать</button>
             </div>
@@ -55,7 +55,6 @@
     </script>
     <script>
         window.appConfig = window.appConfig || {};
-        window.appConfig.pollCreatorSecret = {{ poll_creator_secret|tojson }};
         window.appConfig.pollApiBaseUrl = {{ poll_api_base_url|tojson }};
     </script>
     <script src="{{ url_for('static', filename='js/toast.js') }}"></script>

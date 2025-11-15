@@ -6,14 +6,6 @@ class Config:
 
     SECRET_KEY = os.environ.get('SECRET_KEY', 'a_super_secret_key')
     PUBLIC_BASE_URL = os.environ.get('PUBLIC_BASE_URL')
-    # Секрет для синхронизации токенов создателей опросов.
-    # По умолчанию используем фиксированное значение, чтобы одно и то же
-    # приложение (локально и на сервере) могло работать с общей базой
-    # сохранённых токенов, даже если переменная окружения не задана.
-    POLL_CREATOR_TOKEN_SECRET = (
-        os.environ.get('POLL_CREATOR_TOKEN_SECRET')
-        or 'movie_lottery_shared_creator_secret'
-    )
     try:
         POLL_POINTS_PER_VOTE = int(os.environ.get('POLL_POINTS_PER_VOTE', 1))
     except (TypeError, ValueError):
