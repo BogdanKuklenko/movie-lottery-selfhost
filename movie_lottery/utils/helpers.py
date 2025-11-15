@@ -4,6 +4,7 @@ from datetime import datetime
 from urllib.parse import urljoin, quote_plus
 
 from flask import current_app, url_for
+from sqlalchemy import inspect, text
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from .. import db
@@ -68,6 +69,40 @@ def generate_unique_poll_id(length=8):
         poll_id = ''.join(random.choices(characters, k=length))
         if _is_unique(Poll, poll_id):
             return poll_id
+
+
+def ensure_vote_points_column():
+    """Make sure the vote table has the points_awarded column."""
+    engine = db.engine
+
+    try:
+        inspector = inspect(engine)
+    except Exception:
+        return
+
+    if 'vote' not in inspector.get_table_names():
+        return
+
+    vote_columns = {col['name'] for col in inspector.get_columns('vote')}
+    if 'points_awarded' in vote_columns:
+        return
+
+    ddl = "ALTER TABLE vote ADD COLUMN points_awarded INTEGER DEFAULT 0"
+    if engine.dialect.name == 'postgresql':
+        ddl = "ALTER TABLE vote ADD COLUMN IF NOT EXISTS points_awarded INTEGER NOT NULL DEFAULT 0"
+
+    try:
+        with engine.begin() as connection:
+            connection.execute(text(ddl))
+            if engine.dialect.name != 'postgresql':
+                connection.execute(text("UPDATE vote SET points_awarded = 0 WHERE points_awarded IS NULL"))
+    except Exception as exc:
+        logger = getattr(current_app, 'logger', None)
+        message = 'Не удалось автоматически обновить таблицу голосов (points_awarded).'
+        if logger:
+            logger.warning('%s Ошибка: %s', message, exc)
+        else:
+            print(f"{message} Ошибка: {exc}")
 
 
 def get_background_photos():
