@@ -1,4 +1,6 @@
 from flask import Blueprint, render_template, current_app
+from sqlalchemy.exc import OperationalError, ProgrammingError
+
 from ..models import Lottery, LibraryMovie, MovieIdentifier, Poll
 from ..utils.helpers import (
     get_background_photos,
@@ -63,7 +65,15 @@ def history():
 
 @main_bp.route('/library')
 def library():
-    library_movies = LibraryMovie.query.order_by(LibraryMovie.bumped_at.desc()).all()
+    try:
+        library_movies = LibraryMovie.query.order_by(LibraryMovie.bumped_at.desc()).all()
+    except (OperationalError, ProgrammingError) as exc:
+        current_app.logger.warning(
+            "LibraryMovie.bumped_at unavailable, falling back to added_at sorting. "
+            "Run pending migrations. Error: %s",
+            exc,
+        )
+        library_movies = LibraryMovie.query.order_by(LibraryMovie.added_at.desc()).all()
     
     # Fetch all identifiers in one query to avoid N+1
     kp_ids = [m.kinopoisk_id for m in library_movies if m.kinopoisk_id]
