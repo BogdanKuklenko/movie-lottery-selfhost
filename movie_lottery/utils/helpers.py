@@ -4,20 +4,52 @@ from datetime import datetime
 from urllib.parse import urljoin, quote_plus
 
 from flask import current_app, url_for
-from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from .. import db
 from ..models import BackgroundPhoto, Lottery, Poll, PollVoterProfile
+
+
+class _FallbackVoterProfile:
+    """In-memory profile used when the points tables are unavailable."""
+
+    __slots__ = (
+        'token', 'device_label', 'total_points', 'created_at', 'updated_at', '_is_fallback'
+    )
+
+    def __init__(self, token, device_label=None):
+        now = datetime.utcnow()
+        self.token = token
+        self.device_label = device_label
+        self.total_points = 0
+        self.created_at = now
+        self.updated_at = now
+        self._is_fallback = True
 
 def _is_unique(model, identifier):
     """Helper to check identifier uniqueness, resilient to missing tables."""
     try:
         return model.query.get(identifier) is None
-    except ProgrammingError:
+    except (ProgrammingError, OperationalError):
         # Таблица ещё не создана (например, до применения миграций).
         # Откатываем сессию и считаем идентификатор уникальным.
         db.session.rollback()
         return True
+
+
+def _handle_missing_voter_table(error, voter_token, device_label=None):
+    """Rollback the session, log the issue and return a fallback profile."""
+    db.session.rollback()
+    logger = getattr(current_app, 'logger', None)
+    message = (
+        'Таблица профилей голосующих недоступна. '
+        'Голосование доступно, но начисление баллов временно отключено.'
+    )
+    if logger:
+        logger.warning('%s Ошибка: %s', message, error)
+    else:
+        print(f"{message} Ошибка: {error}")
+    return _FallbackVoterProfile(voter_token, device_label)
 
 
 def generate_unique_id(length=6):
@@ -111,7 +143,10 @@ def ensure_voter_profile(voter_token, device_label=None):
         normalized_label = normalized_label[:255]
 
     now = datetime.utcnow()
-    profile = PollVoterProfile.query.get(voter_token)
+    try:
+        profile = PollVoterProfile.query.get(voter_token)
+    except (ProgrammingError, OperationalError) as exc:
+        return _handle_missing_voter_table(exc, voter_token, normalized_label)
     if profile:
         if normalized_label and profile.device_label != normalized_label:
             profile.device_label = normalized_label
@@ -124,9 +159,16 @@ def ensure_voter_profile(voter_token, device_label=None):
             created_at=now,
             updated_at=now,
         )
-        db.session.add(profile)
+        try:
+            db.session.add(profile)
+        except (ProgrammingError, OperationalError) as exc:
+            return _handle_missing_voter_table(exc, voter_token, normalized_label)
 
-    db.session.flush()
+    try:
+        db.session.flush()
+    except (ProgrammingError, OperationalError) as exc:
+        return _handle_missing_voter_table(exc, voter_token, normalized_label)
+
     return profile
 
 
@@ -135,7 +177,11 @@ def change_voter_points_balance(voter_token, delta, device_label=None, commit=Fa
     profile = ensure_voter_profile(voter_token, device_label=device_label)
     if delta:
         profile.total_points = (profile.total_points or 0) + delta
-        profile.updated_at = datetime.utcnow()
+        if not getattr(profile, '_is_fallback', False):
+            profile.updated_at = datetime.utcnow()
+
+    if getattr(profile, '_is_fallback', False):
+        return profile.total_points or 0
 
     if commit:
         db.session.commit()
