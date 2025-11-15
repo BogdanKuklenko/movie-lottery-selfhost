@@ -125,13 +125,38 @@ class PollMovie(db.Model):
     genres = db.Column(db.String(200), nullable=True)
     countries = db.Column(db.String(200), nullable=True)
 
+
+class PollVoterProfile(db.Model):
+    __tablename__ = 'poll_voter_profile'
+
+    token = db.Column(db.String(64), primary_key=True)
+    total_points = db.Column(db.Integer, nullable=False, default=0)
+    device_label = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    votes = db.relationship('Vote', back_populates='profile', lazy=True)
+
+
 class Vote(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     poll_id = db.Column(db.String(8), db.ForeignKey('poll.id'), nullable=False)
     movie_id = db.Column(db.Integer, db.ForeignKey('poll_movie.id'), nullable=False)
-    voter_token = db.Column(db.String(32), nullable=False)  # Токен для идентификации голосующего
+    voter_token = db.Column(
+        db.String(64),
+        db.ForeignKey('poll_voter_profile.token'),
+        nullable=False,
+    )  # Токен для идентификации голосующего
     voted_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    
+    points_awarded = db.Column(db.Integer, nullable=False, default=0)
+
+    profile = db.relationship('PollVoterProfile', back_populates='votes')
+
     __table_args__ = (
         db.UniqueConstraint('poll_id', 'voter_token', name='unique_voter_per_poll'),
     )

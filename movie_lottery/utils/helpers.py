@@ -7,7 +7,7 @@ from flask import current_app, url_for
 from sqlalchemy.exc import ProgrammingError
 
 from .. import db
-from ..models import BackgroundPhoto, Lottery, Poll
+from ..models import BackgroundPhoto, Lottery, Poll, PollVoterProfile
 
 def _is_unique(model, identifier):
     """Helper to check identifier uniqueness, resilient to missing tables."""
@@ -99,6 +99,50 @@ def cleanup_expired_polls():
         db.session.rollback()
         print(f"Ошибка при очистке опросов: {e}")
         return 0
+
+
+def ensure_voter_profile(voter_token, device_label=None):
+    """Создать или обновить профиль голосующего."""
+    if not voter_token:
+        raise ValueError('voter_token is required to manage poll points')
+
+    normalized_label = (device_label or '').strip() or None
+    if normalized_label:
+        normalized_label = normalized_label[:255]
+
+    now = datetime.utcnow()
+    profile = PollVoterProfile.query.get(voter_token)
+    if profile:
+        if normalized_label and profile.device_label != normalized_label:
+            profile.device_label = normalized_label
+            profile.updated_at = now
+    else:
+        profile = PollVoterProfile(
+            token=voter_token,
+            device_label=normalized_label,
+            total_points=0,
+            created_at=now,
+            updated_at=now,
+        )
+        db.session.add(profile)
+
+    db.session.flush()
+    return profile
+
+
+def change_voter_points_balance(voter_token, delta, device_label=None, commit=False):
+    """Атомарно изменить баланс голосующего и вернуть новое значение."""
+    profile = ensure_voter_profile(voter_token, device_label=device_label)
+    if delta:
+        profile.total_points = (profile.total_points or 0) + delta
+        profile.updated_at = datetime.utcnow()
+
+    if commit:
+        db.session.commit()
+    else:
+        db.session.flush()
+
+    return profile.total_points or 0
 
 
 def build_external_url(endpoint, **values):

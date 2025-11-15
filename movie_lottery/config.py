@@ -7,6 +7,11 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'a_super_secret_key')
     PUBLIC_BASE_URL = os.environ.get('PUBLIC_BASE_URL')
     POLL_CREATOR_TOKEN_SECRET = os.environ.get('POLL_CREATOR_TOKEN_SECRET')
+    try:
+        POLL_POINTS_PER_VOTE = int(os.environ.get('POLL_POINTS_PER_VOTE', 1))
+    except (TypeError, ValueError):
+        POLL_POINTS_PER_VOTE = 1
+    POLL_POINTS_ADMIN_SECRET = os.environ.get('POLL_POINTS_ADMIN_SECRET')
     
     # Database settings
     SQLALCHEMY_TRACK_MODIFICATIONS = False
