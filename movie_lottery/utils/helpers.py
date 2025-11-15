@@ -248,3 +248,14 @@ def build_telegram_share_url(target_url, message=None):
     return f'https://t.me/share/url?url={encoded_url}&text={encoded_text}'
 
 
+def prevent_caching(response):
+    """Добавить заголовки no-cache к ответу Flask."""
+    if response is None:
+        return None
+
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+

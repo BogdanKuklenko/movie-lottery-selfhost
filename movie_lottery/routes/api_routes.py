@@ -25,6 +25,7 @@ from ..utils.helpers import (
     build_telegram_share_url,
     ensure_voter_profile,
     change_voter_points_balance,
+    prevent_caching,
 )
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -550,7 +551,7 @@ def get_poll(poll_id):
             "countries": m.countries,
         })
     
-    response = jsonify({
+    response = prevent_caching(jsonify({
         "poll_id": poll.id,
         "movies": movies_data,
         "created_at": poll.created_at.isoformat() + "Z",
@@ -558,7 +559,7 @@ def get_poll(poll_id):
         "has_voted": bool(existing_vote),
         "total_votes": len(poll.votes),
         "points_balance": points_balance,
-    })
+    }))
 
     # Устанавливаем cookie с токеном голосующего
     if not request.cookies.get('voter_token'):
@@ -615,13 +616,13 @@ def vote_in_poll(poll_id):
 
     db.session.commit()
 
-    response = jsonify({
+    response = prevent_caching(jsonify({
         "success": True,
         "message": "Голос учтён! Приятного просмотра!",
         "movie_name": movie.name,
         "points_awarded": points_per_vote,
         "points_balance": new_balance,
-    })
+    }))
     
     # Устанавливаем cookie с токеном
     if not request.cookies.get('voter_token'):
@@ -667,7 +668,7 @@ def get_poll_results(poll_id):
     # Сортируем по количеству голосов
     movies_with_votes.sort(key=lambda x: x['votes'], reverse=True)
     
-    return jsonify({
+    return prevent_caching(jsonify({
         "poll_id": poll.id,
         "movies": movies_with_votes,
         "total_votes": len(poll.votes),
@@ -683,7 +684,7 @@ def get_poll_results(poll_id):
         ],
         "created_at": poll.created_at.isoformat() + "Z",
         "expires_at": poll.expires_at.isoformat() + "Z"
-    })
+    }))
 
 
 @api_bp.route('/polls/my-polls', methods=['GET'])
@@ -732,7 +733,7 @@ def get_my_polls():
             )
         })
     
-    return jsonify({"polls": polls_data})
+    return prevent_caching(jsonify({"polls": polls_data}))
 
 
 @api_bp.route('/polls/cleanup-expired', methods=['POST'])
@@ -916,7 +917,8 @@ def list_voter_stats():
         'items': items,
     }
 
-    return jsonify(payload)
+    return prevent_caching(jsonify(payload))
+
 
 
 @api_bp.route('/polls/voter-stats/<string:voter_token>', methods=['GET'])
@@ -939,4 +941,4 @@ def voter_stats_details(voter_token):
         'votes': votes,
     }
 
-    return jsonify(payload)
+    return prevent_caching(jsonify(payload))
