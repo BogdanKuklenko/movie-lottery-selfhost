@@ -254,10 +254,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         allPolls.forEach(poll => {
             const createdDate = new Date(poll.created_at).toLocaleString('ru-RU');
+            const expiresDate = poll.expires_at ? new Date(poll.expires_at).toLocaleString('ru-RU') : '';
             const primaryWinner = poll.winners[0] || {};
             const winnerNameAttr = escapeHtml(primaryWinner.name || '');
             const winnerYearAttr = escapeHtml(primaryWinner.year || '');
             const winnerSearchNameAttr = escapeHtml(primaryWinner.search_name || '');
+            const isExpired = Boolean(poll.is_expired);
+            const statusBadge = isExpired
+                ? '<span class="poll-status poll-status-expired">Опрос завершён</span>'
+                : '<span class="poll-status poll-status-active">Опрос активен</span>';
             const winnersHtml = poll.winners.map(w => `
                 <div class="poll-winner">
                     <img src="${w.poster || 'https://via.placeholder.com/100x150.png?text=No+Image'}" alt="${w.name}">
@@ -272,8 +277,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             pollsHtml += `
                 <div class="poll-result-item">
                     <div class="poll-result-header">
-                        <h3>Опрос от ${createdDate}</h3>
-                        <p>Всего голосов: ${poll.total_votes} | Фильмов: ${poll.movies_count}</p>
+                        <div class="poll-result-header-row">
+                            <h3>Опрос от ${createdDate}</h3>
+                            ${statusBadge}
+                        </div>
+                        <p>
+                            Всего голосов: ${poll.total_votes} | Фильмов: ${poll.movies_count}
+                            ${expiresDate ? `| Действует до: ${expiresDate}` : ''}
+                        </p>
                     </div>
                     <div class="poll-winners">
                         ${poll.winners.length > 1 ? '<p><strong>Победители (равное количество голосов):</strong></p>' : '<p><strong>Победитель:</strong></p>'}
