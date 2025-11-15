@@ -73,6 +73,15 @@ const ensureTokenStoredLocally = ({ token, pollId, map, list, persist = true } =
     return { normalizedToken, map: workingMap, list: workingList, changed };
 };
 
+const getStoredTokenByPollId = (pollId) => {
+    if (!pollId) {
+        return null;
+    }
+    const map = getTokenMap();
+    const token = map[pollId];
+    return typeof token === 'string' && token.trim() ? token.trim() : null;
+};
+
 const extractTokensFromUrl = () => {
     const tokens = [];
     try {
@@ -228,6 +237,10 @@ export async function storeCreatorToken({ token, pollId } = {}) {
     }
 
     await registerCreatorTokenOnServer(normalizedToken);
+}
+
+export function getStoredCreatorToken(pollId) {
+    return getStoredTokenByPollId(pollId);
 }
 
 /**

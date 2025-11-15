@@ -24,6 +24,14 @@
                 <input type="text" id="poll-results-link" readonly>
                 <button class="copy-btn" data-copy-target="poll-results-link">Копировать</button>
             </div>
+            <div class="link-box token-recovery-box" id="poll-token-recovery">
+                <label for="poll-token-input">Укажите токен вручную</label>
+                <p class="poll-info token-recovery-hint">Если ссылка потерялась, откройте страницу результатов с того же устройства или введите токен из письма/чата вручную.</p>
+                <div class="token-recovery-actions">
+                    <input type="text" id="poll-token-input" placeholder="creator_token из ссылки организатора">
+                    <button id="poll-token-save-btn" class="secondary-button">Сохранить</button>
+                </div>
+            </div>
             <div class="poll-results-buttons">
                 <a id="open-poll-link" class="secondary-button" href="{{ poll_url }}" target="_blank" rel="noopener">Открыть опрос</a>
                 <a id="open-library-link" class="secondary-button" href="{{ url_for('main.library') }}">Мои опросы</a>
