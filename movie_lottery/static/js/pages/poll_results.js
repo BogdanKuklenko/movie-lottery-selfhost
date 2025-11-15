@@ -1,6 +1,6 @@
 // movie_lottery/static/js/pages/poll_results.js
 
-import { loadMyPolls, storeCreatorToken } from '../utils/polls.js';
+import { getStoredCreatorToken, loadMyPolls, storeCreatorToken } from '../utils/polls.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     const descriptionEl = document.getElementById('poll-results-description');
@@ -24,12 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    if (resultsLinkInput) {
-        const baseLink = `${window.location.origin}${window.location.pathname}`;
-        resultsLinkInput.value = creatorToken
-            ? `${baseLink}?creator_token=${encodeURIComponent(creatorToken)}`
-            : baseLink;
-    }
+    updateResultsLink(null);
 
     document.querySelectorAll('.copy-btn').forEach((button) => {
         button.addEventListener('click', () => {
@@ -53,43 +48,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
-    const normalizedToken = creatorToken;
-
-    if (!normalizedToken) {
-        showMessage('Эта страница доступна только по ссылке организатора. Сохраните ссылку из модального окна после создания опроса.', 'error');
-        if (libraryLink) {
-            libraryLink.href = '/library';
-        }
-        return;
-    }
-
-    await storeCreatorToken({ token: normalizedToken, pollId: currentPollId });
-
-    await loadMyPolls({
-        myPollsButton,
-        myPollsBadgeElement: myPollsBadge,
-    });
-
-    if (libraryLink) {
-        libraryLink.href = `/library?creator_token=${encodeURIComponent(normalizedToken)}`;
-        libraryLink.target = '_blank';
-        libraryLink.rel = 'noopener';
-    }
-
-    try {
-        const response = await fetch(`/api/polls/${currentPollId}/results?creator_token=${encodeURIComponent(normalizedToken)}`);
-        const payload = await response.json();
-
-        if (!response.ok) {
-            handleErrorResponse(response.status, payload?.error);
-            return;
-        }
-
-        renderResults(payload);
-    } catch (error) {
-        console.error('Не удалось загрузить результаты опроса:', error);
-        showMessage('Не удалось загрузить результаты опроса. Попробуйте обновить страницу позже.', 'error');
-    }
+    const tokenFromStorage = creatorToken || getStoredCreatorToken(currentPollId);
+    await loadResultsWithToken(tokenFromStorage);
 
     function handleErrorResponse(status, errorMessage) {
         if (status === 403) {
@@ -197,6 +157,69 @@ document.addEventListener('DOMContentLoaded', async () => {
     function hideMessage() {
         if (!messageEl) return;
         messageEl.style.display = 'none';
+    }
+
+    function updateResultsLink(token) {
+        if (!resultsLinkInput) {
+            return;
+        }
+        const baseLink = `${window.location.origin}${window.location.pathname}`;
+        resultsLinkInput.value = token
+            ? `${baseLink}?creator_token=${encodeURIComponent(token)}`
+            : baseLink;
+    }
+
+    async function loadResultsWithToken(token) {
+        const normalizedToken = (token || '').trim();
+
+        if (!normalizedToken) {
+            showMessage('Эта страница доступна только по ссылке организатора. Если вы открыли результаты на том же устройстве или в этом же браузере, обновите страницу — токен восстановится автоматически.', 'error');
+            if (libraryLink) {
+                libraryLink.href = '/library';
+                libraryLink.removeAttribute('target');
+                libraryLink.removeAttribute('rel');
+            }
+            return;
+        }
+
+        hideMessage();
+        updateResultsLink(normalizedToken);
+
+        try {
+            await storeCreatorToken({ token: normalizedToken, pollId: currentPollId });
+        } catch (error) {
+            console.warn('Не удалось сохранить токен организатора локально или на сервере:', error);
+        }
+
+        try {
+            await loadMyPolls({
+                myPollsButton,
+                myPollsBadgeElement: myPollsBadge,
+            });
+        } catch (error) {
+            console.warn('Не удалось обновить список "Мои опросы":', error);
+        }
+
+        if (libraryLink) {
+            libraryLink.href = `/library?creator_token=${encodeURIComponent(normalizedToken)}`;
+            libraryLink.target = '_blank';
+            libraryLink.rel = 'noopener';
+        }
+
+        try {
+            const response = await fetch(`/api/polls/${currentPollId}/results?creator_token=${encodeURIComponent(normalizedToken)}`);
+            const payload = await response.json();
+
+            if (!response.ok) {
+                handleErrorResponse(response.status, payload?.error);
+                return;
+            }
+
+            renderResults(payload);
+        } catch (error) {
+            console.error('Не удалось загрузить результаты опроса:', error);
+            showMessage('Не удалось загрузить результаты опроса. Попробуйте обновить страницу позже.', 'error');
+        }
     }
 
     function escapeHtml(text) {

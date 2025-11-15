@@ -193,7 +193,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <input type="text" id="poll-share-link" value="${escapeHtml(pollUrl)}" readonly>
                 <button class="copy-btn" data-copy-target="poll-share-link">Копировать</button>
             </div>
-            <p class="poll-info"><strong>Важно:</strong> сохраните ссылку на страницу результатов ниже — она содержит ваш токен организатора и позволит открывать статистику с любого устройства.</p>
+            <p class="poll-info"><strong>Важно:</strong> сохраните ссылку на страницу результатов ниже — она содержит ваш токен организатора. Если ссылка потеряется, токен можно восстановить на этом же устройстве: мы сохраняем его автоматически и отображаем в разделе «Баллы и участники».</p>
             <div class="link-box">
                 <input type="text" id="poll-results-link" value="${escapeHtml(resultsUrl || '')}" readonly>
                 <button class="copy-btn" data-copy-target="poll-results-link">Копировать</button>

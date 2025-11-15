@@ -20,14 +20,14 @@ input[type="text"]:focus {
     border-color: var(--primary-color);
 }
 
-.link-box { 
-    margin-bottom: 10px; 
-    text-align: left; 
-    display: flex; 
-    flex-wrap: wrap; 
-    gap: 10px; 
+.link-box {
+    margin-bottom: 10px;
+    text-align: left;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
 }
-.link-box label { 
+.link-box label {
     display: block; 
     margin-bottom: 5px; 
     color: #adb5bd; 
@@ -37,8 +37,8 @@ input[type="text"]:focus {
     flex-grow: 1; 
     min-width: 150px; 
 }
-.link-box .copy-btn { 
-    flex-shrink: 0; 
+.link-box .copy-btn {
+    flex-shrink: 0;
 }
 
 .play-container {
