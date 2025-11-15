@@ -617,15 +617,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Загружаем статистику фильтров при загрузке страницы
     updateBadgeFilterStats();
 
-    // Переопределяем функции setBadge и removeBadge для обновления фильтров
-    const originalUpdateBadgeOnCard = updateBadgeOnCard;
-    window.updateBadgeOnCard = function(card, badgeType) {
-        originalUpdateBadgeOnCard(card, badgeType);
-        updateBadgeFilterStats();
-        // Применяем текущий фильтр заново
-        applyBadgeFilter(currentFilter);
-    };
-
     // --- Конец функционала фильтрации по бейджам ---
 
     // --- Функционал быстрого просмотра постера ---
@@ -862,9 +853,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function updateBadgeOnCard(card, badgeType) {
         card.dataset.badge = badgeType || '';
-        
+
         let badgeElement = card.querySelector('.movie-badge');
-        
+
         if (badgeType) {
             if (!badgeElement) {
                 badgeElement = document.createElement('div');
@@ -876,6 +867,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else if (badgeElement) {
             badgeElement.remove();
         }
+
+        // После обновления бейджа пересчитываем статистику и сохраняем текущий фильтр
+        updateBadgeFilterStats();
+        applyBadgeFilter(currentFilter);
     }
 
     // Обработчик клика по опциям бейджа
