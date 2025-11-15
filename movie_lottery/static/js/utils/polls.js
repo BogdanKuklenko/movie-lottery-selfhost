@@ -3,6 +3,7 @@
 const TOKEN_MAP_KEY = 'pollCreatorTokens';
 const TOKEN_LIST_KEY = 'pollCreatorTokenList';
 const SECRET_HEADER = 'X-Poll-Secret';
+const ABSOLUTE_URL_REGEX = /^https?:\/\//i;
 
 const parseJsonSafe = (value, fallback) => {
     try {
@@ -36,6 +37,37 @@ const getPollCreatorSecret = () => {
     } catch (error) {
         return null;
     }
+};
+
+export const getPollApiBaseUrl = () => {
+    try {
+        const base = window.appConfig?.pollApiBaseUrl || '';
+        return base ? base.replace(/\/+$/, '') : '';
+    } catch (error) {
+        return '';
+    }
+};
+
+export const buildPollApiUrl = (path = '') => {
+    const normalizedPath = path || '';
+    if (!normalizedPath) {
+        return getPollApiBaseUrl() || '';
+    }
+
+    if (ABSOLUTE_URL_REGEX.test(normalizedPath)) {
+        return normalizedPath;
+    }
+
+    const baseUrl = getPollApiBaseUrl();
+    if (!baseUrl) {
+        return normalizedPath;
+    }
+
+    if (normalizedPath.startsWith('/')) {
+        return `${baseUrl}${normalizedPath}`;
+    }
+
+    return `${baseUrl}/${normalizedPath}`;
 };
 
 const ensureTokenStoredLocally = ({ token, pollId, map, list, persist = true } = {}) => {
@@ -129,7 +161,7 @@ const registerCreatorTokenOnServer = async (token) => {
     }
 
     try {
-        const response = await fetch('/api/polls/creator-tokens', {
+        const response = await fetch(buildPollApiUrl('/api/polls/creator-tokens'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -154,7 +186,7 @@ const fetchCreatorTokensFromServer = async () => {
         return [];
     }
 
-    const response = await fetch('/api/polls/creator-tokens', {
+    const response = await fetch(buildPollApiUrl('/api/polls/creator-tokens'), {
         method: 'GET',
         headers: {
             'Content-Type': 'application/json',
@@ -279,7 +311,7 @@ export async function loadMyPolls({ myPollsButton, myPollsBadgeElement } = {}) {
         const pollsByToken = await Promise.all(
             uniqueTokens.map(async (token) => {
                 try {
-                    const response = await fetch(`/api/polls/my-polls?creator_token=${encodeURIComponent(token)}`);
+                    const response = await fetch(buildPollApiUrl(`/api/polls/my-polls?creator_token=${encodeURIComponent(token)}`));
                     if (!response.ok) {
                         return [];
                     }

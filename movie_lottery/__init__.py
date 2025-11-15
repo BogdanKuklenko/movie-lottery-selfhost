@@ -5,6 +5,7 @@ from flask_migrate import Migrate
 from werkzeug.middleware.proxy_fix import ProxyFix
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from flask_cors import CORS
 import atexit
 
 from .diagnostic_middleware import start_diagnostics, checkpoint, finish_diagnostics
@@ -12,6 +13,24 @@ from .diagnostic_middleware import start_diagnostics, checkpoint, finish_diagnos
 _diag = start_diagnostics()
 db = SQLAlchemy()
 scheduler = BackgroundScheduler()
+
+
+def _configure_cors(app):
+    """Настраивает CORS для API опросов, чтобы ими можно было пользоваться с разных доменов."""
+    raw_origins = app.config.get('POLL_API_ALLOWED_ORIGINS')
+    origins = []
+
+    if raw_origins:
+        origins = [origin.strip() for origin in raw_origins.split(',') if origin.strip()]
+    elif app.config.get('POLL_API_BASE_URL'):
+        # Если указан отдельный базовый URL для API опросов,
+        # по умолчанию разрешаем кросс-доменные запросы.
+        origins = ['*']
+
+    if not origins:
+        return
+
+    CORS(app, resources={r"/api/polls/*": {"origins": origins}})
 
 
 def create_app():
@@ -25,6 +44,8 @@ def create_app():
 
     app.config.from_object('movie_lottery.config.Config')
     checkpoint("Config loaded")
+
+    _configure_cors(app)
     
     try:
         os.makedirs(app.instance_path)

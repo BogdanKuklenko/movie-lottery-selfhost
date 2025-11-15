@@ -1,6 +1,6 @@
 // static/js/main.js
 
-import { loadMyPolls, storeCreatorToken, syncCreatorTokensFromUrl } from './utils/polls.js';
+import { buildPollApiUrl, loadMyPolls, storeCreatorToken, syncCreatorTokensFromUrl } from './utils/polls.js';
 
 const escapeHtml = (unsafeValue) => {
     const value = unsafeValue == null ? '' : String(unsafeValue);
@@ -219,7 +219,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         createPollBtn.textContent = 'Создание...';
 
         try {
-            const response = await fetch('/api/polls/create', {
+            const response = await fetch(buildPollApiUrl('/api/polls/create'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ movies: movies })

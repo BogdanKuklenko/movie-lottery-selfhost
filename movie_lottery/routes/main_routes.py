@@ -13,7 +13,10 @@ main_bp = Blueprint('main', __name__)
 
 @main_bp.app_context_processor
 def inject_poll_creator_secret():
-    return {'poll_creator_secret': current_app.config.get('POLL_CREATOR_TOKEN_SECRET')}
+    return {
+        'poll_creator_secret': current_app.config.get('POLL_CREATOR_TOKEN_SECRET'),
+        'poll_api_base_url': current_app.config.get('POLL_API_BASE_URL'),
+    }
 
 @main_bp.route('/health')
 def health():

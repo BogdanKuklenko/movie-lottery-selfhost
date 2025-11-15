@@ -1,3 +1,5 @@
+import { buildPollApiUrl } from '../utils/polls.js';
+
 const state = {
     page: 1,
     perPage: 25,
@@ -214,7 +216,7 @@ async function fetchStats() {
     if (state.dateFrom) params.set('date_from', state.dateFrom);
     if (state.dateTo) params.set('date_to', state.dateTo);
     try {
-        const response = await fetch(`/api/polls/voter-stats?${params.toString()}`, {
+        const response = await fetch(buildPollApiUrl(`/api/polls/voter-stats?${params.toString()}`), {
             headers: buildHeaders(),
             credentials: 'same-origin'
         });
