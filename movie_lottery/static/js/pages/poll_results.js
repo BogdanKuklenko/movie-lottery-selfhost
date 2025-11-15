@@ -13,8 +13,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const libraryLink = document.getElementById('open-library-link');
     const myPollsButton = document.getElementById('my-polls-btn');
     const myPollsBadge = document.getElementById('my-polls-badge');
-    const tokenRecoveryInput = document.getElementById('poll-token-input');
-    const tokenRecoveryButton = document.getElementById('poll-token-save-btn');
 
     const searchParams = new URLSearchParams(window.location.search);
     const creatorToken = (searchParams.get('creator_token') || '').trim();
@@ -52,35 +50,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const tokenFromStorage = creatorToken || getStoredCreatorToken(currentPollId);
     await loadResultsWithToken(tokenFromStorage);
-
-    if (tokenRecoveryInput && tokenFromStorage) {
-        tokenRecoveryInput.value = tokenFromStorage;
-    }
-
-    if (tokenRecoveryButton) {
-        tokenRecoveryButton.addEventListener('click', async () => {
-            const manualToken = (tokenRecoveryInput?.value || '').trim();
-            if (!manualToken) {
-                showToast('Введите токен организатора.', 'error');
-                return;
-            }
-
-            const originalLabel = tokenRecoveryButton.textContent;
-            tokenRecoveryButton.disabled = true;
-            tokenRecoveryButton.textContent = 'Сохраняем...';
-
-            try {
-                await loadResultsWithToken(manualToken);
-                showToast('Токен сохранён и применён.', 'success');
-            } catch (error) {
-                console.error('Не удалось применить токен организатора:', error);
-                showToast('Не удалось применить токен. Попробуйте ещё раз.', 'error');
-            } finally {
-                tokenRecoveryButton.disabled = false;
-                tokenRecoveryButton.textContent = originalLabel;
-            }
-        });
-    }
 
     function handleErrorResponse(status, errorMessage) {
         if (status === 403) {
@@ -204,17 +173,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const normalizedToken = (token || '').trim();
 
         if (!normalizedToken) {
-            showMessage('Эта страница доступна только по ссылке организатора. Если вы открыли результаты на том же устройстве, мы попробуем восстановить токен автоматически. В противном случае введите токен вручную ниже.', 'error');
+            showMessage('Эта страница доступна только по ссылке организатора. Если вы открыли результаты на том же устройстве или в этом же браузере, обновите страницу — токен восстановится автоматически.', 'error');
             if (libraryLink) {
                 libraryLink.href = '/library';
                 libraryLink.removeAttribute('target');
                 libraryLink.removeAttribute('rel');
             }
             return;
-        }
-
-        if (tokenRecoveryInput) {
-            tokenRecoveryInput.value = normalizedToken;
         }
 
         hideMessage();

@@ -41,31 +41,6 @@ input[type="text"]:focus {
     flex-shrink: 0;
 }
 
-.token-recovery-box {
-    flex-direction: column;
-}
-
-.token-recovery-hint {
-    margin: 0 0 8px;
-    color: #adb5bd;
-    font-size: 0.9rem;
-}
-
-.token-recovery-actions {
-    display: flex;
-    gap: 10px;
-    width: 100%;
-}
-
-.token-recovery-actions input {
-    flex: 1;
-    min-width: 0;
-}
-
-.token-recovery-actions button {
-    flex-shrink: 0;
-}
-
 .play-container {
     padding: 10px;
 }
