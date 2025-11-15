@@ -15,7 +15,12 @@
     <div class="container poll-container">
         <header>
             <h1>Опрос: Какой фильм посмотрим?</h1>
-            <p id="poll-description">Выберите один фильм из списка ниже</p>
+            <div class="poll-description-row">
+                <p id="poll-description">Выберите один фильм из списка ниже</p>
+                <div id="poll-results-block" class="poll-results-block" hidden>
+                    <a id="poll-results-link" class="secondary-button" href="#">Результаты</a>
+                </div>
+            </div>
         </header>
 
         <section class="poll-points-panel" aria-live="polite">
