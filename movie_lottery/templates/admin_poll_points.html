@@ -101,7 +101,6 @@
 
     <script>
         window.appConfig = window.appConfig || {};
-        window.appConfig.pollCreatorSecret = {{ poll_creator_secret|tojson }};
         window.appConfig.pollApiBaseUrl = {{ poll_api_base_url|tojson }};
     </script>
     <script type="module" src="{{ url_for('static', filename='js/pages/admin_poll_points.js') }}"></script>

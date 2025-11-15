@@ -1,6 +1,6 @@
 // static/js/main.js
 
-import { buildPollApiUrl, loadMyPolls, storeCreatorToken, syncCreatorTokensFromUrl } from './utils/polls.js';
+import { buildPollApiUrl, loadMyPolls } from './utils/polls.js';
 
 const escapeHtml = (unsafeValue) => {
     const value = unsafeValue == null ? '' : String(unsafeValue);
@@ -33,9 +33,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     autoDownloadCheckbox.addEventListener('change', () => {
         localStorage.setItem('autoDownloadEnabled', autoDownloadCheckbox.checked);
     });
-
-    // Синхронизируем токены из URL и загружаем "Мои опросы"
-    await syncCreatorTokensFromUrl();
 
     const refreshMyPolls = () => loadMyPolls({
         myPollsButton: myPollsBtn,
@@ -231,9 +228,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 throw new Error(data.error || 'Не удалось создать опрос');
             }
 
-            // Сохраняем токен создателя локально и на сервере
-            await storeCreatorToken({ token: data.creator_token, pollId: data.poll_id });
-
             // Показываем модальное окно с результатом
             showPollCreatedModal({
                 pollUrl: data.poll_url,
@@ -264,7 +258,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <input type="text" id="poll-share-link" value="${escapeHtml(pollUrl)}" readonly>
                 <button class="copy-btn" data-copy-target="poll-share-link">Копировать</button>
             </div>
-            <p class="poll-info"><strong>Важно:</strong> сохраните ссылку на страницу результатов ниже — она содержит ваш токен организатора. Если ссылка потеряется, токен можно восстановить на этом же устройстве: мы сохраняем его автоматически и отображаем в разделе «Баллы и участники».</p>
+            <p class="poll-info">Сохраните ссылку на страницу результатов — по ней любой участник сможет открыть текущее распределение голосов.</p>
             <div class="link-box">
                 <input type="text" id="poll-results-link" value="${escapeHtml(resultsUrl || '')}" readonly>
                 <button class="copy-btn" data-copy-target="poll-results-link">Копировать</button>
