@@ -22,6 +22,7 @@ body.no-scroll {
     width: 100%;
     top: var(--scroll-lock-offset, 0px);
     left: 0;
+    padding-right: var(--scroll-lock-padding-right, 0px);
     overflow: hidden;
     touch-action: none;
 }
