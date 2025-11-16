@@ -196,9 +196,8 @@
     margin: 30px 0;
 }
 
-.poll-grid-disabled .poll-movie-card {
-    pointer-events: none;
-    opacity: 0.4;
+.poll-grid-disabled {
+    display: none;
 }
 
 .poll-movie-card {
