@@ -190,6 +190,23 @@ def test_create_poll_persists_extended_payload(app):
     assert first_movie.countries == 'RU'
 
 
+def test_create_poll_normalizes_movie_points(app):
+    client = app.test_client()
+
+    movies = [
+        _build_movie('Low', points=-5),
+        _build_movie('Default', points='nan'),
+        _build_movie('High', points=5000),
+    ]
+
+    response = _create_poll_via_api(client, movies)
+    assert response.status_code == 200
+    poll = Poll.query.get(response.get_json()['poll_id'])
+
+    assert poll is not None
+    assert [movie.points for movie in poll.movies] == [0, 1, 999]
+
+
 def test_get_my_polls_returns_only_creator_polls(app):
     client = app.test_client()
 
@@ -234,3 +251,28 @@ def test_voter_stats_returns_json_on_missing_tables(app, monkeypatch):
     data = response.get_json()
     assert data['error']
     assert recovery_called['called'] is True
+
+
+def test_vote_in_poll_awards_movie_points(app):
+    client = app.test_client()
+
+    movies = [
+        _build_movie('Winner', points=7),
+        _build_movie('Other', points=1),
+    ]
+
+    response = _create_poll_via_api(client, movies)
+    poll_id = response.get_json()['poll_id']
+    poll = Poll.query.get(poll_id)
+    movie_id = poll.movies[0].id
+
+    vote_response = client.post(f'/api/polls/{poll_id}/vote', json={'movie_id': movie_id})
+    assert vote_response.status_code == 200
+
+    payload = vote_response.get_json()
+    assert payload['points_awarded'] == 7
+    vote = Vote.query.filter_by(poll_id=poll_id).first()
+    assert vote.points_awarded == 7
+
+    profile = PollVoterProfile.query.first()
+    assert profile.total_points == 7
