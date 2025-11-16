@@ -62,8 +62,9 @@ def create_app():
     checkpoint("Flask-Migrate initialized")
 
     with app.app_context():
-        from .utils.helpers import ensure_vote_points_column
+        from .utils.helpers import ensure_poll_tables, ensure_vote_points_column
 
+        ensure_poll_tables()
         ensure_vote_points_column()
 
     from . import models
