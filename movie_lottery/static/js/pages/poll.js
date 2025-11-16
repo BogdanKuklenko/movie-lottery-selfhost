@@ -48,6 +48,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let progressTimeoutId = null;
     let hasVoted = false;
     let votedMovie = null;
+    let isVoteModalOpen = false;
+    let lockedScrollPosition = 0;
     const PLACEHOLDER_POSTER = 'https://via.placeholder.com/200x300.png?text=No+Image';
 
     initializePointsWidget();
@@ -145,6 +147,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateVotingDisabledState(hasVoted);
     }
 
+    function lockBodyScroll() {
+        lockedScrollPosition = window.scrollY || document.documentElement.scrollTop || 0;
+        document.body.style.top = `-${lockedScrollPosition}px`;
+        document.body.style.position = 'fixed';
+        document.body.style.width = '100%';
+        document.body.classList.add('no-scroll');
+    }
+
+    function unlockBodyScroll() {
+        document.body.classList.remove('no-scroll');
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        window.scrollTo(0, lockedScrollPosition);
+        lockedScrollPosition = 0;
+    }
+
     function openVoteConfirmation(movie) {
         selectedMovie = movie;
         voteConfirmPoster.src = movie.poster || PLACEHOLDER_POSTER;
@@ -156,12 +175,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ? `+${formatPoints(pointsValue)} за голос`
                 : 'Баллы не начисляются';
         }
+        if (!isVoteModalOpen) {
+            lockBodyScroll();
+            isVoteModalOpen = true;
+        }
         voteConfirmModal.style.display = 'flex';
     }
 
     function closeVoteConfirmation() {
         voteConfirmModal.style.display = 'none';
         selectedMovie = null;
+        if (isVoteModalOpen) {
+            unlockBodyScroll();
+            isVoteModalOpen = false;
+        }
     }
 
     voteCancelBtn.addEventListener('click', closeVoteConfirmation);
