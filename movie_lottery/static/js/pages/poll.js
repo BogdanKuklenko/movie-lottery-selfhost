@@ -70,6 +70,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let progressTimeoutId = null;
     let hasVoted = false;
     let votedMovie = null;
+    let votedMoviePointsDelta = null;
     let isVoteModalOpen = false;
     let customVoteMovie = null;
     let customVoteQuery = '';
@@ -243,7 +244,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const votedMovieData = result.voted_movie || selectedMovie || null;
             if (votedMovieData) {
-                handleVotedState(votedMovieData);
+                handleVotedState(votedMovieData, result.points_awarded);
             }
 
         } catch (error) {
@@ -361,13 +362,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         return titles[(number % 100 > 4 && number % 100 < 20) ? 2 : cases[(number % 10 < 5) ? number % 10 : 5]];
     }
 
-    function handleVotedState(movieData) {
+    function handleVotedState(movieData, pointsDelta) {
         hasVoted = true;
         votedMovie = movieData;
+        const normalizedDelta = Number(pointsDelta);
+        votedMoviePointsDelta = Number.isFinite(normalizedDelta) ? normalizedDelta : null;
         selectedMovie = null;
         pollDescription.textContent = 'Вы уже проголосовали в этом опросе.';
         showMessage(`Вы уже проголосовали за «${movieData.name}».`, 'info');
-        renderVotedMovie(movieData);
+        renderVotedMovie(movieData, votedMoviePointsDelta);
         highlightSelectedMovie(movieData.id);
         updateVotingDisabledState(true);
         updateCustomVoteButtonState();
@@ -397,12 +400,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    function renderVotedMovie(movieData) {
+    function renderVotedMovie(movieData, pointsDelta) {
         if (!votedMovieWrapper || !votedMovieCard) return;
         const poster = movieData.poster || PLACEHOLDER_POSTER;
-        const pointsValue = getMoviePoints(movieData);
-        const pointsLine = pointsValue > 0
-            ? `<p class="poll-voted-points">+${formatPoints(pointsValue)} за ваш голос</p>`
+        const normalizedDelta = Number(pointsDelta);
+        const hasDelta = Number.isFinite(normalizedDelta);
+        const absDelta = Math.abs(normalizedDelta);
+        const pointsLine = hasDelta
+            ? `<p class="poll-voted-points">${normalizedDelta >= 0 ? '+' : '−'}${formatPoints(absDelta)} ${normalizedDelta >= 0 ? 'начислено' : 'списано'}</p>`
             : '';
         votedMovieCard.innerHTML = `
             <img src="${poster}" alt="${escapeHtml(movieData.name)}">
@@ -633,8 +638,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             closeCustomVoteModal();
             showMessage('Голос учтён!', 'success');
+            const normalizedDelta = Number(result.points_awarded);
+            const pointsDelta = Number.isFinite(normalizedDelta) ? normalizedDelta : -customVoteCost;
             handlePointsAfterVote({
-                points_awarded: -customVoteCost,
+                points_awarded: pointsDelta,
                 points_balance: result.points_balance,
             });
 
@@ -642,7 +649,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (newMovie) {
                 moviesList.push(newMovie);
                 renderMovies(moviesList);
-                handleVotedState(newMovie);
+                handleVotedState(newMovie, pointsDelta);
             }
         } catch (error) {
             console.error('Ошибка отправки пользовательского голоса:', error);

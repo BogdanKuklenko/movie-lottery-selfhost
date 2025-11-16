@@ -780,9 +780,11 @@ def custom_vote(poll_id):
 
     db.session.flush()
 
+    points_awarded = -cost
+
     new_balance = change_voter_points_balance(
         voter_token,
-        -cost,
+        points_awarded,
         device_label=device_label,
     )
 
@@ -794,7 +796,7 @@ def custom_vote(poll_id):
         poll_id=poll_id,
         movie_id=poll_movie.id,
         voter_token=voter_token,
-        points_awarded=-cost,
+        points_awarded=points_awarded,
     )
     db.session.add(new_vote)
 
@@ -803,6 +805,7 @@ def custom_vote(poll_id):
     response = prevent_caching(jsonify({
         "success": True,
         "movie": _serialize_poll_movie(poll_movie),
+        "points_awarded": points_awarded,
         "points_balance": new_balance,
         "has_voted": True,
     }))
