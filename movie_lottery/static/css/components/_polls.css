@@ -98,73 +98,76 @@
 }
 
 .poll-points-panel {
-    margin-top: 20px;
+    margin-top: 16px;
 }
 
 .points-widget {
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
 }
 
 .points-balance-card {
-    width: 100%;
-    max-width: 360px;
-    background: rgba(255, 255, 255, 0.06);
-    border-radius: 18px;
-    padding: 18px 22px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+    width: auto;
+    max-width: 220px;
+    display: inline-flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
 }
 
 .points-balance-card-error {
-    border-color: #ef4444;
-    box-shadow: 0 15px 40px rgba(239, 68, 68, 0.25);
+    color: #fda4af;
 }
 
 .points-balance-header {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 8px;
 }
 
 .points-balance-label {
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: rgba(255, 255, 255, 0.65);
-    font-size: 12px;
-    margin: 0 0 4px 0;
+    letter-spacing: 0.12em;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 10px;
+    margin: 0;
 }
 
 .points-balance-value {
-    font-size: 34px;
-    font-weight: 700;
+    font-size: 24px;
+    font-weight: 600;
     margin: 0;
 }
 
 .points-state-badge {
-    padding: 4px 12px;
+    padding: 2px 8px;
     border-radius: 999px;
-    background: linear-gradient(120deg, rgba(102, 126, 234, 0.9), rgba(118, 75, 162, 0.9));
-    font-weight: 600;
-    font-size: 12px;
+    background: rgba(255, 255, 255, 0.08);
+    font-weight: 500;
+    font-size: 11px;
     letter-spacing: 0.05em;
 }
 
 .points-balance-status {
-    margin: 12px 0 0 0;
-    color: rgba(255, 255, 255, 0.7);
+    margin: 0;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 12px;
 }
 
 .points-progress {
-    margin-top: 18px;
+    margin-top: 6px;
 }
 
 .points-progress-track {
     width: 100%;
-    height: 8px;
+    height: 4px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.18);
     overflow: hidden;
 }
 
@@ -172,9 +175,8 @@
     display: block;
     width: 0;
     height: 100%;
-    background: linear-gradient(90deg, rgba(255, 196, 0, 0.9), rgba(255, 87, 34, 0.9));
-    box-shadow: 0 0 15px rgba(255, 196, 0, 0.5);
-    transition: width 1.2s ease;
+    background: linear-gradient(90deg, rgba(255, 196, 0, 0.85), rgba(255, 87, 34, 0.85));
+    transition: width 1s ease;
 }
 
 .points-progress[hidden] {
@@ -182,9 +184,9 @@
 }
 
 .points-progress-label {
-    margin-top: 8px;
-    font-size: 13px;
-    color: var(--accent-gold);
+    margin-top: 6px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.65);
 }
 
 .poll-grid {
