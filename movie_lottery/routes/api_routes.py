@@ -1,8 +1,10 @@
 import random
+import re
 import secrets
 from collections import defaultdict
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify, current_app
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from .. import db
 from ..models import (
@@ -11,6 +13,7 @@ from ..models import (
     MovieIdentifier,
     LibraryMovie,
     Poll,
+    PollCreatorToken,
     PollMovie,
     PollVoterProfile,
     Vote,
@@ -28,6 +31,12 @@ from ..utils.helpers import (
 )
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
+
+
+POLL_CREATOR_COOKIE = 'poll_creator_token'
+POLL_CREATOR_HEADER = 'X-Poll-Creator-Token'
+POLL_CREATOR_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
+_CREATOR_TOKEN_RE = re.compile(r'^[a-f0-9]{32}$', re.IGNORECASE)
 
 
 def _resolve_device_label():
@@ -48,6 +57,59 @@ def _get_json_payload():
     """Возвращает тело запроса в формате JSON или None, если оно некорректно."""
     data = request.get_json(silent=True)
     return data if isinstance(data, dict) else None
+
+
+def _read_creator_token_from_request():
+    raw_token = request.cookies.get(POLL_CREATOR_COOKIE) or request.headers.get(POLL_CREATOR_HEADER)
+    if not raw_token:
+        return None
+    token = raw_token.strip().lower()
+    return token if _CREATOR_TOKEN_RE.match(token) else None
+
+
+def _touch_creator_token(token):
+    if not token:
+        return
+
+    now = datetime.utcnow()
+    try:
+        record = PollCreatorToken.query.filter_by(creator_token=token).first()
+    except (ProgrammingError, OperationalError) as exc:
+        db.session.rollback()
+        logger = getattr(current_app, 'logger', None)
+        if logger:
+            logger.warning('Таблица poll_creator_token недоступна: %s', exc)
+        return
+
+    if record:
+        record.last_seen = now
+    else:
+        db.session.add(PollCreatorToken(creator_token=token, created_at=now, last_seen=now))
+
+
+def _get_or_issue_creator_token():
+    token = _read_creator_token_from_request()
+    issued_new = False
+    if not token:
+        token = secrets.token_hex(16)
+        issued_new = True
+
+    _touch_creator_token(token)
+    return token, issued_new
+
+
+def _set_creator_cookie(response, token):
+    if not response or not token:
+        return response
+
+    response.set_cookie(
+        POLL_CREATOR_COOKIE,
+        token,
+        max_age=POLL_CREATOR_COOKIE_MAX_AGE,
+        samesite='Lax',
+        secure=request.is_secure,
+    )
+    return response
 
 
 def _parse_iso_date(raw_value, for_end=False):
@@ -405,7 +467,9 @@ def create_poll():
     if len(movies_json) > 25:
         return jsonify({"error": "Максимум 25 фильмов в опросе"}), 400
 
-    new_poll = Poll(id=generate_unique_poll_id())
+    creator_token, _ = _get_or_issue_creator_token()
+
+    new_poll = Poll(id=generate_unique_poll_id(), creator_token=creator_token)
     db.session.add(new_poll)
 
     for movie_data in movies_json:
@@ -429,11 +493,14 @@ def create_poll():
 
     poll_url = build_external_url('main.view_poll', poll_id=new_poll.id)
     results_url = build_external_url('main.view_poll_results', poll_id=new_poll.id)
-    return jsonify({
+
+    response = jsonify({
         "poll_id": new_poll.id,
         "poll_url": poll_url,
         "results_url": results_url
     })
+
+    return _set_creator_cookie(response, creator_token)
 
 
 @api_bp.route('/polls/<poll_id>', methods=['GET'])
@@ -611,8 +678,15 @@ def get_poll_results(poll_id):
 @api_bp.route('/polls/my-polls', methods=['GET'])
 def get_my_polls():
     """Получение последних опросов с результатами."""
+    creator_token = _read_creator_token_from_request()
+    if not creator_token:
+        return prevent_caching(jsonify({"polls": []}))
+
+    _touch_creator_token(creator_token)
+
     polls = (
         Poll.query
+        .filter_by(creator_token=creator_token)
         .order_by(Poll.created_at.desc())
         .limit(100)
         .all()

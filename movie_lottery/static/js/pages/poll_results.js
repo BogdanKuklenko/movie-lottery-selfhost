@@ -190,7 +190,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         try {
-            const response = await fetch(buildPollApiUrl(`/api/polls/${currentPollId}/results`));
+            const response = await fetch(buildPollApiUrl(`/api/polls/${currentPollId}/results`), {
+                credentials: 'include'
+            });
             const payload = await response.json();
 
             if (!response.ok) {

@@ -219,7 +219,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const response = await fetch(buildPollApiUrl('/api/polls/create'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ movies: movies })
+                body: JSON.stringify({ movies: movies }),
+                credentials: 'include'
             });
 
             const data = await response.json();

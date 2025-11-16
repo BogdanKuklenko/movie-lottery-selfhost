@@ -79,7 +79,9 @@ const toggleMyPollsUi = ({ polls, myPollsButton, myPollsBadgeElement }) => {
 
 export async function loadMyPolls({ myPollsButton, myPollsBadgeElement } = {}) {
     try {
-        const response = await fetch(buildPollApiUrl('/api/polls/my-polls'));
+        const response = await fetch(buildPollApiUrl('/api/polls/my-polls'), {
+            credentials: 'include'
+        });
         if (!response.ok) {
             throw new Error('Не удалось загрузить опросы');
         }

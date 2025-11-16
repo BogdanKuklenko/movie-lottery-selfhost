@@ -152,7 +152,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const response = await fetch(buildPollApiUrl('/api/polls/create'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ movies: moviesData })
+                body: JSON.stringify({ movies: moviesData }),
+                credentials: 'include'
             });
 
             const data = await response.json();
@@ -346,7 +347,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const response = await fetch(buildPollApiUrl('/api/polls/create'), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ movies: winners })
+                        body: JSON.stringify({ movies: winners }),
+                        credentials: 'include'
                     });
 
                     const data = await response.json();
@@ -486,7 +488,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const createResponse = await fetch(buildPollApiUrl('/api/polls/create'), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ movies: data.movies })
+                        body: JSON.stringify({ movies: data.movies }),
+                        credentials: 'include'
                     });
 
                     const createData = await createResponse.json();
