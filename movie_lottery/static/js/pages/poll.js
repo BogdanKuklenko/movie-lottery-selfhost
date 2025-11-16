@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const voteConfirmPoster = document.getElementById('vote-confirm-poster');
     const voteConfirmTitle = document.getElementById('vote-confirm-title');
     const voteConfirmYear = document.getElementById('vote-confirm-year');
+    const voteConfirmPoints = document.getElementById('vote-confirm-points');
     const votedMovieWrapper = document.getElementById('voted-movie-wrapper');
     const votedMovieCard = document.getElementById('voted-movie-card');
 
@@ -50,6 +51,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const PLACEHOLDER_POSTER = 'https://via.placeholder.com/200x300.png?text=No+Image';
 
     initializePointsWidget();
+
+    const getMoviePoints = (movie) => {
+        const rawPoints = movie?.points;
+        const parsed = Number.parseInt(rawPoints, 10);
+        if (Number.isNaN(parsed)) {
+            return 1;
+        }
+        return Math.min(999, Math.max(0, parsed));
+    };
 
     // Загружаем данные опроса
     try {
@@ -94,9 +104,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             const movieCard = document.createElement('div');
             movieCard.className = 'poll-movie-card';
             movieCard.dataset.movieId = movie.id;
+            const pointsValue = getMoviePoints(movie);
+            const badgeValue = formatPointsBadge(pointsValue);
+            const badgeTitle = pointsValue > 0
+                ? `+${formatPoints(pointsValue)}`
+                : 'Баллы не начисляются';
+            const badgeClasses = ['poll-movie-points-badge'];
+            if (pointsValue <= 0) {
+                badgeClasses.push('poll-movie-points-badge-muted');
+            }
 
             movieCard.innerHTML = `
-                <img src="${movie.poster || PLACEHOLDER_POSTER}" alt="${escapeHtml(movie.name)}">
+                <div class="poll-movie-poster">
+                    <img src="${movie.poster || PLACEHOLDER_POSTER}" alt="${escapeHtml(movie.name)}">
+                    <span class="${badgeClasses.join(' ')}" title="${badgeTitle}">${badgeValue}</span>
+                </div>
                 <div class="poll-movie-info">
                     <h3>${escapeHtml(movie.name)}</h3>
                     <p class="movie-year">${escapeHtml(movie.year || '')}</p>
@@ -128,6 +150,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         voteConfirmPoster.src = movie.poster || PLACEHOLDER_POSTER;
         voteConfirmTitle.textContent = movie.name;
         voteConfirmYear.textContent = movie.year || '';
+        if (voteConfirmPoints) {
+            const pointsValue = getMoviePoints(movie);
+            voteConfirmPoints.textContent = pointsValue > 0
+                ? `+${formatPoints(pointsValue)} за голос`
+                : 'Баллы не начисляются';
+        }
         voteConfirmModal.style.display = 'flex';
     }
 
@@ -263,6 +291,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `${value} ${decl}`;
     }
 
+    function formatPointsBadge(points) {
+        if (!Number.isFinite(points) || points <= 0) {
+            return '0';
+        }
+        return `+${points}`;
+    }
+
     function declOfNum(number, titles) {
         const cases = [2, 0, 1, 1, 1, 2];
         return titles[(number % 100 > 4 && number % 100 < 20) ? 2 : cases[(number % 10 < 5) ? number % 10 : 5]];
@@ -306,12 +341,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     function renderVotedMovie(movieData) {
         if (!votedMovieWrapper || !votedMovieCard) return;
         const poster = movieData.poster || PLACEHOLDER_POSTER;
+        const pointsValue = getMoviePoints(movieData);
+        const pointsLine = pointsValue > 0
+            ? `<p class="poll-voted-points">+${formatPoints(pointsValue)} за ваш голос</p>`
+            : '';
         votedMovieCard.innerHTML = `
             <img src="${poster}" alt="${escapeHtml(movieData.name)}">
             <div>
                 <h3>${escapeHtml(movieData.name)}</h3>
                 ${movieData.year ? `<p>${escapeHtml(movieData.year)}</p>` : ''}
                 ${movieData.genres ? `<p>${escapeHtml(movieData.genres)}</p>` : ''}
+                ${pointsLine}
             </div>
         `;
         votedMovieWrapper.style.display = 'block';

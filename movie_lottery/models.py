@@ -124,6 +124,7 @@ class PollMovie(db.Model):
     rating_kp = db.Column(db.Float, nullable=True)
     genres = db.Column(db.String(200), nullable=True)
     countries = db.Column(db.String(200), nullable=True)
+    points = db.Column(db.Integer, nullable=False, default=1)
 
 
 class PollVoterProfile(db.Model):

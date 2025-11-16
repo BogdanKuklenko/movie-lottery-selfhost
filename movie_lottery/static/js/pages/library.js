@@ -15,6 +15,14 @@ const escapeHtml = (unsafeValue) => {
         .replace(/'/g, '&#039;');
 };
 
+const parseMoviePoints = (value) => {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isNaN(parsed)) {
+        return 1;
+    }
+    return Math.min(999, Math.max(0, parsed));
+};
+
 function formatDate(isoString) {
     if (!isoString) return '';
     const date = new Date(isoString);
@@ -143,7 +151,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     description: card.dataset.movieDescription || null,
                     rating_kp: card.dataset.movieRating ? parseFloat(card.dataset.movieRating) : null,
                     genres: card.dataset.movieGenres || null,
-                    countries: card.dataset.movieCountries || null
+                    countries: card.dataset.movieCountries || null,
+                    points: parseMoviePoints(card.dataset.moviePoints),
                 });
             }
         });
@@ -775,7 +784,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             is_on_client: card.classList.contains('has-torrent-on-client'),
             torrent_hash: ds.torrentHash,
             badge: ds.badge || null,
-            points: Number.isFinite(Number(ds.moviePoints)) ? Number(ds.moviePoints) : 1,
+            points: parseMoviePoints(ds.moviePoints),
         };
     };
 

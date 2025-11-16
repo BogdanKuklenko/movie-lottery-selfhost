@@ -217,7 +217,22 @@ def _serialize_poll_movie(movie):
         "rating_kp": movie.rating_kp,
         "genres": movie.genres,
         "countries": movie.countries,
+        "points": movie.points if movie.points is not None else 1,
     }
+
+
+def _normalize_poll_movie_points(raw_value, default=1):
+    try:
+        normalized_default = int(default)
+    except (TypeError, ValueError):
+        normalized_default = 1
+
+    try:
+        points = int(raw_value)
+    except (TypeError, ValueError):
+        points = normalized_default
+
+    return max(0, min(999, points))
 
 # --- Routes for movies and lotteries ---
 
@@ -529,6 +544,7 @@ def create_poll():
             rating_kp=movie_data.get('rating_kp'),
             genres=movie_data.get('genres'),
             countries=movie_data.get('countries'),
+            points=_normalize_poll_movie_points(movie_data.get('points')),
             poll=new_poll
         )
         db.session.add(new_movie)
@@ -631,30 +647,36 @@ def vote_in_poll(poll_id):
     if existing_vote:
         return jsonify({"error": "Вы уже проголосовали в этом опросе"}), 400
 
-    points_per_vote = int(current_app.config.get('POLL_POINTS_PER_VOTE', 1))
+    default_points_per_vote = current_app.config.get('POLL_POINTS_PER_VOTE', 1)
+    points_awarded = _normalize_poll_movie_points(movie.points, default_points_per_vote)
 
     # Создаём новый голос
     new_vote = Vote(
         poll_id=poll_id,
         movie_id=movie_id,
         voter_token=voter_token,
-        points_awarded=points_per_vote,
+        points_awarded=points_awarded,
     )
     db.session.add(new_vote)
 
     new_balance = change_voter_points_balance(
         voter_token,
-        points_per_vote,
+        points_awarded,
         device_label=device_label,
     )
 
     db.session.commit()
 
+    if points_awarded > 0:
+        success_message = f"Голос учтён! +{points_awarded} баллов к вашему счёту."
+    else:
+        success_message = "Голос учтён! Приятного просмотра!"
+
     response = prevent_caching(jsonify({
         "success": True,
-        "message": "Голос учтён! Приятного просмотра!",
+        "message": success_message,
         "movie_name": movie.name,
-        "points_awarded": points_per_vote,
+        "points_awarded": points_awarded,
         "points_balance": new_balance,
         "voted_movie": _serialize_poll_movie(movie),
     }))
@@ -692,6 +714,7 @@ def get_poll_results(poll_id):
             "rating_kp": movie.rating_kp,
             "genres": movie.genres,
             "countries": movie.countries,
+            "points": movie.points if movie.points is not None else 1,
             "votes": votes,
             "is_winner": movie in winners
         })
@@ -709,7 +732,8 @@ def get_poll_results(poll_id):
                 "name": w.name,
                 "search_name": w.search_name,
                 "poster": w.poster,
-                "year": w.year
+                "year": w.year,
+                "points": w.points if w.points is not None else 1,
             }
             for w in winners
         ],
@@ -758,6 +782,7 @@ def get_my_polls():
                     "search_name": w.search_name,
                     "poster": w.poster,
                     "year": w.year,
+                    "points": w.points if w.points is not None else 1,
                     "votes": vote_counts.get(w.id, 0)
                 }
                 for w in winners
@@ -871,7 +896,8 @@ def get_movies_by_badge(badge_type):
             'rating_kp': movie.rating_kp,
             'genres': movie.genres,
             'countries': movie.countries,
-            'badge': movie.badge
+            'badge': movie.badge,
+            'points': movie.points if movie.points is not None else 1,
         })
     
     return jsonify({
