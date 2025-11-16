@@ -428,6 +428,33 @@ def remove_library_movie(movie_id):
     db.session.commit()
     return jsonify({"success": True, "message": "Фильм удален из библиотеки."})
 
+
+@api_bp.route('/library/<int:movie_id>/points', methods=['PUT'])
+def update_library_movie_points(movie_id):
+    data = _get_json_payload()
+    if data is None:
+        return jsonify({"success": False, "message": "Некорректный JSON-запрос."}), 400
+
+    raw_points = data.get('points')
+    try:
+        points = int(raw_points)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "message": "Баллы должны быть целым числом."}), 400
+
+    if points < 0 or points > 999:
+        return jsonify({"success": False, "message": "Баллы должны быть в диапазоне от 0 до 999."}), 400
+
+    library_movie = LibraryMovie.query.get_or_404(movie_id)
+    library_movie.points = points
+    library_movie.bumped_at = db.func.now()
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": "Баллы обновлены.",
+        "points": library_movie.points,
+    })
+
 # --- Маршруты для работы с торрентами ---
 
 @api_bp.route('/movie-magnet', methods=['POST'])

@@ -775,6 +775,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             is_on_client: card.classList.contains('has-torrent-on-client'),
             torrent_hash: ds.torrentHash,
             badge: ds.badge || null,
+            points: Number.isFinite(Number(ds.moviePoints)) ? Number(ds.moviePoints) : 1,
         };
     };
 
@@ -979,6 +980,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                     handleOpenModal(card);
                 } catch (error) {
                     // Ошибка уже обработана в removeBadge
+                }
+            },
+            onSavePoints: async (movieId, newPoints) => {
+                try {
+                    const result = await movieApi.updateLibraryMoviePoints(movieId, newPoints);
+                    if (result.success) {
+                        card.dataset.moviePoints = String(result.points);
+                        notify(result.message || 'Баллы обновлены', 'success');
+                        handleOpenModal(card);
+                    } else {
+                        notify(result.message || 'Не удалось обновить баллы', 'error');
+                    }
+                } catch (error) {
+                    notify(error.message || 'Не удалось обновить баллы', 'error');
                 }
             },
             onDownload: async () => {

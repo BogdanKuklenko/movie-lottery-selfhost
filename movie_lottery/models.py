@@ -42,6 +42,7 @@ class LibraryMovie(db.Model):
     added_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     bumped_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     badge = db.Column(db.String(20), nullable=True)  # Бейдж: favorite, watchlist, top, watched, new
+    points = db.Column(db.Integer, nullable=False, default=1)
 
 class BackgroundPhoto(db.Model):
     id = db.Column(db.Integer, primary_key=True)
