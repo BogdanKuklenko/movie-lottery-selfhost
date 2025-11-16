@@ -29,24 +29,30 @@ export const getPollApiBaseUrl = () => {
 
 export const buildPollApiUrl = (path = '') => {
     const normalizedPath = path || '';
+    const baseUrl = getPollApiBaseUrl();
+
     if (!normalizedPath) {
-        return getPollApiBaseUrl() || '';
+        return baseUrl || '';
     }
 
     if (ABSOLUTE_URL_REGEX.test(normalizedPath)) {
         return normalizedPath;
     }
 
-    const baseUrl = getPollApiBaseUrl();
     if (!baseUrl) {
         return normalizedPath;
     }
 
-    if (normalizedPath.startsWith('/')) {
-        return `${baseUrl}${normalizedPath}`;
-    }
+    const ensureLeadingSlash = (value) => (value.startsWith('/') ? value : `/${value}`);
+    const sanitizedPath = ensureLeadingSlash(normalizedPath);
 
-    return `${baseUrl}/${normalizedPath}`;
+    try {
+        const resolvedBase = new URL(baseUrl, window.location.origin);
+        return new URL(sanitizedPath, resolvedBase).toString();
+    } catch (error) {
+        const trimmedBase = baseUrl.replace(/\/+$/, '');
+        return `${trimmedBase}${sanitizedPath}`;
+    }
 };
 
 const toggleMyPollsUi = ({ polls, myPollsButton, myPollsBadgeElement }) => {
