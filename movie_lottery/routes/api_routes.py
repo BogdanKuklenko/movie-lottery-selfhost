@@ -28,6 +28,7 @@ from ..utils.helpers import (
     ensure_voter_profile,
     change_voter_points_balance,
     prevent_caching,
+    ensure_poll_tables,
 )
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -885,75 +886,89 @@ def list_voter_stats():
     filters = _prepare_voter_filters(request.args)
 
     try:
-        per_page = int(request.args.get('per_page', 25))
-    except (TypeError, ValueError):
-        per_page = 25
-    per_page = max(1, min(100, per_page))
+        try:
+            per_page = int(request.args.get('per_page', 25))
+        except (TypeError, ValueError):
+            per_page = 25
+        per_page = max(1, min(100, per_page))
 
-    try:
-        page = int(request.args.get('page', 1))
-    except (TypeError, ValueError):
-        page = 1
-    page = max(1, page)
+        try:
+            page = int(request.args.get('page', 1))
+        except (TypeError, ValueError):
+            page = 1
+        page = max(1, page)
 
-    sort_map = {
-        'token': PollVoterProfile.token,
-        'device_label': PollVoterProfile.device_label,
-        'total_points': PollVoterProfile.total_points,
-        'created_at': PollVoterProfile.created_at,
-        'updated_at': PollVoterProfile.updated_at,
-    }
-    sort_by = request.args.get('sort_by', 'updated_at')
-    sort_column = sort_map.get(sort_by, PollVoterProfile.updated_at)
-    sort_order = request.args.get('sort_order', 'desc').lower()
-    order_clause = sort_column.asc() if sort_order == 'asc' else sort_column.desc()
+        sort_map = {
+            'token': PollVoterProfile.token,
+            'device_label': PollVoterProfile.device_label,
+            'total_points': PollVoterProfile.total_points,
+            'created_at': PollVoterProfile.created_at,
+            'updated_at': PollVoterProfile.updated_at,
+        }
+        sort_by = request.args.get('sort_by', 'updated_at')
+        sort_column = sort_map.get(sort_by, PollVoterProfile.updated_at)
+        sort_order = request.args.get('sort_order', 'desc').lower()
+        order_clause = sort_column.asc() if sort_order == 'asc' else sort_column.desc()
 
-    query = PollVoterProfile.query
+        query = PollVoterProfile.query
 
-    if filters['token']:
-        query = query.filter(PollVoterProfile.token.ilike(f"%{filters['token']}%"))
+        if filters['token']:
+            query = query.filter(PollVoterProfile.token.ilike(f"%{filters['token']}%"))
 
-    if filters['device_label']:
-        query = query.filter(PollVoterProfile.device_label.ilike(f"%{filters['device_label']}%"))
+        if filters['device_label']:
+            query = query.filter(PollVoterProfile.device_label.ilike(f"%{filters['device_label']}%"))
 
-    if filters['requires_vote_filters']:
-        query = query.join(PollVoterProfile.votes)
-        query = _apply_vote_filters(query, filters)
-        query = query.distinct()
+        if filters['requires_vote_filters']:
+            query = query.join(PollVoterProfile.votes)
+            query = _apply_vote_filters(query, filters)
+            query = query.distinct()
 
-    query = query.order_by(order_clause)
+        query = query.order_by(order_clause)
 
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-    profiles = pagination.items
-    tokens = [profile.token for profile in profiles if profile.token]
-    votes_map = _group_votes_by_token(tokens, filters)
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        profiles = pagination.items
+        tokens = [profile.token for profile in profiles if profile.token]
+        votes_map = _group_votes_by_token(tokens, filters)
 
-    items = []
-    for profile in profiles:
-        votes = votes_map.get(profile.token, [])
-        filtered_points = sum((vote.get('points_awarded') or 0) for vote in votes)
-        last_vote_at = votes[0]['voted_at'] if votes else None
-        items.append({
-            'voter_token': profile.token,
-            'device_label': profile.device_label,
-            'total_points': profile.total_points or 0,
-            'filtered_points': filtered_points,
-            'created_at': profile.created_at.isoformat() if profile.created_at else None,
-            'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
-            'last_vote_at': last_vote_at,
-            'votes_count': len(votes),
-            'votes': votes,
-        })
+        items = []
+        for profile in profiles:
+            votes = votes_map.get(profile.token, [])
+            filtered_points = sum((vote.get('points_awarded') or 0) for vote in votes)
+            last_vote_at = votes[0]['voted_at'] if votes else None
+            items.append({
+                'voter_token': profile.token,
+                'device_label': profile.device_label,
+                'total_points': profile.total_points or 0,
+                'filtered_points': filtered_points,
+                'created_at': profile.created_at.isoformat() if profile.created_at else None,
+                'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
+                'last_vote_at': last_vote_at,
+                'votes_count': len(votes),
+                'votes': votes,
+            })
 
-    payload = {
-        'page': pagination.page,
-        'per_page': pagination.per_page,
-        'pages': pagination.pages,
-        'total': pagination.total,
-        'items': items,
-    }
+        payload = {
+            'page': pagination.page,
+            'per_page': pagination.per_page,
+            'pages': pagination.pages,
+            'total': pagination.total,
+            'items': items,
+        }
 
-    return prevent_caching(jsonify(payload))
+        return prevent_caching(jsonify(payload))
+    except (OperationalError, ProgrammingError) as exc:
+        db.session.rollback()
+        logger = getattr(current_app, 'logger', None)
+        if logger:
+            logger.exception('Не удалось получить статистику голосующих: %s', exc)
+
+        try:
+            ensure_poll_tables()
+        except Exception as ensure_exc:  # pragma: no cover - best effort recovery
+            if logger:
+                logger.warning('Не удалось восстановить таблицы голосования: %s', ensure_exc)
+
+        return jsonify({'error': 'Сервис временно недоступен'}), 503
 
 
 

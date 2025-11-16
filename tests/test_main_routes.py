@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from movie_lottery import create_app, db
 from movie_lottery.models import LibraryMovie, Poll, PollVoterProfile, Vote
 from movie_lottery.utils import helpers
+from movie_lottery.routes import api_routes
 
 
 def _build_movie(name, **extra):
@@ -210,3 +211,26 @@ def test_get_my_polls_returns_only_creator_polls(app):
     data = response.get_json()
     assert len(data['polls']) == 1
     assert data['polls'][0]['poll_id'] == poll_a.id
+
+
+def test_voter_stats_returns_json_on_missing_tables(app, monkeypatch):
+    class BrokenQuery:
+        def order_by(self, *_args, **_kwargs):
+            raise OperationalError("stmt", {}, Exception("missing table"))
+
+    monkeypatch.setattr(api_routes.PollVoterProfile, 'query', BrokenQuery())
+
+    recovery_called = {'called': False}
+
+    def fake_ensure_tables():
+        recovery_called['called'] = True
+
+    monkeypatch.setattr(api_routes, 'ensure_poll_tables', fake_ensure_tables)
+
+    client = app.test_client()
+    response = client.get('/api/polls/voter-stats')
+
+    assert response.status_code == 503
+    data = response.get_json()
+    assert data['error']
+    assert recovery_called['called'] is True
