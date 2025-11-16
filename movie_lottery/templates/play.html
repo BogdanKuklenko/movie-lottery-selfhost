@@ -45,7 +45,7 @@
 
     {% if not result %}
         <script>
-            const lotteryData = [
+            window.lotteryData = [
                 {% for movie in lottery.movies %}
                     {
                         "name": "{{ movie.name|safe }}",
@@ -54,10 +54,10 @@
                     },
                 {% endfor %}
             ];
-            const drawUrl = "{{ url_for('api.draw_winner', lottery_id=lottery.id) }}";
+            window.drawUrl = "{{ url_for('api.draw_winner', lottery_id=lottery.id) }}";
         </script>
         <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
-        <script src="{{ url_for('static', filename='js/play.js') }}"></script>
+        <script type="module" src="{{ url_for('static', filename='js/play.js') }}"></script>
         
         <script>
             var backgroundPhotos = {{ background_photos|tojson }};
