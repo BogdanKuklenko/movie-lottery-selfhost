@@ -162,11 +162,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             lockScroll();
             isVoteModalOpen = true;
         }
-        voteConfirmModal.classList.add('modal-overlay--open');
+        voteConfirmModal.style.display = 'flex';
     }
 
     function closeVoteConfirmation() {
-        voteConfirmModal.classList.remove('modal-overlay--open');
+        voteConfirmModal.style.display = 'none';
         selectedMovie = null;
         if (isVoteModalOpen) {
             unlockScroll();
