@@ -38,6 +38,19 @@
                         <p class="points-progress-label" id="points-progress-label">Начисляем баллы…</p>
                     </div>
                 </div>
+                <div class="custom-vote-container">
+                    <button
+                        id="custom-vote-btn"
+                        class="custom-vote-btn"
+                        type="button"
+                        title="За пользовательский голос будет списано 10 баллов"
+                    >
+                        Проголосовать за свой фильм (−10 баллов)
+                    </button>
+                    <p id="custom-vote-insufficient" class="custom-vote-warning" hidden>
+                        Недостаточно баллов для пользовательского голосования.
+                    </p>
+                </div>
             </div>
         </section>
 
@@ -73,6 +86,48 @@
             <div class="modal-buttons">
                 <button id="vote-confirm-btn" class="cta-button">Да, проголосовать</button>
                 <button id="vote-cancel-btn" class="secondary-button">Отменить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно пользовательского голосования -->
+    <div id="custom-vote-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content custom-vote-content">
+            <h2>Проголосовать за свой фильм</h2>
+            <p class="custom-vote-description">Для поиска и голосования будет списано 10 баллов.</p>
+            <label class="custom-vote-label" for="custom-vote-input">Название фильма или ссылка на Кинопоиск</label>
+            <div class="custom-vote-input-row">
+                <input id="custom-vote-input" class="custom-vote-input" type="text" placeholder="Введите название фильма">
+                <button id="custom-vote-search-btn" class="cta-button custom-vote-search-btn" type="button">Найти</button>
+            </div>
+            <div id="custom-vote-status" class="custom-vote-status" aria-live="polite" hidden>
+                <div class="custom-vote-status-loading" id="custom-vote-status-loading" hidden>
+                    <span class="custom-vote-spinner" aria-hidden="true"></span>
+                    <p>Ищем фильм…</p>
+                </div>
+                <div class="custom-vote-status-empty" id="custom-vote-status-empty" hidden>
+                    <span class="custom-vote-icon">🔍</span>
+                    <p>Укажите название фильма и нажмите «Найти».</p>
+                </div>
+                <div class="custom-vote-status-error" id="custom-vote-status-error" hidden>
+                    <span class="custom-vote-icon">⚠️</span>
+                    <p id="custom-vote-error-text">Не удалось найти фильм. Попробуйте уточнить запрос.</p>
+                </div>
+            </div>
+            <div id="custom-vote-result" class="custom-vote-result" hidden>
+                <div class="custom-vote-result-card">
+                    <div class="custom-vote-poster" id="custom-vote-poster"></div>
+                    <div class="custom-vote-info">
+                        <h3 id="custom-vote-title"></h3>
+                        <p id="custom-vote-year" class="custom-vote-meta"></p>
+                        <p id="custom-vote-rating" class="custom-vote-rating"></p>
+                        <p id="custom-vote-description" class="custom-vote-description-text"></p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-buttons">
+                <button id="custom-vote-submit" class="cta-button" type="button">Проголосовать</button>
+                <button id="custom-vote-cancel" class="secondary-button" type="button">Отменить</button>
             </div>
         </div>
     </div>

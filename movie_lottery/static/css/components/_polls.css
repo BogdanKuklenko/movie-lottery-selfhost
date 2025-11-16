@@ -103,7 +103,49 @@
 
 .points-widget {
     display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: stretch;
     justify-content: flex-start;
+}
+
+.custom-vote-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-left: 24px;
+    align-self: stretch;
+}
+
+.custom-vote-btn {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.95), rgba(118, 75, 162, 0.95));
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 10px 30px rgba(118, 75, 162, 0.35);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    text-align: center;
+    width: 100%;
+}
+
+.custom-vote-btn:hover,
+.custom-vote-btn:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(118, 75, 162, 0.5);
+    outline: none;
+}
+
+.custom-vote-btn:active {
+    transform: translateY(0);
+}
+
+.custom-vote-warning {
+    margin: 0;
+    font-size: 12px;
+    color: #fca5a5;
 }
 
 .points-balance-card {
@@ -309,6 +351,133 @@
 /* --- Модальное окно подтверждения голосования --- */
 .vote-confirm-content {
     max-width: 500px;
+}
+
+.custom-vote-content {
+    max-width: 720px;
+}
+
+.custom-vote-description {
+    margin-top: 8px;
+    margin-bottom: 16px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.custom-vote-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.custom-vote-input-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+    margin-bottom: 12px;
+}
+
+.custom-vote-input {
+    flex: 1;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: white;
+}
+
+.custom-vote-input:focus {
+    outline: 2px solid var(--accent-purple);
+    outline-offset: 2px;
+    border-color: transparent;
+}
+
+.custom-vote-search-btn {
+    white-space: nowrap;
+}
+
+.custom-vote-status {
+    padding: 14px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+    margin-bottom: 12px;
+}
+
+.custom-vote-status-loading,
+.custom-vote-status-empty,
+.custom-vote-status-error {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.custom-vote-spinner {
+    width: 18px;
+    height: 18px;
+    border: 3px solid rgba(255, 255, 255, 0.25);
+    border-top-color: var(--accent-purple);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.custom-vote-icon {
+    font-size: 18px;
+}
+
+.custom-vote-status-error {
+    color: #fca5a5;
+}
+
+.custom-vote-result {
+    margin-bottom: 14px;
+}
+
+.custom-vote-result-card {
+    display: flex;
+    gap: 16px;
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.custom-vote-poster {
+    width: 100px;
+    min-height: 150px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.35), rgba(118, 75, 162, 0.35));
+    background-size: cover;
+    background-position: center;
+    flex-shrink: 0;
+}
+
+.custom-vote-info h3 {
+    margin: 0 0 6px 0;
+    font-size: 18px;
+}
+
+.custom-vote-meta {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.custom-vote-rating {
+    margin: 6px 0;
+    font-weight: 700;
+    color: var(--accent-gold);
+}
+
+.custom-vote-description-text {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.75);
+    line-height: 1.5;
+}
+
+.custom-vote-warning-text {
+    margin-top: 8px;
+    color: #fbbf24;
+    font-size: 13px;
 }
 
 .vote-confirm-movie {
@@ -639,7 +808,25 @@
 /* --- Адаптивность --- */
 @media (max-width: 768px) {
     .points-widget {
-        grid-template-columns: 1fr;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .custom-vote-container {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .custom-vote-input-row {
+        flex-direction: column;
+    }
+
+    .custom-vote-search-btn {
+        width: 100%;
+    }
+
+    .custom-vote-result-card {
+        flex-direction: column;
     }
 
     .poll-grid {
