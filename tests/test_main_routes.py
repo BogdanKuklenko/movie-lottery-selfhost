@@ -301,3 +301,87 @@ def test_vote_in_poll_awards_movie_points(app):
 
     profile = PollVoterProfile.query.first()
     assert profile.total_points == 7
+
+
+def test_patch_device_label_updates_profile(app):
+    client = app.test_client()
+    token = 'device-token-1'
+    profile = PollVoterProfile(token=token, device_label='Старое устройство', total_points=5)
+    db.session.add(profile)
+    db.session.commit()
+
+    response = client.patch(
+        f'/api/polls/voter-stats/{token}/device-label',
+        json={'device_label': '   Новая метка   '},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['device_label'] == 'Новая метка'
+    assert payload['updated_at'] is not None
+
+    refreshed = PollVoterProfile.query.get(token)
+    assert refreshed.device_label == 'Новая метка'
+    assert refreshed.updated_at is not None
+
+
+def test_patch_device_label_allows_clearing_value(app):
+    client = app.test_client()
+    token = 'device-token-2'
+    profile = PollVoterProfile(token=token, device_label='Для очистки')
+    db.session.add(profile)
+    db.session.commit()
+
+    response = client.patch(
+        f'/api/polls/voter-stats/{token}/device-label',
+        json={'device_label': '   '},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['device_label'] is None
+
+    refreshed = PollVoterProfile.query.get(token)
+    assert refreshed.device_label is None
+
+
+def test_patch_total_points_updates_profile(app):
+    client = app.test_client()
+    token = 'points-token-1'
+    profile = PollVoterProfile(token=token, total_points=5)
+    db.session.add(profile)
+    db.session.commit()
+
+    response = client.patch(
+        f'/api/polls/voter-stats/{token}/points',
+        json={'total_points': 42},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['total_points'] == 42
+    assert payload['updated_at'] is not None
+
+    refreshed = PollVoterProfile.query.get(token)
+    assert refreshed.total_points == 42
+    assert refreshed.updated_at is not None
+
+
+def test_patch_total_points_validates_payload(app):
+    client = app.test_client()
+    token = 'points-token-2'
+    profile = PollVoterProfile(token=token, total_points=7)
+    db.session.add(profile)
+    db.session.commit()
+
+    response = client.patch(
+        f'/api/polls/voter-stats/{token}/points',
+        json={'total_points': 'invalid'},
+    )
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert 'целым' in payload['error']
+
+    refreshed = PollVoterProfile.query.get(token)
+    assert refreshed.total_points == 7
