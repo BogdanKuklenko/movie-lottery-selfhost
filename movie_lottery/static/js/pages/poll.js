@@ -1,6 +1,7 @@
 // movie_lottery/static/js/pages/poll.js
 
 import { buildPollApiUrl } from '../utils/polls.js';
+import { fetchMovieInfo } from '../api/movies.js';
 import { lockScroll, unlockScroll } from '../utils/scrollLock.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -28,6 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             pointsProgressDefault: 'Начисляем баллы…',
             pointsProgressEarned: (points) => `+${points} за голос`,
             toastPointsEarned: (points) => `+${points} баллов за голос`,
+            toastPointsDeducted: (points) => `−${points} баллов списано`,
             toastPointsError: 'Не удалось обновить баланс баллов',
             pointsUnavailable: 'Баллы недоступны. Попробуйте обновить страницу позже.',
         },
@@ -45,11 +47,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     const pointsProgressBar = document.getElementById('points-progress-bar');
     const pointsProgressLabel = document.getElementById('points-progress-label');
 
+    const customVoteBtn = document.getElementById('custom-vote-btn');
+    const customVoteWarning = document.getElementById('custom-vote-insufficient');
+    const customVoteModal = document.getElementById('custom-vote-modal');
+    const customVoteInput = document.getElementById('custom-vote-input');
+    const customVoteSearchBtn = document.getElementById('custom-vote-search-btn');
+    const customVoteSubmitBtn = document.getElementById('custom-vote-submit');
+    const customVoteCancelBtn = document.getElementById('custom-vote-cancel');
+    const customVoteStatus = document.getElementById('custom-vote-status');
+    const customVoteStatusLoading = document.getElementById('custom-vote-status-loading');
+    const customVoteStatusEmpty = document.getElementById('custom-vote-status-empty');
+    const customVoteStatusError = document.getElementById('custom-vote-status-error');
+    const customVoteErrorText = document.getElementById('custom-vote-error-text');
+    const customVoteResult = document.getElementById('custom-vote-result');
+    const customVotePoster = document.getElementById('custom-vote-poster');
+    const customVoteTitle = document.getElementById('custom-vote-title');
+    const customVoteYear = document.getElementById('custom-vote-year');
+    const customVoteRating = document.getElementById('custom-vote-rating');
+    const customVoteDescription = document.getElementById('custom-vote-description');
+
     let selectedMovie = null;
     let progressTimeoutId = null;
     let hasVoted = false;
     let votedMovie = null;
     let isVoteModalOpen = false;
+    let customVoteMovie = null;
+    let customVoteQuery = '';
+    let customVoteCost = 0;
+    let isCustomVoteModalOpen = false;
+    let isCustomVoteLoading = false;
+    let isCustomVoteSubmitting = false;
+    let pointsBalance = null;
+    let moviesList = [];
     const PLACEHOLDER_POSTER = 'https://via.placeholder.com/200x300.png?text=No+Image';
 
     initializePointsWidget();
@@ -78,9 +107,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const pollData = await response.json();
         updatePointsBalance(pollData.points_balance);
+        customVoteCost = Number(pollData.custom_vote_cost) || 0;
+        moviesList = Array.isArray(pollData.movies) ? pollData.movies : [];
+        updateCustomVoteButtonState({
+            balance: pollData.points_balance,
+            canVoteCustom: pollData.can_vote_custom,
+            hasVoted: pollData.has_voted,
+        });
 
         // Отображаем фильмы
-        renderMovies(pollData.movies);
+        renderMovies(moviesList);
         pollDescription.textContent = `Выберите один фильм из ${pollData.movies.length}. Проголосовало: ${pollData.total_votes}`;
 
         if (pollData.has_voted) {
@@ -100,9 +136,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function renderMovies(movies) {
+        moviesList = Array.isArray(movies) ? movies : [];
         pollGrid.innerHTML = '';
-        
-        movies.forEach(movie => {
+
+        moviesList.forEach(movie => {
             const movieCard = document.createElement('div');
             movieCard.className = 'poll-movie-card';
             movieCard.dataset.movieId = movie.id;
@@ -249,17 +286,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
+        pointsBalance = balance;
         pointsBalanceCard.classList.remove('points-balance-card-error');
         pointsStateBadge.textContent = T.pointsBadgeReady;
         pointsBalanceValue.textContent = balance;
         pointsBalanceStatus.textContent = T.pointsStatusUpdated(formatPoints(balance));
+        updateCustomVoteButtonState();
     }
 
     function markPointsAsUnavailable() {
         if (!pointsBalanceCard || !pointsStateBadge || !pointsBalanceStatus) return;
+        pointsBalance = null;
         pointsBalanceCard.classList.add('points-balance-card-error');
         pointsStateBadge.textContent = T.pointsBadgeError;
         pointsBalanceStatus.textContent = T.pointsUnavailable;
+        updateCustomVoteButtonState();
     }
 
     function handlePointsAfterVote(result) {
@@ -273,6 +314,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         updatePointsBalance(newBalance);
+
+        if (awarded < 0) {
+            showToast(T.toastPointsDeducted(Math.abs(awarded)), 'info', { duration: 4000 });
+            updateCustomVoteButtonState();
+            return;
+        }
+
         showToast(T.toastPointsEarned(awarded), 'success', { duration: 4000 });
         playPointsProgress(awarded);
     }
@@ -322,6 +370,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderVotedMovie(movieData);
         highlightSelectedMovie(movieData.id);
         updateVotingDisabledState(true);
+        updateCustomVoteButtonState();
     }
 
     function updateVotingDisabledState(disabled) {
@@ -374,5 +423,237 @@ document.addEventListener('DOMContentLoaded', async () => {
             closeVoteConfirmation();
         }
     });
+
+    if (customVoteBtn && customVoteModal && customVoteCancelBtn && customVoteInput) {
+        customVoteBtn.addEventListener('click', () => {
+            if (hasVoted) {
+                showToast('Вы уже проголосовали в этом опросе.', 'info');
+                return;
+            }
+
+            if (!canUseCustomVote()) {
+                showToast('Недостаточно баллов для пользовательского голосования', 'error');
+                return;
+            }
+
+            openCustomVoteModal();
+        });
+
+        customVoteCancelBtn.addEventListener('click', closeCustomVoteModal);
+
+        customVoteInput?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                searchCustomMovie();
+            }
+        });
+
+        customVoteSearchBtn?.addEventListener('click', () => {
+            if (!customVoteInput.value.trim()) {
+                showCustomVoteError('Введите название фильма для поиска.');
+                return;
+            }
+            searchCustomMovie();
+        });
+
+        customVoteSubmitBtn?.addEventListener('click', submitCustomVote);
+
+        customVoteModal.addEventListener('click', (e) => {
+            if (e.target === customVoteModal) {
+                closeCustomVoteModal();
+            }
+        });
+    }
+
+    function openCustomVoteModal() {
+        resetCustomVoteModal();
+        customVoteModal.style.display = 'flex';
+        if (!isCustomVoteModalOpen) {
+            lockScroll();
+            isCustomVoteModalOpen = true;
+        }
+        customVoteInput.focus();
+        showCustomVoteStatus('empty');
+    }
+
+    function closeCustomVoteModal() {
+        customVoteModal.style.display = 'none';
+        resetCustomVoteModal();
+        if (isCustomVoteModalOpen) {
+            unlockScroll();
+            isCustomVoteModalOpen = false;
+        }
+    }
+
+    function resetCustomVoteModal() {
+        customVoteInput.value = '';
+        customVoteQuery = '';
+        customVoteMovie = null;
+        isCustomVoteLoading = false;
+        isCustomVoteSubmitting = false;
+        customVoteResult.hidden = true;
+        customVotePoster.style.backgroundImage = '';
+        customVoteTitle.textContent = '';
+        customVoteYear.textContent = '';
+        customVoteRating.textContent = '';
+        customVoteDescription.textContent = '';
+        showCustomVoteStatus('hidden');
+        updateCustomVoteActionsState();
+    }
+
+    function showCustomVoteStatus(state, errorText = '') {
+        if (!customVoteStatus) return;
+        customVoteStatus.hidden = state === 'hidden';
+        if (customVoteStatusLoading) customVoteStatusLoading.hidden = state !== 'loading';
+        if (customVoteStatusEmpty) customVoteStatusEmpty.hidden = state !== 'empty';
+        if (customVoteStatusError) customVoteStatusError.hidden = state !== 'error';
+        if (customVoteErrorText && state === 'error') {
+            customVoteErrorText.textContent = errorText || 'Не удалось найти фильм. Попробуйте уточнить запрос.';
+        }
+    }
+
+    async function searchCustomMovie() {
+        if (isCustomVoteLoading || isCustomVoteSubmitting || !customVoteSearchBtn) return;
+        const query = customVoteInput.value.trim();
+        if (!query) {
+            showCustomVoteError('Введите название фильма для поиска.');
+            return;
+        }
+
+        isCustomVoteLoading = true;
+        customVoteQuery = query;
+        customVoteSearchBtn.disabled = true;
+        customVoteInput.disabled = true;
+        customVoteResult.hidden = true;
+        showCustomVoteStatus('loading');
+        updateCustomVoteActionsState();
+
+        try {
+            const movieData = await fetchMovieInfo(query);
+            customVoteMovie = movieData;
+            renderCustomVoteResult(movieData);
+            showCustomVoteStatus('hidden');
+            customVoteResult.hidden = false;
+        } catch (error) {
+            console.error('Ошибка поиска фильма:', error);
+            showCustomVoteError(error.message || 'Не удалось найти фильм.');
+            customVoteMovie = null;
+        } finally {
+            isCustomVoteLoading = false;
+            customVoteSearchBtn.disabled = false;
+            customVoteInput.disabled = false;
+            updateCustomVoteActionsState();
+        }
+    }
+
+    function renderCustomVoteResult(movieData) {
+        const poster = movieData.poster || PLACEHOLDER_POSTER;
+        customVotePoster.style.backgroundImage = `url('${poster}')`;
+        customVoteTitle.textContent = escapeHtml(movieData.name || 'Без названия');
+        customVoteYear.textContent = escapeHtml(movieData.year || '—');
+        const rating = Number(movieData.rating_kp);
+        customVoteRating.textContent = Number.isFinite(rating) ? `⭐ ${rating.toFixed(1)}` : '';
+        customVoteDescription.textContent = escapeHtml(movieData.description || 'Описание отсутствует.');
+    }
+
+    function showCustomVoteError(text) {
+        showCustomVoteStatus('error', text);
+        customVoteResult.hidden = true;
+        updateCustomVoteActionsState();
+    }
+
+    function canUseCustomVote() {
+        return !hasVoted && typeof pointsBalance === 'number' && pointsBalance >= customVoteCost;
+    }
+
+    function updateCustomVoteButtonState(options = {}) {
+        if (!customVoteBtn) return;
+        const balanceValue = typeof options.balance === 'number' ? options.balance : pointsBalance;
+        const hasVoteFlag = typeof options.hasVoted === 'boolean' ? options.hasVoted : hasVoted;
+        const canVoteCustom = typeof options.can_vote_custom === 'boolean'
+            ? options.can_vote_custom
+            : options.canVoteCustom;
+        const effectiveBalance = typeof balanceValue === 'number' ? balanceValue : pointsBalance;
+        const isBalanceKnown = Number.isFinite(effectiveBalance);
+        const isInsufficient = isBalanceKnown ? effectiveBalance < customVoteCost : true;
+        const disabled = Boolean(hasVoteFlag || isInsufficient || canVoteCustom === false);
+
+        customVoteBtn.disabled = disabled;
+        if (customVoteWarning) {
+            customVoteWarning.hidden = !isInsufficient;
+        }
+        const costLabel = customVoteCost > 0
+            ? `Проголосовать за свой фильм (−${customVoteCost} баллов)`
+            : 'Проголосовать за свой фильм';
+        customVoteBtn.textContent = costLabel;
+        customVoteBtn.title = costLabel;
+    }
+
+    function updateCustomVoteActionsState() {
+        if (!customVoteSubmitBtn) return;
+        const shouldDisableSubmit = !customVoteMovie || isCustomVoteLoading || isCustomVoteSubmitting || !canUseCustomVote();
+        const disableInteractions = isCustomVoteLoading || isCustomVoteSubmitting || !canUseCustomVote();
+        customVoteSubmitBtn.disabled = shouldDisableSubmit;
+        if (customVoteSearchBtn) {
+            customVoteSearchBtn.disabled = disableInteractions;
+        }
+        if (customVoteInput) {
+            customVoteInput.disabled = disableInteractions;
+        }
+    }
+
+    async function submitCustomVote() {
+        if (!customVoteMovie || isCustomVoteSubmitting) return;
+        if (!canUseCustomVote()) {
+            showToast('Недостаточно баллов для пользовательского голосования', 'error');
+            return;
+        }
+
+        isCustomVoteSubmitting = true;
+        updateCustomVoteActionsState();
+        customVoteSubmitBtn.textContent = 'Отправка...';
+
+        try {
+            const payload = {
+                query: customVoteQuery || customVoteMovie.name,
+                kinopoisk_id: customVoteMovie.kinopoisk_id,
+                movie: customVoteMovie,
+            };
+            const response = await fetch(buildPollApiUrl(`/api/polls/${pollId}/custom-vote`), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(payload),
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.error || 'Не удалось отправить голос');
+            }
+
+            closeCustomVoteModal();
+            showMessage('Голос учтён!', 'success');
+            handlePointsAfterVote({
+                points_awarded: -customVoteCost,
+                points_balance: result.points_balance,
+            });
+
+            const newMovie = result.movie || customVoteMovie;
+            if (newMovie) {
+                moviesList.push(newMovie);
+                renderMovies(moviesList);
+                handleVotedState(newMovie);
+            }
+        } catch (error) {
+            console.error('Ошибка отправки пользовательского голоса:', error);
+            showCustomVoteError(error.message || 'Не удалось отправить голос.');
+        } finally {
+            isCustomVoteSubmitting = false;
+            if (customVoteSubmitBtn) {
+                customVoteSubmitBtn.textContent = 'Проголосовать';
+            }
+            updateCustomVoteActionsState();
+        }
+    }
 });
 
