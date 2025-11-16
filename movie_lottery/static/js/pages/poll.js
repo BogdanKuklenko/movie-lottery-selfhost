@@ -49,7 +49,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     let hasVoted = false;
     let votedMovie = null;
     let isVoteModalOpen = false;
-    let lockedScrollPosition = 0;
+    const scrollLockState = {
+        isLocked: false,
+        scrollPosition: 0,
+        previousBodyStyles: {
+            position: '',
+            top: '',
+            width: '',
+            overflow: '',
+        },
+        previousHtmlStyles: {
+            overflow: '',
+            height: '',
+        },
+        touchMoveHandler: null,
+    };
+    const touchMoveOptions = { passive: false };
     const PLACEHOLDER_POSTER = 'https://via.placeholder.com/200x300.png?text=No+Image';
 
     initializePointsWidget();
@@ -147,21 +162,71 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateVotingDisabledState(hasVoted);
     }
 
+    function preventBackgroundTouchMove(event) {
+        if (event.target.closest('.modal-content')) {
+            return;
+        }
+        event.preventDefault();
+    }
+
     function lockBodyScroll() {
-        lockedScrollPosition = window.scrollY || document.documentElement.scrollTop || 0;
-        document.body.style.top = `-${lockedScrollPosition}px`;
+        if (scrollLockState.isLocked) {
+            return;
+        }
+
+        scrollLockState.isLocked = true;
+        scrollLockState.scrollPosition = window.scrollY || document.documentElement.scrollTop || 0;
+        scrollLockState.previousBodyStyles = {
+            position: document.body.style.position,
+            top: document.body.style.top,
+            width: document.body.style.width,
+            overflow: document.body.style.overflow,
+        };
+        scrollLockState.previousHtmlStyles = {
+            overflow: document.documentElement.style.overflow,
+            height: document.documentElement.style.height,
+        };
+
+        document.documentElement.style.overflow = 'hidden';
+        document.documentElement.style.height = '100%';
+        document.documentElement.classList.add('no-scroll');
+
+        document.body.style.top = `-${scrollLockState.scrollPosition}px`;
         document.body.style.position = 'fixed';
         document.body.style.width = '100%';
+        document.body.style.overflow = 'hidden';
         document.body.classList.add('no-scroll');
+
+        scrollLockState.touchMoveHandler = preventBackgroundTouchMove;
+        document.addEventListener('touchmove', scrollLockState.touchMoveHandler, touchMoveOptions);
     }
 
     function unlockBodyScroll() {
+        if (!scrollLockState.isLocked) {
+            return;
+        }
+
+        document.documentElement.classList.remove('no-scroll');
+        document.documentElement.style.overflow = scrollLockState.previousHtmlStyles.overflow;
+        document.documentElement.style.height = scrollLockState.previousHtmlStyles.height;
+
         document.body.classList.remove('no-scroll');
-        document.body.style.position = '';
-        document.body.style.top = '';
-        document.body.style.width = '';
-        window.scrollTo(0, lockedScrollPosition);
-        lockedScrollPosition = 0;
+        document.body.style.position = scrollLockState.previousBodyStyles.position;
+        document.body.style.top = scrollLockState.previousBodyStyles.top;
+        document.body.style.width = scrollLockState.previousBodyStyles.width;
+        document.body.style.overflow = scrollLockState.previousBodyStyles.overflow;
+
+        if (scrollLockState.touchMoveHandler) {
+            document.removeEventListener('touchmove', scrollLockState.touchMoveHandler, touchMoveOptions);
+            scrollLockState.touchMoveHandler = null;
+        }
+
+        requestAnimationFrame(() => {
+            window.scrollTo(0, scrollLockState.scrollPosition);
+            scrollLockState.scrollPosition = 0;
+        });
+
+        scrollLockState.isLocked = false;
     }
 
     function openVoteConfirmation(movie) {

@@ -17,8 +17,14 @@ body {
 }
 
 /* Класс для отключения вертикального скролла */
+html.no-scroll {
+    overflow: hidden;
+    height: 100%;
+}
+
 body.no-scroll {
     overflow: hidden;
+    overscroll-behavior: contain;
 }
 
 /* СТИЛИ ДЛЯ СКРОЛЛБАРА */
