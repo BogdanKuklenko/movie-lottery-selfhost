@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let progressTimeoutId = null;
     let hasVoted = false;
     let votedMovie = null;
+    let isVoteModalOpen = false;
     const PLACEHOLDER_POSTER = 'https://via.placeholder.com/200x300.png?text=No+Image';
 
     initializePointsWidget();
@@ -156,12 +157,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ? `+${formatPoints(pointsValue)} за голос`
                 : 'Баллы не начисляются';
         }
+        if (!isVoteModalOpen) {
+            document.body.classList.add('no-scroll');
+            isVoteModalOpen = true;
+        }
         voteConfirmModal.style.display = 'flex';
     }
 
     function closeVoteConfirmation() {
         voteConfirmModal.style.display = 'none';
         selectedMovie = null;
+        if (isVoteModalOpen) {
+            document.body.classList.remove('no-scroll');
+            isVoteModalOpen = false;
+        }
     }
 
     voteCancelBtn.addEventListener('click', closeVoteConfirmation);
