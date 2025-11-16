@@ -12,6 +12,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const voteConfirmPoster = document.getElementById('vote-confirm-poster');
     const voteConfirmTitle = document.getElementById('vote-confirm-title');
     const voteConfirmYear = document.getElementById('vote-confirm-year');
+    const votedMovieWrapper = document.getElementById('voted-movie-wrapper');
+    const votedMovieCard = document.getElementById('voted-movie-card');
 
     const TEXTS = {
         ru: {
@@ -43,7 +45,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let selectedMovie = null;
     let progressTimeoutId = null;
-    const publicResultsUrl = `/p/${pollId}/results`;
+    let hasVoted = false;
+    let votedMovie = null;
+    const PLACEHOLDER_POSTER = 'https://via.placeholder.com/200x300.png?text=No+Image';
 
     initializePointsWidget();
 
@@ -63,15 +67,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         const pollData = await response.json();
         updatePointsBalance(pollData.points_balance);
 
-        // Если пользователь уже голосовал, сразу показываем результаты
-        if (pollData.has_voted) {
-            window.location.href = publicResultsUrl;
-            return;
-        }
-
         // Отображаем фильмы
         renderMovies(pollData.movies);
         pollDescription.textContent = `Выберите один фильм из ${pollData.movies.length}. Проголосовало: ${pollData.total_votes}`;
+
+        if (pollData.has_voted) {
+            hasVoted = true;
+            if (pollData.voted_movie) {
+                handleVotedState(pollData.voted_movie);
+            } else {
+                showMessage('Вы уже проголосовали в этом опросе.', 'info');
+                updateVotingDisabledState(true);
+            }
+        }
 
     } catch (error) {
         console.error('Ошибка загрузки опроса:', error);
@@ -86,9 +94,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const movieCard = document.createElement('div');
             movieCard.className = 'poll-movie-card';
             movieCard.dataset.movieId = movie.id;
-            
+
             movieCard.innerHTML = `
-                <img src="${movie.poster || 'https://via.placeholder.com/200x300.png?text=No+Image'}" alt="${escapeHtml(movie.name)}">
+                <img src="${movie.poster || PLACEHOLDER_POSTER}" alt="${escapeHtml(movie.name)}">
                 <div class="poll-movie-info">
                     <h3>${escapeHtml(movie.name)}</h3>
                     <p class="movie-year">${escapeHtml(movie.year || '')}</p>
@@ -98,16 +106,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             `;
 
             movieCard.addEventListener('click', () => {
+                if (hasVoted) {
+                    const text = votedMovie
+                        ? `Вы уже проголосовали за «${votedMovie.name}».`
+                        : 'Вы уже проголосовали в этом опросе.';
+                    showMessage(text, 'info');
+                    return;
+                }
                 openVoteConfirmation(movie);
             });
 
             pollGrid.appendChild(movieCard);
         });
+
+        highlightSelectedMovie(votedMovie ? votedMovie.id : null);
+        updateVotingDisabledState(hasVoted);
     }
 
     function openVoteConfirmation(movie) {
         selectedMovie = movie;
-        voteConfirmPoster.src = movie.poster || 'https://via.placeholder.com/200x300.png?text=No+Image';
+        voteConfirmPoster.src = movie.poster || PLACEHOLDER_POSTER;
         voteConfirmTitle.textContent = movie.name;
         voteConfirmYear.textContent = movie.year || '';
         voteConfirmModal.style.display = 'flex';
@@ -148,13 +166,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             handlePointsAfterVote(result);
 
-            // Скрываем сетку фильмов
-            pollGrid.style.display = 'none';
-            pollDescription.textContent = 'Спасибо за участие! Перенаправляем к результатам…';
-
-            setTimeout(() => {
-                window.location.href = publicResultsUrl;
-            }, 1500);
+            const votedMovieData = result.voted_movie || selectedMovie || null;
+            if (votedMovieData) {
+                handleVotedState(votedMovieData);
+            }
 
         } catch (error) {
             console.error('Ошибка голосования:', error);
@@ -251,6 +266,55 @@ document.addEventListener('DOMContentLoaded', async () => {
     function declOfNum(number, titles) {
         const cases = [2, 0, 1, 1, 1, 2];
         return titles[(number % 100 > 4 && number % 100 < 20) ? 2 : cases[(number % 10 < 5) ? number % 10 : 5]];
+    }
+
+    function handleVotedState(movieData) {
+        hasVoted = true;
+        votedMovie = movieData;
+        selectedMovie = null;
+        pollDescription.textContent = 'Вы уже проголосовали в этом опросе.';
+        showMessage(`Вы уже проголосовали за «${movieData.name}».`, 'info');
+        renderVotedMovie(movieData);
+        highlightSelectedMovie(movieData.id);
+        updateVotingDisabledState(true);
+    }
+
+    function updateVotingDisabledState(disabled) {
+        if (!pollGrid) return;
+        if (disabled) {
+            pollGrid.classList.add('poll-grid-disabled');
+        } else {
+            pollGrid.classList.remove('poll-grid-disabled');
+        }
+    }
+
+    function highlightSelectedMovie(movieId) {
+        if (!pollGrid) return;
+        const cards = pollGrid.querySelectorAll('.poll-movie-card');
+        cards.forEach(card => card.classList.remove('poll-movie-card-selected'));
+
+        if (!movieId) {
+            return;
+        }
+
+        const selectedCard = pollGrid.querySelector(`.poll-movie-card[data-movie-id="${movieId}"]`);
+        if (selectedCard) {
+            selectedCard.classList.add('poll-movie-card-selected');
+        }
+    }
+
+    function renderVotedMovie(movieData) {
+        if (!votedMovieWrapper || !votedMovieCard) return;
+        const poster = movieData.poster || PLACEHOLDER_POSTER;
+        votedMovieCard.innerHTML = `
+            <img src="${poster}" alt="${escapeHtml(movieData.name)}">
+            <div>
+                <h3>${escapeHtml(movieData.name)}</h3>
+                ${movieData.year ? `<p>${escapeHtml(movieData.year)}</p>` : ''}
+                ${movieData.genres ? `<p>${escapeHtml(movieData.genres)}</p>` : ''}
+            </div>
+        `;
+        votedMovieWrapper.style.display = 'block';
     }
 
 
