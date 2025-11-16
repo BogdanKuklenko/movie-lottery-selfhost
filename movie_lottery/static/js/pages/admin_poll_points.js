@@ -220,20 +220,54 @@ async function fetchStats() {
             headers: buildHeaders(),
             credentials: 'include'
         });
-        const data = await response.json();
+
         if (!response.ok) {
-            throw new Error(data.error || 'Не удалось загрузить статистику');
+            let errorDetail = '';
+            try {
+                const errorData = await response.json();
+                if (typeof errorData === 'string') {
+                    errorDetail = errorData;
+                } else {
+                    errorDetail = errorData?.error || errorData?.message || '';
+                }
+            } catch (jsonError) {
+                try {
+                    errorDetail = (await response.text())?.trim();
+                } catch (textError) {
+                    errorDetail = '';
+                }
+            }
+            const statusText = response.statusText ? ` (${response.statusText})` : '';
+            const errorMessage = `Сервер вернул ${response.status}${statusText}${errorDetail ? `: ${errorDetail}` : ''}`;
+            throw new Error(errorMessage);
+        }
+
+        let data;
+        try {
+            data = await response.json();
+        } catch (jsonError) {
+            let rawText = '';
+            try {
+                rawText = (await response.text())?.trim();
+            } catch (textError) {
+                rawText = '';
+            }
+            const errorMessage = rawText
+                ? `Не удалось распарсить ответ сервера: ${rawText}`
+                : 'Не удалось распарсить ответ сервера.';
+            throw new Error(errorMessage);
         }
         renderTable(data.items || []);
         updatePagination(data);
         updateSortIndicators();
     } catch (error) {
-        console.error(error);
-        setMessage(error.message || 'Не удалось получить данные', 'error');
+        console.error('Ошибка загрузки статистики', error);
+        const userMessage = error?.message?.trim() || 'Не удалось получить данные';
+        setMessage(userMessage, 'error');
         if (elements.tableBody) {
             elements.tableBody.innerHTML = `
                 <tr>
-                    <td colspan="6">${escapeHtml(error.message || 'Ошибка загрузки')}</td>
+                    <td colspan="6">${escapeHtml(userMessage)}</td>
                 </tr>
             `;
         }
