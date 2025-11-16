@@ -1,6 +1,7 @@
 // movie_lottery/static/js/pages/poll.js
 
 import { buildPollApiUrl } from '../utils/polls.js';
+import { lockScroll, unlockScroll } from '../utils/scrollLock.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     const pollGrid = document.getElementById('poll-grid');
@@ -158,7 +159,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 : 'Баллы не начисляются';
         }
         if (!isVoteModalOpen) {
-            document.body.classList.add('no-scroll');
+            lockScroll();
             isVoteModalOpen = true;
         }
         voteConfirmModal.style.display = 'flex';
@@ -168,7 +169,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         voteConfirmModal.style.display = 'none';
         selectedMovie = null;
         if (isVoteModalOpen) {
-            document.body.classList.remove('no-scroll');
+            unlockScroll();
             isVoteModalOpen = false;
         }
     }

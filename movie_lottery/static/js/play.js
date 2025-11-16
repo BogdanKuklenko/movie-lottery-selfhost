@@ -1,10 +1,21 @@
 // static/js/play.js
+import { lockScroll } from './utils/scrollLock.js';
+
 document.addEventListener('DOMContentLoaded', () => {
+    const movies = Array.isArray(window.lotteryData) ? window.lotteryData : [];
+    const drawUrlValue = window.drawUrl;
+
     const drawButton = document.getElementById('draw-button');
     const preDrawDiv = document.getElementById('pre-draw');
     const resultDiv = document.getElementById('result-display');
     const rouletteContainer = document.querySelector('.roulette-container');
     const rouletteDiv = document.querySelector('.roulette');
+
+    if (!movies.length) {
+        drawButton.disabled = true;
+        drawButton.textContent = 'Нет фильмов для розыгрыша';
+        return;
+    }
 
     // Сразу блокируем кнопку, пока картинки не загрузятся
     drawButton.disabled = true;
@@ -12,10 +23,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Создаем достаточное количество копий для плавной прокрутки
     const copies = 5;
-    const totalSlots = lotteryData.length * copies;
+    const totalSlots = movies.length * copies;
     let finalMovies = [];
     for (let i = 0; i < totalSlots; i++) {
-        finalMovies.push(lotteryData[i % lotteryData.length]);
+        finalMovies.push(movies[i % movies.length]);
     }
 
     const imageLoadPromises = [];
@@ -25,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
         img.src = movie.poster || 'https://via.placeholder.com/100x150.png?text=No+Image';
         rouletteDiv.appendChild(img);
 
-        const promise = new Promise((resolve, reject) => {
+        const promise = new Promise((resolve) => {
             img.onload = resolve;
             img.onerror = resolve; // Считаем ошибку загрузки тоже "завершением"
         });
@@ -43,16 +54,16 @@ document.addEventListener('DOMContentLoaded', () => {
         drawButton.textContent = 'Крутим барабан...';
 
         try {
-            const response = await fetch(drawUrl, { method: 'POST' });
+            const response = await fetch(drawUrlValue, { method: 'POST' });
             if (!response.ok) throw new Error('Не удалось провести розыгрыш');
 
             const winner = await response.json();
             
-            const winnerIndex = lotteryData.findIndex(m => m.name === winner.name);
+            const winnerIndex = movies.findIndex(m => m.name === winner.name);
 
             // Выбираем случайный "победный" слот из последних копий, чтобы барабан прокрутился достаточно далеко
             const winningCopyIndex = copies - 2;
-            const targetElementIndex = (lotteryData.length * winningCopyIndex) + winnerIndex;
+            const targetElementIndex = (movies.length * winningCopyIndex) + winnerIndex;
             const targetElement = rouletteDiv.children[targetElementIndex];
 
             // Рассчитываем финальную позицию для остановки
@@ -83,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Показываем результат
                     preDrawDiv.style.transition = 'opacity 0.5s ease-out';
                     preDrawDiv.style.opacity = '0';
-                    document.body.classList.add('no-scroll');
+                    lockScroll();
 
                     // --- ИЗМЕНЕНИЕ: Уменьшили задержку перед показом результата ---
                     setTimeout(() => {

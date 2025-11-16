@@ -18,7 +18,12 @@ body {
 
 /* Класс для отключения вертикального скролла */
 body.no-scroll {
+    position: fixed;
+    width: 100%;
+    top: var(--scroll-lock-offset, 0px);
+    left: 0;
     overflow: hidden;
+    touch-action: none;
 }
 
 /* СТИЛИ ДЛЯ СКРОЛЛБАРА */

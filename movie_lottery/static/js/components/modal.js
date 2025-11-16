@@ -3,6 +3,7 @@
 import { initSlider } from './slider.js';
 import { saveMagnetLink } from '../api/movies.js';
 import { deleteTorrentFromClient } from '../api/torrents.js';
+import { lockScroll, unlockScroll } from '../utils/scrollLock.js';
 
 // --- Вспомогательные функции для рендеринга ---
 
@@ -178,13 +179,13 @@ export class ModalManager {
     
     open() {
         this.modal.style.display = 'flex';
-        document.body.classList.add('no-scroll');
+        lockScroll();
         this.body.innerHTML = '<div class="loader"></div>';
     }
 
     close() {
         this.modal.style.display = 'none';
-        document.body.classList.remove('no-scroll');
+        unlockScroll();
         this.body.innerHTML = '';
     }
 
