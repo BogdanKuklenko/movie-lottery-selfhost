@@ -27,14 +27,16 @@ class Config:
     SQLALCHEMY_DATABASE_URI = db_uri or f'sqlite:///{os.path.join(instance_dir, "lottery.db")}'
     
     # PostgreSQL settings - optimized for memory conservation
+    connect_args = {}
+    if db_uri and db_uri.startswith('postgresql'):
+        connect_args['connect_timeout'] = 10
+
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_size': 1,
         'max_overflow': 0,
         'pool_pre_ping': True,
         'pool_recycle': 300,
-        'connect_args': {
-            'connect_timeout': 10,
-        } if db_uri else {}
+        'connect_args': connect_args,
     }
 
     # qBittorrent settings

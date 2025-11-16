@@ -218,7 +218,7 @@ async function fetchStats() {
     try {
         const response = await fetch(buildPollApiUrl(`/api/polls/voter-stats?${params.toString()}`), {
             headers: buildHeaders(),
-            credentials: 'same-origin'
+            credentials: 'include'
         });
         const data = await response.json();
         if (!response.ok) {

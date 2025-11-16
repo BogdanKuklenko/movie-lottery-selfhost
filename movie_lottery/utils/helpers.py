@@ -12,6 +12,7 @@ from ..models import (
     BackgroundPhoto,
     Lottery,
     Poll,
+    PollCreatorToken,
     PollMovie,
     PollVoterProfile,
     Vote,
@@ -137,6 +138,7 @@ def ensure_poll_tables():
         'poll_movie': PollMovie.__table__,
         'poll_voter_profile': PollVoterProfile.__table__,
         'vote': Vote.__table__,
+        'poll_creator_token': PollCreatorToken.__table__,
     }
     existing_tables = set(inspector.get_table_names())
     missing_tables = [name for name in required_tables if name not in existing_tables]

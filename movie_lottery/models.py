@@ -53,10 +53,25 @@ class BackgroundPhoto(db.Model):
     added_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
+class PollCreatorToken(db.Model):
+    __tablename__ = 'poll_creator_token'
+
+    id = db.Column(db.Integer, primary_key=True)
+    creator_token = db.Column(db.String(64), nullable=False, unique=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    last_seen = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+
 class Poll(db.Model):
     id = db.Column(db.String(8), primary_key=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     expires_at = db.Column(db.DateTime, nullable=False)
+    creator_token = db.Column(db.String(64), nullable=False)
     movies = db.relationship('PollMovie', backref='poll', lazy=True, cascade="all, delete-orphan")
     votes = db.relationship('Vote', backref='poll', lazy=True, cascade="all, delete-orphan")
 

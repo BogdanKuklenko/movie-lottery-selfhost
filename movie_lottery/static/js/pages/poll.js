@@ -66,7 +66,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Загружаем данные опроса
     try {
-        const response = await fetch(buildPollApiUrl(`/api/polls/${pollId}`));
+        const response = await fetch(buildPollApiUrl(`/api/polls/${pollId}`), {
+            credentials: 'include'
+        });
 
         if (!response.ok) {
             const error = await response.json();
@@ -145,7 +147,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const response = await fetch(buildPollApiUrl(`/api/polls/${pollId}/vote`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ movie_id: selectedMovie.id })
+                body: JSON.stringify({ movie_id: selectedMovie.id }),
+                credentials: 'include'
             });
 
             const result = await response.json();
