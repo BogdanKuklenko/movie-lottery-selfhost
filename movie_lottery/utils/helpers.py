@@ -12,7 +12,9 @@ from ..models import (
     BackgroundPhoto,
     Lottery,
     Poll,
+    PollMovie,
     PollVoterProfile,
+    Vote,
 )
 
 
@@ -108,6 +110,58 @@ def ensure_vote_points_column():
             logger.warning('%s Ошибка: %s', message, exc)
         else:
             print(f"{message} Ошибка: {exc}")
+
+
+def ensure_poll_tables():
+    """
+    Ensure that all tables required for polls exist.
+
+    На некоторых окружениях миграции могут не запускаться автоматически,
+    поэтому таблицы опросов создаём по требованию.
+    """
+
+    engine = db.engine
+
+    try:
+        inspector = inspect(engine)
+    except Exception as exc:
+        logger = getattr(current_app, 'logger', None)
+        if logger:
+            logger.warning('Не удалось проверить таблицы опросов: %s', exc)
+        else:
+            print(f"Не удалось проверить таблицы опросов: {exc}")
+        return False
+
+    required_tables = {
+        'poll': Poll.__table__,
+        'poll_movie': PollMovie.__table__,
+        'poll_voter_profile': PollVoterProfile.__table__,
+        'vote': Vote.__table__,
+    }
+    existing_tables = set(inspector.get_table_names())
+    missing_tables = [name for name in required_tables if name not in existing_tables]
+
+    if not missing_tables:
+        return False
+
+    try:
+        with engine.begin() as connection:
+            for table_name in missing_tables:
+                required_tables[table_name].create(bind=connection, checkfirst=True)
+        logger = getattr(current_app, 'logger', None)
+        if logger:
+            logger.info('Автоматически созданы таблицы опросов: %s', ', '.join(missing_tables))
+        else:
+            print(f"Автоматически созданы таблицы опросов: {', '.join(missing_tables)}")
+        return True
+    except Exception as exc:
+        logger = getattr(current_app, 'logger', None)
+        message = 'Не удалось автоматически создать таблицы опросов.'
+        if logger:
+            logger.error('%s Ошибка: %s', message, exc)
+        else:
+            print(f"{message} Ошибка: {exc}")
+        return False
 
 
 def get_background_photos():
