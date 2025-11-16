@@ -188,6 +188,57 @@ def ensure_library_movie_columns():
         return False
 
 
+def ensure_poll_movie_points_column():
+    """Добавляет колонку points в poll_movie, если её ещё нет."""
+    engine = db.engine
+
+    try:
+        inspector = inspect(engine)
+    except Exception:
+        return False
+
+    table_name = 'poll_movie'
+    if table_name not in inspector.get_table_names():
+        return False
+
+    existing_columns = {col['name'] for col in inspector.get_columns(table_name)}
+    if 'points' in existing_columns:
+        return False
+
+    dialect = engine.dialect.name
+
+    try:
+        with engine.begin() as connection:
+            if dialect == 'postgresql':
+                connection.execute(text(
+                    "ALTER TABLE poll_movie "
+                    "ADD COLUMN IF NOT EXISTS points INTEGER NOT NULL DEFAULT 1"
+                ))
+            else:
+                connection.execute(text(
+                    "ALTER TABLE poll_movie ADD COLUMN points INTEGER DEFAULT 1"
+                ))
+            connection.execute(text(
+                "UPDATE poll_movie SET points = COALESCE(points, 1)"
+            ))
+
+        logger = getattr(current_app, 'logger', None)
+        message = 'Автоматически добавлена колонка points в poll_movie.'
+        if logger:
+            logger.info(message)
+        else:
+            print(message)
+        return True
+    except Exception as exc:
+        logger = getattr(current_app, 'logger', None)
+        message = 'Не удалось автоматически обновить таблицу poll_movie.'
+        if logger:
+            logger.warning('%s Ошибка: %s', message, exc)
+        else:
+            print(f"{message} Ошибка: {exc}")
+        return False
+
+
 def ensure_poll_tables():
     """
     Ensure that all tables required for polls exist.

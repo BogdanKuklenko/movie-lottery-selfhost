@@ -7,6 +7,7 @@ import tempfile
 from unittest.mock import MagicMock
 
 import pytest
+from sqlalchemy import inspect, text
 from sqlalchemy.exc import OperationalError
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -116,6 +117,30 @@ def test_change_voter_points_balance_skips_db_when_profiles_missing(app, monkeyp
     balance = helpers.change_voter_points_balance('token-xyz', 5)
 
     assert balance == 5
+
+
+def test_ensure_poll_movie_points_column_backfills_missing_column(app):
+    client = app.test_client()
+    response = _create_poll_via_api(client, [_build_movie('One'), _build_movie('Two')])
+    assert response.status_code == 200
+
+    db.session.execute(text('ALTER TABLE poll_movie DROP COLUMN points'))
+    db.session.commit()
+
+    engine = db.engine
+    before_columns = {col['name'] for col in inspect(engine).get_columns('poll_movie')}
+    assert 'points' not in before_columns
+
+    created = helpers.ensure_poll_movie_points_column()
+    assert created is True
+
+    after_columns = {col['name'] for col in inspect(engine).get_columns('poll_movie')}
+    assert 'points' in after_columns
+
+    db.session.expire_all()
+    poll = Poll.query.get(response.get_json()['poll_id'])
+    assert poll is not None
+    assert all(movie.points == 1 for movie in poll.movies)
 
 
 def test_create_poll_sets_creator_cookie(app):

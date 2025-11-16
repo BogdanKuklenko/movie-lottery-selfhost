@@ -64,12 +64,14 @@ def create_app():
     with app.app_context():
         from .utils.helpers import (
             ensure_library_movie_columns,
+            ensure_poll_movie_points_column,
             ensure_poll_tables,
             ensure_vote_points_column,
         )
 
         ensure_poll_tables()
         ensure_vote_points_column()
+        ensure_poll_movie_points_column()
         ensure_library_movie_columns()
 
     from . import models
