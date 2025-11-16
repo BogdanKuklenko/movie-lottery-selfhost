@@ -199,6 +199,8 @@ def _group_votes_by_token(tokens, filters):
             'voted_at': vote.voted_at.isoformat() if vote.voted_at else None,
         })
 
+    return votes_by_token
+
 
 def _serialize_poll_movie(movie):
     if not movie:
@@ -216,8 +218,6 @@ def _serialize_poll_movie(movie):
         "genres": movie.genres,
         "countries": movie.countries,
     }
-
-    return votes_by_token
 
 # --- Routes for movies and lotteries ---
 
