@@ -11,6 +11,11 @@ class Config:
     except (TypeError, ValueError):
         POLL_POINTS_PER_VOTE = 1
 
+    try:
+        POLL_CUSTOM_VOTE_COST = int(os.environ.get('POLL_CUSTOM_VOTE_COST', 10))
+    except (TypeError, ValueError):
+        POLL_CUSTOM_VOTE_COST = 10
+
     # Дополнительные настройки API опросов
     POLL_API_BASE_URL = os.environ.get('POLL_API_BASE_URL')
     POLL_API_ALLOWED_ORIGINS = os.environ.get('POLL_API_ALLOWED_ORIGINS')

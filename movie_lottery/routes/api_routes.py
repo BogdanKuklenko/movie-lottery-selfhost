@@ -60,6 +60,13 @@ def _get_json_payload():
     return data if isinstance(data, dict) else None
 
 
+def _get_custom_vote_cost():
+    try:
+        return max(0, int(current_app.config.get('POLL_CUSTOM_VOTE_COST', 10)))
+    except (TypeError, ValueError):
+        return 10
+
+
 def _read_creator_token_from_request():
     raw_token = request.cookies.get(POLL_CREATOR_COOKIE) or request.headers.get(POLL_CREATOR_HEADER)
     if not raw_token:
@@ -596,6 +603,9 @@ def get_poll(poll_id):
     if existing_vote:
         voted_movie_data = _serialize_poll_movie(movies_by_id.get(existing_vote.movie_id))
 
+    custom_vote_cost = _get_custom_vote_cost()
+    can_vote_custom = not poll.is_expired and not existing_vote and points_balance >= custom_vote_cost
+
     response = prevent_caching(jsonify({
         "poll_id": poll.id,
         "movies": movies_data,
@@ -605,6 +615,8 @@ def get_poll(poll_id):
         "voted_movie": voted_movie_data,
         "total_votes": len(poll.votes),
         "points_balance": points_balance,
+        "custom_vote_cost": custom_vote_cost,
+        "can_vote_custom": can_vote_custom,
     }))
 
     # Устанавливаем cookie с токеном голосующего
@@ -684,7 +696,120 @@ def vote_in_poll(poll_id):
     # Устанавливаем cookie с токеном
     if not request.cookies.get('voter_token'):
         response.set_cookie('voter_token', voter_token, max_age=60*60*24*30)
-    
+
+    return response
+
+
+@api_bp.route('/polls/<poll_id>/custom-vote', methods=['POST'])
+def custom_vote(poll_id):
+    poll = Poll.query.get_or_404(poll_id)
+
+    if poll.is_expired:
+        return jsonify({"error": "Опрос истёк"}), 410
+
+    payload = _get_json_payload()
+    if payload is None:
+        return jsonify({"error": "Некорректный JSON-запрос"}), 400
+
+    raw_query = payload.get('query') or ''
+    query = raw_query.strip()
+    if not query:
+        return jsonify({"error": "Пустой запрос"}), 400
+
+    kinopoisk_id = payload.get('kinopoisk_id')
+
+    voter_token = request.cookies.get('voter_token') or secrets.token_hex(16)
+    device_label = _resolve_device_label()
+
+    existing_vote = Vote.query.filter_by(poll_id=poll_id, voter_token=voter_token).first()
+    if existing_vote:
+        return jsonify({"error": "Вы уже проголосовали в этом опросе"}), 400
+
+    profile = ensure_voter_profile(voter_token, device_label=device_label)
+    cost = _get_custom_vote_cost()
+    current_balance = profile.total_points or 0
+
+    if current_balance < cost:
+        return jsonify({"error": "Недостаточно баллов для кастомного голосования"}), 400
+
+    movie_data, error = get_movie_data_from_kinopoisk(query)
+    if not movie_data:
+        message = "Фильм не найден"
+        if error and error.get('message'):
+            message = error['message']
+        status_code = error.get('status') if isinstance(error, dict) else None
+        return jsonify({"error": message}), status_code or 404
+
+    if kinopoisk_id and not movie_data.get('kinopoisk_id'):
+        movie_data['kinopoisk_id'] = kinopoisk_id
+
+    resolved_kinopoisk_id = movie_data.get('kinopoisk_id') or kinopoisk_id
+
+    existing_movie = None
+    if resolved_kinopoisk_id:
+        existing_movie = PollMovie.query.filter_by(
+            poll_id=poll_id, kinopoisk_id=resolved_kinopoisk_id
+        ).first()
+
+    if not existing_movie:
+        existing_movie = PollMovie.query.filter_by(
+            poll_id=poll_id,
+            name=movie_data.get('name'),
+            year=movie_data.get('year'),
+        ).first()
+
+    if existing_movie:
+        poll_movie = existing_movie
+    else:
+        poll_movie = PollMovie(
+            poll=poll,
+            kinopoisk_id=movie_data.get('kinopoisk_id'),
+            name=movie_data.get('name'),
+            search_name=movie_data.get('search_name'),
+            poster=movie_data.get('poster'),
+            year=movie_data.get('year'),
+            description=movie_data.get('description'),
+            rating_kp=movie_data.get('rating_kp'),
+            genres=movie_data.get('genres'),
+            countries=movie_data.get('countries'),
+            points=_normalize_poll_movie_points(movie_data.get('points'), 1),
+        )
+        db.session.add(poll_movie)
+        if poster := movie_data.get('poster'):
+            ensure_background_photo(poster)
+
+    db.session.flush()
+
+    new_balance = change_voter_points_balance(
+        voter_token,
+        -cost,
+        device_label=device_label,
+    )
+
+    if new_balance < 0:
+        db.session.rollback()
+        return jsonify({"error": "Недостаточно баллов для кастомного голосования"}), 400
+
+    new_vote = Vote(
+        poll_id=poll_id,
+        movie_id=poll_movie.id,
+        voter_token=voter_token,
+        points_awarded=-cost,
+    )
+    db.session.add(new_vote)
+
+    db.session.commit()
+
+    response = prevent_caching(jsonify({
+        "success": True,
+        "movie": _serialize_poll_movie(poll_movie),
+        "points_balance": new_balance,
+        "has_voted": True,
+    }))
+
+    if not request.cookies.get('voter_token'):
+        response.set_cookie('voter_token', voter_token, max_age=60*60*24*30)
+
     return response
 
 
