@@ -111,6 +111,9 @@ function buildRow(item) {
         ? `<span class="badge"><strong>${votes.length}</strong> голосов · ${filteredPoints >= 0 ? '+' : ''}${filteredPoints} pts</span>`
         : '<span class="badge">—</span>';
     const lastVote = votes.length ? votes[0].voted_at : null;
+    const deviceLabel = item.device_label || '';
+
+    const totalPoints = Number.isFinite(Number(item.total_points)) ? Number(item.total_points) : 0;
 
     return `
         <tr>
@@ -122,10 +125,36 @@ function buildRow(item) {
                     </div>
                 </div>
             </td>
-            <td>${escapeHtml(item.device_label || '—')}</td>
-            <td>${item.total_points ?? 0}</td>
             <td>
-                <div>${formatDateTime(item.updated_at)}</div>
+                <div class="device-label-cell" data-voter-token="${escapeHtml(item.voter_token)}">
+                    <input
+                        type="text"
+                        class="device-label-input"
+                        value="${escapeHtml(deviceLabel)}"
+                        data-initial-value="${escapeHtml(deviceLabel)}"
+                        placeholder="Без метки"
+                        maxlength="255"
+                        disabled
+                    />
+                    <button type="button" class="device-label-toggle" data-mode="view">Редактировать</button>
+                </div>
+            </td>
+            <td>
+                <div class="points-cell" data-voter-token="${escapeHtml(item.voter_token)}">
+                    <input
+                        type="number"
+                        inputmode="numeric"
+                        step="1"
+                        class="points-input"
+                        value="${escapeHtml(totalPoints)}"
+                        data-initial-value="${escapeHtml(totalPoints)}"
+                        disabled
+                    />
+                    <button type="button" class="points-toggle" data-mode="view">Редактировать</button>
+                </div>
+            </td>
+            <td>
+                <div class="updated-at" data-updated-at="${escapeHtml(item.updated_at || '')}">${formatDateTime(item.updated_at)}</div>
                 <div class="admin-hint">Создан: ${formatDateTime(item.created_at, false)}</div>
             </td>
             <td>
@@ -179,8 +208,8 @@ function updateSortIndicators() {
     });
 }
 
-function buildHeaders() {
-    return { Accept: 'application/json' };
+function buildHeaders(extra = {}) {
+    return { Accept: 'application/json', ...extra };
 }
 
 function collectFiltersFromForm() {
@@ -329,6 +358,291 @@ function handleCopy(event) {
         .catch(() => setMessage('Не удалось скопировать токен.', 'error'));
 }
 
+function enterDeviceLabelEditing(container) {
+    const input = container?.querySelector('.device-label-input');
+    const button = container?.querySelector('.device-label-toggle');
+    if (!input || !button) return;
+    container.classList.add('is-editing');
+    button.dataset.mode = 'editing';
+    button.textContent = 'Сохранить';
+    input.disabled = false;
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+}
+
+function exitDeviceLabelEditing(container, { resetValue = false } = {}) {
+    const input = container?.querySelector('.device-label-input');
+    const button = container?.querySelector('.device-label-toggle');
+    if (!input || !button) return;
+    container.classList.remove('is-editing');
+    button.dataset.mode = 'view';
+    button.textContent = 'Редактировать';
+    if (resetValue) {
+        input.value = input.dataset.initialValue || '';
+    }
+    input.disabled = true;
+}
+
+function enterPointsEditing(container) {
+    const input = container?.querySelector('.points-input');
+    const button = container?.querySelector('.points-toggle');
+    if (!input || !button) return;
+    container.classList.add('is-editing');
+    button.dataset.mode = 'editing';
+    button.textContent = 'Сохранить';
+    input.disabled = false;
+    input.focus();
+    input.select();
+}
+
+function exitPointsEditing(container, { resetValue = false } = {}) {
+    const input = container?.querySelector('.points-input');
+    const button = container?.querySelector('.points-toggle');
+    if (!input || !button) return;
+    container.classList.remove('is-editing');
+    button.dataset.mode = 'view';
+    button.textContent = 'Редактировать';
+    if (resetValue) {
+        input.value = input.dataset.initialValue || '0';
+    }
+    input.disabled = true;
+}
+
+function updateRowMeta(container, profile) {
+    const row = container?.closest('tr');
+    if (!row || !profile) return;
+    const updatedAtElement = row.querySelector('[data-updated-at]');
+    if (updatedAtElement && profile.updated_at) {
+        updatedAtElement.dataset.updatedAt = profile.updated_at;
+        updatedAtElement.textContent = formatDateTime(profile.updated_at);
+    }
+}
+
+async function saveDeviceLabel(container) {
+    const token = container?.dataset.voterToken;
+    const input = container?.querySelector('.device-label-input');
+    const button = container?.querySelector('.device-label-toggle');
+    if (!token || !input || !button) return;
+
+    const trimmed = input.value.trim();
+    let normalized = trimmed ? trimmed.slice(0, 255) : null;
+    if (normalized !== null && trimmed.length > 255) {
+        input.value = normalized;
+    }
+    if (normalized === null) {
+        input.value = '';
+    }
+
+    button.disabled = true;
+    input.disabled = true;
+    setMessage('Сохраняем метку устройства…');
+
+    try {
+        const response = await fetch(buildPollApiUrl(`/api/polls/voter-stats/${encodeURIComponent(token)}/device-label`), {
+            method: 'PATCH',
+            headers: buildHeaders({ 'Content-Type': 'application/json' }),
+            credentials: 'include',
+            body: JSON.stringify({ device_label: normalized })
+        });
+
+        if (!response.ok) {
+            let errorDetail = '';
+            try {
+                const errorData = await response.json();
+                if (typeof errorData === 'string') {
+                    errorDetail = errorData;
+                } else {
+                    errorDetail = errorData?.error || errorData?.message || '';
+                }
+            } catch (jsonError) {
+                try {
+                    errorDetail = (await response.text())?.trim();
+                } catch (textError) {
+                    errorDetail = '';
+                }
+            }
+            const statusText = response.statusText ? ` (${response.statusText})` : '';
+            const errorMessage = `Сервер вернул ${response.status}${statusText}${errorDetail ? `: ${errorDetail}` : ''}`;
+            throw new Error(errorMessage);
+        }
+
+        let data;
+        try {
+            data = await response.json();
+        } catch (jsonError) {
+            let rawText = '';
+            try {
+                rawText = (await response.text())?.trim();
+            } catch (textError) {
+                rawText = '';
+            }
+            const errorMessage = rawText
+                ? `Не удалось распарсить ответ сервера: ${rawText}`
+                : 'Не удалось распарсить ответ сервера.';
+            throw new Error(errorMessage);
+        }
+
+        const newValue = data.device_label || '';
+        input.value = newValue;
+        input.dataset.initialValue = newValue;
+        exitDeviceLabelEditing(container);
+        setMessage('Метка устройства обновлена.', 'success');
+        updateRowMeta(container, data);
+    } catch (error) {
+        console.error('Ошибка обновления метки устройства', error);
+        const userMessage = error?.message?.trim() || 'Не удалось обновить метку устройства.';
+        setMessage(userMessage, 'error');
+        input.disabled = false;
+        button.disabled = false;
+        return;
+    }
+
+    button.disabled = false;
+}
+
+async function savePoints(container) {
+    const token = container?.dataset.voterToken;
+    const input = container?.querySelector('.points-input');
+    const button = container?.querySelector('.points-toggle');
+    if (!token || !input || !button) return;
+
+    const trimmed = input.value.trim();
+    if (trimmed === '') {
+        setMessage('Введите количество баллов.', 'error');
+        input.focus();
+        return;
+    }
+
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+        setMessage('Баллы должны быть целым числом.', 'error');
+        input.focus();
+        return;
+    }
+
+    const normalized = parsed;
+
+    button.disabled = true;
+    input.disabled = true;
+    setMessage('Сохраняем баллы…');
+
+    try {
+        const response = await fetch(buildPollApiUrl(`/api/polls/voter-stats/${encodeURIComponent(token)}/points`), {
+            method: 'PATCH',
+            headers: buildHeaders({ 'Content-Type': 'application/json' }),
+            credentials: 'include',
+            body: JSON.stringify({ total_points: normalized })
+        });
+
+        if (!response.ok) {
+            let errorDetail = '';
+            try {
+                const errorData = await response.json();
+                if (typeof errorData === 'string') {
+                    errorDetail = errorData;
+                } else {
+                    errorDetail = errorData?.error || errorData?.message || '';
+                }
+            } catch (jsonError) {
+                try {
+                    errorDetail = (await response.text())?.trim();
+                } catch (textError) {
+                    errorDetail = '';
+                }
+            }
+            const statusText = response.statusText ? ` (${response.statusText})` : '';
+            const errorMessage = `Сервер вернул ${response.status}${statusText}${errorDetail ? `: ${errorDetail}` : ''}`;
+            throw new Error(errorMessage);
+        }
+
+        let data;
+        try {
+            data = await response.json();
+        } catch (jsonError) {
+            let rawText = '';
+            try {
+                rawText = (await response.text())?.trim();
+            } catch (textError) {
+                rawText = '';
+            }
+            const errorMessage = rawText
+                ? `Не удалось распарсить ответ сервера: ${rawText}`
+                : 'Не удалось распарсить ответ сервера.';
+            throw new Error(errorMessage);
+        }
+
+        const newValue = Number.isFinite(Number(data.total_points)) ? Number(data.total_points) : 0;
+        input.value = newValue;
+        input.dataset.initialValue = String(newValue);
+        exitPointsEditing(container);
+        setMessage('Баллы обновлены.', 'success');
+        updateRowMeta(container, data);
+    } catch (error) {
+        console.error('Ошибка обновления баллов', error);
+        const userMessage = error?.message?.trim() || 'Не удалось обновить баллы.';
+        setMessage(userMessage, 'error');
+        input.disabled = false;
+        button.disabled = false;
+        return;
+    }
+
+    button.disabled = false;
+}
+
+function handleDeviceLabelClick(event) {
+    const button = event.target.closest('.device-label-toggle');
+    if (!button) return;
+    const container = button.closest('.device-label-cell');
+    if (!container) return;
+    if (button.dataset.mode === 'editing') {
+        saveDeviceLabel(container);
+    } else {
+        enterDeviceLabelEditing(container);
+    }
+}
+
+function handleDeviceLabelKeydown(event) {
+    const input = event.target.closest('.device-label-input');
+    if (!input) return;
+    const container = input.closest('.device-label-cell');
+    const button = container?.querySelector('.device-label-toggle');
+    if (!container || !button) return;
+    if (event.key === 'Enter' && button.dataset.mode === 'editing') {
+        event.preventDefault();
+        saveDeviceLabel(container);
+    } else if (event.key === 'Escape') {
+        event.preventDefault();
+        exitDeviceLabelEditing(container, { resetValue: true });
+    }
+}
+
+function handlePointsClick(event) {
+    const button = event.target.closest('.points-toggle');
+    if (!button) return;
+    const container = button.closest('.points-cell');
+    if (!container) return;
+    if (button.dataset.mode === 'editing') {
+        savePoints(container);
+    } else {
+        enterPointsEditing(container);
+    }
+}
+
+function handlePointsKeydown(event) {
+    const input = event.target.closest('.points-input');
+    if (!input) return;
+    const container = input.closest('.points-cell');
+    const button = container?.querySelector('.points-toggle');
+    if (!container || !button) return;
+    if (event.key === 'Enter' && button.dataset.mode === 'editing') {
+        event.preventDefault();
+        savePoints(container);
+    } else if (event.key === 'Escape') {
+        event.preventDefault();
+        exitPointsEditing(container, { resetValue: true });
+    }
+}
+
 function attachEvents() {
     elements.filtersForm?.addEventListener('submit', handleFiltersSubmit);
     elements.resetFilters?.addEventListener('click', handleResetFilters);
@@ -337,6 +651,10 @@ function attachEvents() {
     elements.refreshButton?.addEventListener('click', fetchStats);
     elements.table?.querySelector('thead')?.addEventListener('click', handleSort);
     elements.tableBody?.addEventListener('click', handleCopy);
+    elements.tableBody?.addEventListener('click', handleDeviceLabelClick);
+    elements.tableBody?.addEventListener('keydown', handleDeviceLabelKeydown);
+    elements.tableBody?.addEventListener('click', handlePointsClick);
+    elements.tableBody?.addEventListener('keydown', handlePointsKeydown);
     elements.perPageSelect?.addEventListener('change', (event) => {
         const value = parseInt(event.target.value, 10);
         if (!Number.isNaN(value)) {

@@ -245,6 +245,66 @@
     color: var(--primary-color);
 }
 
+.device-label-cell,
+.points-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.device-label-input,
+.points-input {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background-color: rgba(255, 255, 255, 0.05);
+    color: var(--text-color);
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.device-label-input:disabled,
+.points-input:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.device-label-cell.is-editing .device-label-input,
+.points-cell.is-editing .points-input {
+    border-color: var(--primary-color);
+    background-color: rgba(255, 255, 255, 0.08);
+    opacity: 1;
+}
+
+.device-label-toggle,
+.points-toggle {
+    align-self: flex-start;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: transparent;
+    color: var(--text-color);
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.device-label-toggle:hover:not([disabled]),
+.points-toggle:hover:not([disabled]) {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.device-label-toggle[disabled],
+.points-toggle[disabled] {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.table-hint {
+    margin: 8px 0 0;
+}
+
 @media (max-width: 768px) {
     .secret-row {
         flex-direction: column;

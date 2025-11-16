@@ -1019,3 +1019,61 @@ def voter_stats_details(voter_token):
     }
 
     return prevent_caching(jsonify(payload))
+
+
+@api_bp.route('/polls/voter-stats/<string:voter_token>/device-label', methods=['PATCH'])
+def update_voter_device_label(voter_token):
+    data = _get_json_payload()
+    if data is None or 'device_label' not in data:
+        return jsonify({'error': 'Передайте device_label в теле запроса'}), 400
+
+    raw_label = data.get('device_label')
+    if raw_label is not None and not isinstance(raw_label, str):
+        return jsonify({'error': 'Метка устройства должна быть строкой или null'}), 400
+
+    normalized_label = None
+    if isinstance(raw_label, str):
+        trimmed = raw_label.strip()
+        if trimmed:
+            normalized_label = trimmed[:255]
+
+    profile = PollVoterProfile.query.get_or_404(voter_token)
+    profile.device_label = normalized_label
+    profile.updated_at = datetime.utcnow()
+    db.session.commit()
+
+    payload = {
+        'voter_token': profile.token,
+        'device_label': profile.device_label,
+        'total_points': profile.total_points or 0,
+        'created_at': profile.created_at.isoformat() if profile.created_at else None,
+        'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
+    }
+
+    return prevent_caching(jsonify(payload))
+
+
+@api_bp.route('/polls/voter-stats/<string:voter_token>/points', methods=['PATCH'])
+def update_voter_total_points(voter_token):
+    data = _get_json_payload()
+    if data is None or 'total_points' not in data:
+        return jsonify({'error': 'Передайте total_points в теле запроса'}), 400
+
+    new_points = data.get('total_points')
+    if isinstance(new_points, bool) or not isinstance(new_points, int):
+        return jsonify({'error': 'total_points должен быть целым числом'}), 400
+
+    profile = PollVoterProfile.query.get_or_404(voter_token)
+    profile.total_points = new_points
+    profile.updated_at = datetime.utcnow()
+    db.session.commit()
+
+    payload = {
+        'voter_token': profile.token,
+        'device_label': profile.device_label,
+        'total_points': profile.total_points or 0,
+        'created_at': profile.created_at.isoformat() if profile.created_at else None,
+        'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
+    }
+
+    return prevent_caching(jsonify(payload))
