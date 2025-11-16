@@ -2,6 +2,7 @@ const SCROLL_LOCK_CLASS = 'no-scroll';
 let scrollPositionX = 0;
 let scrollPositionY = 0;
 let lockDepth = 0;
+let scrollbarWidth = 0;
 
 const getBody = () => (typeof document !== 'undefined' ? document.body : null);
 const getWindow = () => (typeof window !== 'undefined' ? window : null);
@@ -12,8 +13,10 @@ const applyLockStyles = (body, offsetX, offsetY) => {
     body.style.top = `-${offsetY}px`;
     body.style.left = `-${offsetX}px`;
     body.style.touchAction = 'none';
+    body.style.paddingRight = `${scrollbarWidth}px`;
     body.style.setProperty('--scroll-lock-offset', `-${offsetY}px`);
     body.style.setProperty('--scroll-lock-offset-x', `-${offsetX}px`);
+    body.style.setProperty('--scroll-lock-padding-right', `${scrollbarWidth}px`);
 };
 
 const resetLockStyles = (body) => {
@@ -22,8 +25,10 @@ const resetLockStyles = (body) => {
     body.style.top = '';
     body.style.left = '';
     body.style.touchAction = '';
+    body.style.paddingRight = '';
     body.style.removeProperty('--scroll-lock-offset');
     body.style.removeProperty('--scroll-lock-offset-x');
+    body.style.removeProperty('--scroll-lock-padding-right');
 };
 
 export function lockScroll() {
@@ -35,9 +40,15 @@ export function lockScroll() {
     if (lockDepth === 0) {
         const currentWindow = getWindow();
         if (currentWindow) {
+            scrollbarWidth = Math.max(
+                0,
+                currentWindow.innerWidth - document.documentElement.clientWidth,
+            );
+
             scrollPositionY = currentWindow.scrollY || currentWindow.pageYOffset || 0;
             scrollPositionX = currentWindow.scrollX || currentWindow.pageXOffset || 0;
         } else {
+            scrollbarWidth = 0;
             scrollPositionY = 0;
             scrollPositionX = 0;
         }
