@@ -267,6 +267,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         return div.innerHTML;
     }
 
+    function decodeHtmlEntities(htmlString) {
+        if (typeof htmlString !== 'string') {
+            return '';
+        }
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlString, 'text/html');
+        return doc.documentElement.textContent || '';
+    }
+
     function initializePointsWidget() {
         if (!pointsBalanceLabel || !pointsBalanceStatus || !pointsStateBadge || !pointsProgressLabel) {
             return;
@@ -558,7 +567,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         customVoteYear.textContent = escapeHtml(movieData.year || '—');
         const rating = Number(movieData.rating_kp);
         customVoteRating.textContent = Number.isFinite(rating) ? `⭐ ${rating.toFixed(1)}` : '';
-        customVoteDescription.textContent = escapeHtml(movieData.description || 'Описание отсутствует.');
+        const decodedDescription = decodeHtmlEntities(movieData.description || '').trim();
+        customVoteDescription.textContent = decodedDescription || 'Описание отсутствует.';
     }
 
     function showCustomVoteError(text) {
