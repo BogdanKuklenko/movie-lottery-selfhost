@@ -95,6 +95,25 @@ export async function deleteLibraryMovie(movieId) {
 }
 
 /**
+ * Обновляет количество баллов для фильма в библиотеке.
+ * @param {string|number} movieId - ID фильма в библиотеке.
+ * @param {number} points - Новое значение баллов.
+ * @returns {Promise<object>} - Результат операции.
+ */
+export async function updateLibraryMoviePoints(movieId, points) {
+    const response = await fetch(`/api/library/${movieId}/points`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ points })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(data.message || data.error || 'Не удалось обновить баллы.');
+    }
+    return data;
+}
+
+/**
  * Сохраняет или удаляет magnet-ссылку для фильма.
  * @param {string|number} kinopoiskId - ID фильма на Кинопоиске.
  * @param {string} magnetLink - Magnet-ссылка. Пустая строка для удаления.

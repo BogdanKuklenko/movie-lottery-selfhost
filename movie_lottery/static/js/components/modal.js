@@ -59,6 +59,9 @@ function createWinnerCardHTML(movieData, isLibrary) {
         ratingBadge = `<div class="rating-badge rating-${ratingClass}">${ratingValue.toFixed(1)}</div>`;
     }
 
+    const parsedPoints = Number(movieData.points);
+    const pointsValue = Number.isFinite(parsedPoints) ? parsedPoints : 1;
+
     // Кнопка удаления из библиотеки или добавления в нее
     const libraryButtonHTML = isLibrary
         ? `<button class="danger-button modal-delete-btn">Удалить из библиотеки</button>`
@@ -99,6 +102,17 @@ function createWinnerCardHTML(movieData, isLibrary) {
         </div>
     ` : '';
 
+    const pointsSectionHTML = isLibrary ? `
+        <div class="movie-points-section">
+            <h4>Баллы для фильма</h4>
+            <div class="movie-points-form">
+                <input type="number" id="movie-points-input" min="0" max="999" step="1" value="${escapeHtml(String(pointsValue))}">
+                <button class="action-button save-points-btn" type="button">Сохранить</button>
+            </div>
+            <p class="movie-points-hint">По умолчанию каждому фильму присваивается 1 балл. Вы можете указать своё значение.</p>
+        </div>
+    ` : '';
+
     return `
         <div class="winner-card">
             <div class="winner-poster">
@@ -126,9 +140,10 @@ function createWinnerCardHTML(movieData, isLibrary) {
                             </button>
                         </div>
                     </div>` : '<p class="meta-info">Kinopoisk ID не указан, работа с magnet-ссылкой недоступна.</p>'}
-                
+
+                ${pointsSectionHTML}
                 ${badgeSectionHTML}
-                
+
                 <div class="library-modal-actions">
                     <button class="secondary-button modal-download-btn"${movieData.has_magnet ? '' : ' disabled'}>Скачать</button>
                     ${libraryButtonHTML}
@@ -338,6 +353,44 @@ export class ModalManager {
                     const badgeType = option.dataset.badge;
                     await actions.onSetBadge(movieData.id, badgeType);
                 });
+            });
+        }
+
+        const savePointsBtn = this.body.querySelector('.save-points-btn');
+        const pointsInput = this.body.querySelector('#movie-points-input');
+        if (savePointsBtn && pointsInput && actions.onSavePoints) {
+            const originalLabel = savePointsBtn.textContent;
+
+            const handleSavePoints = async () => {
+                const parsed = Number(pointsInput.value);
+                if (!Number.isFinite(parsed)) {
+                    if (window.showToast) {
+                        window.showToast('Введите корректное число баллов.', 'error');
+                    }
+                    return;
+                }
+
+                savePointsBtn.disabled = true;
+                savePointsBtn.textContent = 'Сохранение...';
+
+                try {
+                    await actions.onSavePoints(movieData.id, Math.round(parsed));
+                } finally {
+                    savePointsBtn.disabled = false;
+                    savePointsBtn.textContent = originalLabel;
+                }
+            };
+
+            savePointsBtn.addEventListener('click', (event) => {
+                event.preventDefault();
+                handleSavePoints();
+            });
+
+            pointsInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    handleSavePoints();
+                }
             });
         }
 

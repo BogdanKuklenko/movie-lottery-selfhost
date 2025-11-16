@@ -382,7 +382,7 @@
 }
 
 /* Секция выбора бейджа в модальном окне фильма */
-.movie-badge-section {
+.movie-badge-section { 
     margin-top: 20px;
     padding-top: 20px;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -392,6 +392,47 @@
     margin: 0 0 15px;
     color: #f8f9fa;
     font-size: 1.1em;
+}
+
+.movie-points-section {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.movie-points-section h4 {
+    margin: 0 0 12px;
+    color: #f8f9fa;
+    font-size: 1.05em;
+}
+
+.movie-points-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.movie-points-form input {
+    width: 120px;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.2);
+    color: #f8f9fa;
+    font-size: 1rem;
+}
+
+.movie-points-form input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.2);
+}
+
+.movie-points-hint {
+    margin-top: 8px;
+    font-size: 0.9rem;
+    color: #adb5bd;
 }
 
 .badge-options-inline {

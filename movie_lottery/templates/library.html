@@ -148,6 +148,7 @@
                     data-movie-rating="{{ '%.1f'|format(movie.rating_kp) if movie.rating_kp is not none else '' }}"
                     data-movie-genres="{{ (movie.genres|default('', true))|e }}"
                     data-movie-countries="{{ (movie.countries|default('', true))|e }}"
+                    data-movie-points="{{ movie.points if movie.points is not none else 1 }}"
                     data-added-at="{{ movie.added_at.isoformat() }}"
                     data-has-magnet="{{ 'true' if movie.has_magnet else 'false' }}"
                     data-magnet-link="{{ (movie.magnet_link or '')|e }}"
