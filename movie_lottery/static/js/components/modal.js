@@ -179,12 +179,13 @@ export class ModalManager {
     
     open() {
         this.modal.style.display = 'flex';
+        this.modal.classList.add('modal-overlay--open');
         lockScroll();
         this.body.innerHTML = '<div class="loader"></div>';
     }
 
     close() {
-        this.modal.style.display = 'none';
+        this.modal.classList.remove('modal-overlay--open');
         unlockScroll();
         this.body.innerHTML = '';
     }
