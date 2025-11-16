@@ -113,6 +113,81 @@ def ensure_vote_points_column():
             print(f"{message} Ошибка: {exc}")
 
 
+def ensure_library_movie_columns():
+    """Ensure optional columns for the library exist (bumped_at, points)."""
+    engine = db.engine
+
+    try:
+        inspector = inspect(engine)
+    except Exception:
+        return False
+
+    table_name = 'library_movie'
+    if table_name not in inspector.get_table_names():
+        return False
+
+    existing_columns = {col['name'] for col in inspector.get_columns(table_name)}
+    missing_columns = []
+
+    if 'bumped_at' not in existing_columns:
+        missing_columns.append('bumped_at')
+    if 'points' not in existing_columns:
+        missing_columns.append('points')
+
+    if not missing_columns:
+        return False
+
+    dialect = engine.dialect.name
+
+    try:
+        with engine.begin() as connection:
+            if 'bumped_at' in missing_columns:
+                if dialect == 'postgresql':
+                    connection.execute(text(
+                        "ALTER TABLE library_movie "
+                        "ADD COLUMN IF NOT EXISTS bumped_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()"
+                    ))
+                else:
+                    connection.execute(text("ALTER TABLE library_movie ADD COLUMN bumped_at DATETIME"))
+                connection.execute(text(
+                    "UPDATE library_movie SET bumped_at = COALESCE(bumped_at, added_at)"
+                ))
+
+            if 'points' in missing_columns:
+                default_clause = 'INTEGER DEFAULT 1'
+                if dialect == 'postgresql':
+                    connection.execute(text(
+                        "ALTER TABLE library_movie "
+                        "ADD COLUMN IF NOT EXISTS points INTEGER NOT NULL DEFAULT 1"
+                    ))
+                else:
+                    connection.execute(text(
+                        f"ALTER TABLE library_movie ADD COLUMN points {default_clause}"
+                    ))
+                connection.execute(text(
+                    "UPDATE library_movie SET points = COALESCE(points, 1)"
+                ))
+
+        logger = getattr(current_app, 'logger', None)
+        message = (
+            'Автоматически добавлены отсутствующие колонки в library_movie: '
+            + ', '.join(missing_columns)
+        )
+        if logger:
+            logger.info(message)
+        else:
+            print(message)
+        return True
+    except Exception as exc:
+        logger = getattr(current_app, 'logger', None)
+        message = 'Не удалось автоматически обновить таблицу library_movie.'
+        if logger:
+            logger.warning('%s Ошибка: %s', message, exc)
+        else:
+            print(f"{message} Ошибка: {exc}")
+        return False
+
+
 def ensure_poll_tables():
     """
     Ensure that all tables required for polls exist.
