@@ -48,6 +48,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     let progressTimeoutId = null;
     let hasVoted = false;
     let votedMovie = null;
+    let isVoteModalOpen = false;
+    const touchMoveOptions = { passive: false };
+    const scrollLockManager = createScrollLockManager();
     const PLACEHOLDER_POSTER = 'https://via.placeholder.com/200x300.png?text=No+Image';
 
     initializePointsWidget();
@@ -156,12 +159,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ? `+${formatPoints(pointsValue)} за голос`
                 : 'Баллы не начисляются';
         }
+        if (!isVoteModalOpen) {
+            scrollLockManager.lock();
+            isVoteModalOpen = true;
+        }
         voteConfirmModal.style.display = 'flex';
     }
 
     function closeVoteConfirmation() {
         voteConfirmModal.style.display = 'none';
         selectedMovie = null;
+        if (isVoteModalOpen) {
+            scrollLockManager.unlock();
+            isVoteModalOpen = false;
+        }
     }
 
     voteCancelBtn.addEventListener('click', closeVoteConfirmation);
@@ -211,6 +222,89 @@ document.addEventListener('DOMContentLoaded', async () => {
         pollMessage.textContent = text;
         pollMessage.className = `poll-message poll-message-${type}`;
         pollMessage.style.display = 'block';
+    }
+
+    function createScrollLockManager() {
+        const state = {
+            isLocked: false,
+            scrollPosition: 0,
+            previousBodyStyles: {
+                position: '',
+                top: '',
+                width: '',
+                overflow: '',
+                paddingRight: '',
+            },
+            touchMoveHandler: null,
+        };
+
+        function preventBackgroundTouchMove(event) {
+            if (event.target.closest('.modal-content')) {
+                return;
+            }
+            event.preventDefault();
+        }
+
+        function lock() {
+            if (state.isLocked) {
+                return;
+            }
+
+            state.isLocked = true;
+            state.scrollPosition = window.scrollY || document.documentElement.scrollTop || 0;
+            state.previousBodyStyles = {
+                position: document.body.style.position,
+                top: document.body.style.top,
+                width: document.body.style.width,
+                overflow: document.body.style.overflow,
+                paddingRight: document.body.style.paddingRight,
+            };
+
+            const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+            document.documentElement.classList.add('no-scroll');
+            document.body.classList.add('no-scroll');
+
+            document.body.style.top = `-${state.scrollPosition}px`;
+            document.body.style.position = 'fixed';
+            document.body.style.width = '100%';
+            document.body.style.overflow = 'hidden';
+            if (scrollbarWidth > 0) {
+                document.body.style.paddingRight = `${scrollbarWidth}px`;
+            }
+
+            state.touchMoveHandler = preventBackgroundTouchMove;
+            document.addEventListener('touchmove', state.touchMoveHandler, touchMoveOptions);
+        }
+
+        function unlock() {
+            if (!state.isLocked) {
+                return;
+            }
+
+            document.documentElement.classList.remove('no-scroll');
+            document.body.classList.remove('no-scroll');
+
+            document.body.style.position = state.previousBodyStyles.position;
+            document.body.style.top = state.previousBodyStyles.top;
+            document.body.style.width = state.previousBodyStyles.width;
+            document.body.style.overflow = state.previousBodyStyles.overflow;
+            document.body.style.paddingRight = state.previousBodyStyles.paddingRight;
+
+            if (state.touchMoveHandler) {
+                document.removeEventListener('touchmove', state.touchMoveHandler, touchMoveOptions);
+                state.touchMoveHandler = null;
+            }
+
+            requestAnimationFrame(() => {
+                window.scrollTo(0, state.scrollPosition);
+                state.scrollPosition = 0;
+            });
+
+            state.isLocked = false;
+        }
+
+        return { lock, unlock };
     }
 
     function escapeHtml(text) {
