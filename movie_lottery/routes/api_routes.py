@@ -198,6 +198,24 @@ def _group_votes_by_token(tokens, filters):
             'voted_at': vote.voted_at.isoformat() if vote.voted_at else None,
         })
 
+
+def _serialize_poll_movie(movie):
+    if not movie:
+        return None
+
+    return {
+        "id": movie.id,
+        "kinopoisk_id": movie.kinopoisk_id,
+        "name": movie.name,
+        "search_name": movie.search_name,
+        "poster": movie.poster,
+        "year": movie.year,
+        "description": movie.description,
+        "rating_kp": movie.rating_kp,
+        "genres": movie.genres,
+        "countries": movie.countries,
+    }
+
     return votes_by_token
 
 # --- Routes for movies and lotteries ---
@@ -525,26 +543,22 @@ def get_poll(poll_id):
     existing_vote = Vote.query.filter_by(poll_id=poll_id, voter_token=voter_token).first()
     
     movies_data = []
+    movies_by_id = {}
     for m in poll.movies:
-        movies_data.append({
-            "id": m.id,
-            "kinopoisk_id": m.kinopoisk_id,
-            "name": m.name,
-            "search_name": m.search_name,
-            "poster": m.poster,
-            "year": m.year,
-            "description": m.description,
-            "rating_kp": m.rating_kp,
-            "genres": m.genres,
-            "countries": m.countries,
-        })
-    
+        movies_by_id[m.id] = m
+        movies_data.append(_serialize_poll_movie(m))
+
+    voted_movie_data = None
+    if existing_vote:
+        voted_movie_data = _serialize_poll_movie(movies_by_id.get(existing_vote.movie_id))
+
     response = prevent_caching(jsonify({
         "poll_id": poll.id,
         "movies": movies_data,
         "created_at": poll.created_at.isoformat() + "Z",
         "expires_at": poll.expires_at.isoformat() + "Z",
         "has_voted": bool(existing_vote),
+        "voted_movie": voted_movie_data,
         "total_votes": len(poll.votes),
         "points_balance": points_balance,
     }))
@@ -614,6 +628,7 @@ def vote_in_poll(poll_id):
         "movie_name": movie.name,
         "points_awarded": points_per_vote,
         "points_balance": new_balance,
+        "voted_movie": _serialize_poll_movie(movie),
     }))
     
     # Устанавливаем cookie с токеном
