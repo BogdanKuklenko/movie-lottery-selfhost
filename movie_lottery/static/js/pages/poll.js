@@ -6,8 +6,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const pollGrid = document.getElementById('poll-grid');
     const pollMessage = document.getElementById('poll-message');
     const pollDescription = document.getElementById('poll-description');
-    const pollResultsBlock = document.getElementById('poll-results-block');
-    const pollResultsLink = document.getElementById('poll-results-link');
     const voteConfirmModal = document.getElementById('vote-confirm-modal');
     const voteConfirmBtn = document.getElementById('vote-confirm-btn');
     const voteCancelBtn = document.getElementById('vote-cancel-btn');
@@ -25,9 +23,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             pointsBadgeError: 'ERR',
             pointsProgressDefault: 'Начисляем баллы…',
             pointsProgressEarned: (points) => `+${points} за голос`,
-            historyTitle: 'История начислений',
-            historyEmpty: 'Баллы ещё не начислены',
-            historyVoteEntry: (points) => `+${points} за голосование`,
             toastPointsEarned: (points) => `+${points} баллов за голос`,
             toastPointsError: 'Не удалось обновить баланс баллов',
             pointsUnavailable: 'Баллы недоступны. Попробуйте обновить страницу позже.',
@@ -45,22 +40,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const pointsProgress = document.getElementById('points-progress');
     const pointsProgressBar = document.getElementById('points-progress-bar');
     const pointsProgressLabel = document.getElementById('points-progress-label');
-    const pointsHistoryTitle = document.getElementById('points-history-title');
-    const pointsHistoryList = document.getElementById('points-history-list');
-    const pointsHistoryEmpty = document.getElementById('points-history-empty');
-    const pointsHistoryCount = document.getElementById('points-history-count');
 
     let selectedMovie = null;
-    let historyEntries = 0;
     let progressTimeoutId = null;
     const publicResultsUrl = `/p/${pollId}/results`;
-
-    if (pollResultsLink) {
-        pollResultsLink.href = publicResultsUrl;
-    }
-    if (pollResultsBlock) {
-        pollResultsBlock.hidden = false;
-    }
 
     initializePointsWidget();
 
@@ -194,16 +177,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function initializePointsWidget() {
-        if (!pointsBalanceLabel || !pointsBalanceStatus || !pointsStateBadge || !pointsProgressLabel || !pointsHistoryTitle || !pointsHistoryEmpty) {
+        if (!pointsBalanceLabel || !pointsBalanceStatus || !pointsStateBadge || !pointsProgressLabel) {
             return;
         }
         pointsBalanceLabel.textContent = T.pointsTitle;
         pointsBalanceStatus.textContent = T.pointsStatusEmpty;
         pointsStateBadge.textContent = T.pointsBadgeEmpty;
         pointsProgressLabel.textContent = T.pointsProgressDefault;
-        pointsHistoryTitle.textContent = T.historyTitle;
-        pointsHistoryEmpty.textContent = T.historyEmpty;
-        updateHistoryCounter();
     }
 
     function updatePointsBalance(balance) {
@@ -241,37 +221,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         updatePointsBalance(newBalance);
         showToast(T.toastPointsEarned(awarded), 'success', { duration: 4000 });
-        addHistoryEntry(awarded, T.historyVoteEntry(awarded));
         playPointsProgress(awarded);
-    }
-
-    function addHistoryEntry(points, description) {
-        if (!pointsHistoryList) return;
-        const item = document.createElement('li');
-        item.className = 'points-history-item';
-        const timestamp = new Date();
-        const formattedPoints = `+${points}`;
-        item.innerHTML = `
-            <span class="points-history-value">${formattedPoints}</span>
-            <div class="points-history-meta">
-                <p>${escapeHtml(description)}</p>
-                <time datetime="${timestamp.toISOString()}">${formatHistoryTime(timestamp)}</time>
-            </div>
-        `;
-        pointsHistoryList.prepend(item);
-        historyEntries += 1;
-        if (pointsHistoryEmpty) {
-            pointsHistoryEmpty.style.display = 'none';
-        }
-        updateHistoryCounter();
-    }
-
-    function updateHistoryCounter() {
-        if (!pointsHistoryCount) return;
-        pointsHistoryCount.textContent = historyEntries;
-        if (pointsHistoryEmpty) {
-            pointsHistoryEmpty.style.display = historyEntries ? 'none' : 'block';
-        }
     }
 
     function playPointsProgress(points) {
@@ -303,18 +253,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         return titles[(number % 100 > 4 && number % 100 < 20) ? 2 : cases[(number % 10 < 5) ? number % 10 : 5]];
     }
 
-    function formatHistoryTime(date) {
-        try {
-            return new Intl.DateTimeFormat(locale, {
-                hour: '2-digit',
-                minute: '2-digit',
-                day: '2-digit',
-                month: '2-digit',
-            }).format(date);
-        } catch (e) {
-            return date.toLocaleTimeString();
-        }
-    }
 
     // Закрытие модального окна по клику вне его
     voteConfirmModal.addEventListener('click', (e) => {
