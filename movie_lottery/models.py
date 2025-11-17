@@ -132,7 +132,6 @@ class PollVoterProfile(db.Model):
 
     token = db.Column(db.String(64), primary_key=True)
     total_points = db.Column(db.Integer, nullable=False, default=0)
-    earned_points_total = db.Column(db.Integer, nullable=False, default=0)
     device_label = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(

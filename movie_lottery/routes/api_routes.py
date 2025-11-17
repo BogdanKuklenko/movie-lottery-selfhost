@@ -588,7 +588,6 @@ def get_poll(poll_id):
     device_label = _resolve_device_label()
     profile = ensure_voter_profile(voter_token, device_label=device_label)
     points_balance = profile.total_points or 0
-    points_earned_total = getattr(profile, 'earned_points_total', 0) or 0
     db.session.commit()
 
     # Проверяем, голосовал ли уже этот пользователь
@@ -616,7 +615,6 @@ def get_poll(poll_id):
         "voted_movie": voted_movie_data,
         "total_votes": len(poll.votes),
         "points_balance": points_balance,
-        "points_earned_total": points_earned_total,
         "custom_vote_cost": custom_vote_cost,
         "can_vote_custom": can_vote_custom,
     }))
@@ -656,8 +654,6 @@ def vote_in_poll(poll_id):
 
     device_label = _resolve_device_label()
 
-    profile = ensure_voter_profile(voter_token, device_label=device_label)
-
     # Проверяем, не голосовал ли уже этот пользователь
     existing_vote = Vote.query.filter_by(poll_id=poll_id, voter_token=voter_token).first()
     if existing_vote:
@@ -675,11 +671,10 @@ def vote_in_poll(poll_id):
     )
     db.session.add(new_vote)
 
-    new_balance, profile = change_voter_points_balance(
+    new_balance = change_voter_points_balance(
         voter_token,
         points_awarded,
         device_label=device_label,
-        return_profile=True,
     )
 
     db.session.commit()
@@ -695,7 +690,6 @@ def vote_in_poll(poll_id):
         "movie_name": movie.name,
         "points_awarded": points_awarded,
         "points_balance": new_balance,
-        "points_earned_total": getattr(profile, 'earned_points_total', 0) or 0,
         "voted_movie": _serialize_poll_movie(movie),
     }))
     
@@ -788,11 +782,10 @@ def custom_vote(poll_id):
 
     points_awarded = -cost
 
-    new_balance, profile = change_voter_points_balance(
+    new_balance = change_voter_points_balance(
         voter_token,
         points_awarded,
         device_label=device_label,
-        return_profile=True,
     )
 
     if new_balance < 0:
@@ -814,7 +807,6 @@ def custom_vote(poll_id):
         "movie": _serialize_poll_movie(poll_movie),
         "points_awarded": points_awarded,
         "points_balance": new_balance,
-        "points_earned_total": getattr(profile, 'earned_points_total', 0) or 0,
         "has_voted": True,
     }))
 
@@ -1064,7 +1056,6 @@ def list_voter_stats():
             'token': PollVoterProfile.token,
             'device_label': PollVoterProfile.device_label,
             'total_points': PollVoterProfile.total_points,
-            'earned_points_total': PollVoterProfile.earned_points_total,
             'created_at': PollVoterProfile.created_at,
             'updated_at': PollVoterProfile.updated_at,
         }
@@ -1102,7 +1093,6 @@ def list_voter_stats():
                 'voter_token': profile.token,
                 'device_label': profile.device_label,
                 'total_points': profile.total_points or 0,
-                'points_earned_total': getattr(profile, 'earned_points_total', 0) or 0,
                 'filtered_points': filtered_points,
                 'created_at': profile.created_at.isoformat() if profile.created_at else None,
                 'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
@@ -1148,7 +1138,6 @@ def voter_stats_details(voter_token):
         'voter_token': profile.token,
         'device_label': profile.device_label,
         'total_points': profile.total_points or 0,
-        'points_earned_total': getattr(profile, 'earned_points_total', 0) or 0,
         'filtered_points': filtered_points,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
@@ -1185,7 +1174,6 @@ def update_voter_device_label(voter_token):
         'voter_token': profile.token,
         'device_label': profile.device_label,
         'total_points': profile.total_points or 0,
-        'points_earned_total': getattr(profile, 'earned_points_total', 0) or 0,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
     }
@@ -1212,7 +1200,6 @@ def update_voter_total_points(voter_token):
         'voter_token': profile.token,
         'device_label': profile.device_label,
         'total_points': profile.total_points or 0,
-        'points_earned_total': getattr(profile, 'earned_points_total', 0) or 0,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
     }

@@ -286,14 +286,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         pointsProgressLabel.textContent = T.pointsProgressDefault;
     }
 
-    function setPointsEarnedTotal(value) {
-        const parsed = Number(value);
-        if (Number.isFinite(parsed)) {
-            pointsEarnedTotal = Math.max(0, parsed);
-            return;
+    function getPointsEarnedStorageKey() {
+        if (!pollId) return null;
+        return `poll-${pollId}-points-earned-total`;
+    }
+
+    function readStoredPointsEarnedTotal() {
+        const storageKey = getPointsEarnedStorageKey();
+        if (!storageKey || typeof localStorage === 'undefined') return null;
+        try {
+            const storedValue = localStorage.getItem(storageKey);
+            const parsed = Number(storedValue);
+            return Number.isFinite(parsed) ? Math.max(0, parsed) : null;
+        } catch (error) {
+            console.warn('Не удалось прочитать сохранённые баллы', error);
+            return null;
         }
-        if (!Number.isFinite(pointsEarnedTotal)) {
-            pointsEarnedTotal = 0;
+    }
+
+    function persistPointsEarnedTotal(value) {
+        const storageKey = getPointsEarnedStorageKey();
+        if (!storageKey || typeof localStorage === 'undefined') return;
+        try {
+            localStorage.setItem(storageKey, String(Math.max(0, value)));
+        } catch (error) {
+            console.warn('Не удалось сохранить накопленные баллы', error);
         }
     }
 
@@ -308,11 +325,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         pointsBalance = balance;
-        if (typeof totalEarned !== 'undefined') {
-            setPointsEarnedTotal(totalEarned);
-        } else if (!Number.isFinite(pointsEarnedTotal)) {
-            setPointsEarnedTotal(0);
-        }
+        initializePointsEarnedTotal(totalEarned);
         pointsBalanceCard.classList.remove('points-balance-card-error');
         hidePointsBadge();
         pointsBalanceValue.textContent = balance;
@@ -343,6 +356,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         pointsStateBadge.classList.remove('points-state-badge-hidden');
     }
 
+    function initializePointsEarnedTotal(initialTotal) {
+        if (pointsEarnedTotal !== null) return;
+        const storedTotal = readStoredPointsEarnedTotal();
+        if (Number.isFinite(storedTotal)) {
+            pointsEarnedTotal = storedTotal;
+            return;
+        }
+        const parsed = Number(initialTotal);
+        pointsEarnedTotal = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+        persistPointsEarnedTotal(pointsEarnedTotal);
+    }
+
     function updatePointsStatus() {
         if (!pointsBalanceStatus) return;
         const totalEarned = Number.isFinite(pointsEarnedTotal) ? pointsEarnedTotal : 0;
@@ -352,7 +377,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     function handlePointsAfterVote(result) {
         const awarded = Number(result.points_awarded);
         const newBalance = Number(result.points_balance);
-        const earnedFromResponse = Number(result.points_earned_total);
 
         if (!Number.isFinite(awarded) || !Number.isFinite(newBalance)) {
             showToast(T.toastPointsError, 'error');
@@ -360,17 +384,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        if (Number.isFinite(earnedFromResponse)) {
-            updatePointsBalance(newBalance, earnedFromResponse);
-        } else {
-            updatePointsBalance(newBalance);
-        }
+        updatePointsBalance(newBalance);
 
         if (awarded > 0) {
-            if (!Number.isFinite(earnedFromResponse)) {
-                setPointsEarnedTotal((Number.isFinite(pointsEarnedTotal) ? pointsEarnedTotal : 0) + awarded);
-                updatePointsStatus();
-            }
+            initializePointsEarnedTotal();
+            pointsEarnedTotal += awarded;
+            persistPointsEarnedTotal(pointsEarnedTotal);
+            updatePointsStatus();
         }
 
         if (awarded < 0) {
