@@ -79,6 +79,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let isCustomVoteSubmitting = false;
     let pointsBalance = null;
     let pointsEarnedTotal = null;
+    let voterToken = null;
     let moviesList = [];
     const PLACEHOLDER_POSTER = 'https://via.placeholder.com/200x300.png?text=No+Image';
 
@@ -107,6 +108,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const pollData = await response.json();
+        voterToken = pollData.voter_token || null;
         updatePointsBalance(pollData.points_balance, pollData.points_earned_total);
         customVoteCost = Number(pollData.custom_vote_cost) || 0;
         moviesList = Array.isArray(pollData.movies) ? pollData.movies : [];
@@ -287,8 +289,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function getPointsEarnedStorageKey() {
-        if (!pollId) return null;
-        return `poll-${pollId}-points-earned-total`;
+        if (!voterToken) return null;
+        return `voter-${voterToken}-points-earned-total`;
     }
 
     function readStoredPointsEarnedTotal() {
