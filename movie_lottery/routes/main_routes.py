@@ -6,6 +6,7 @@ from ..utils.helpers import (
     get_background_photos,
     build_external_url,
     build_telegram_share_url,
+    get_custom_vote_cost,
 )
 
 main_bp = Blueprint('main', __name__)
@@ -19,10 +20,7 @@ def inject_poll_settings():
 
 
 def _get_custom_vote_cost():
-    try:
-        return max(0, int(current_app.config.get('POLL_CUSTOM_VOTE_COST', 10)))
-    except (TypeError, ValueError):
-        return 10
+    return get_custom_vote_cost()
 
 @main_bp.route('/health')
 def health():
