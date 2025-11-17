@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let isCustomVoteLoading = false;
     let isCustomVoteSubmitting = false;
     let pointsBalance = null;
-    let pointsEarnedTotal = 0;
+    let pointsEarnedTotal = null;
     let moviesList = [];
     const PLACEHOLDER_POSTER = 'https://via.placeholder.com/200x300.png?text=No+Image';
 
@@ -107,8 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const pollData = await response.json();
-        const earnedFromServer = pollData.earned_points_total ?? pollData.points_earned_total;
-        updatePointsBalance(pollData.points_balance, earnedFromServer);
+        updatePointsBalance(pollData.points_balance, pollData.points_earned_total);
         customVoteCost = Number(pollData.custom_vote_cost) || 0;
         moviesList = Array.isArray(pollData.movies) ? pollData.movies : [];
         updateCustomVoteButtonState({
@@ -287,6 +286,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         pointsProgressLabel.textContent = T.pointsProgressDefault;
     }
 
+    function getPointsEarnedStorageKey() {
+        if (!pollId) return null;
+        return `poll-${pollId}-points-earned-total`;
+    }
+
+    function readStoredPointsEarnedTotal() {
+        const storageKey = getPointsEarnedStorageKey();
+        if (!storageKey || typeof localStorage === 'undefined') return null;
+        try {
+            const storedValue = localStorage.getItem(storageKey);
+            const parsed = Number(storedValue);
+            return Number.isFinite(parsed) ? Math.max(0, parsed) : null;
+        } catch (error) {
+            console.warn('Не удалось прочитать сохранённые баллы', error);
+            return null;
+        }
+    }
+
+    function persistPointsEarnedTotal(value) {
+        const storageKey = getPointsEarnedStorageKey();
+        if (!storageKey || typeof localStorage === 'undefined') return;
+        try {
+            localStorage.setItem(storageKey, String(Math.max(0, value)));
+        } catch (error) {
+            console.warn('Не удалось сохранить накопленные баллы', error);
+        }
+    }
+
     function updatePointsBalance(balance, totalEarned) {
         if (!pointsBalanceCard || !pointsBalanceValue || !pointsBalanceStatus || !pointsStateBadge) {
             return;
@@ -298,9 +325,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         pointsBalance = balance;
-        if (Number.isFinite(totalEarned)) {
-            pointsEarnedTotal = Math.max(0, Number(totalEarned));
-        }
+        initializePointsEarnedTotal(totalEarned);
         pointsBalanceCard.classList.remove('points-balance-card-error');
         hidePointsBadge();
         pointsBalanceValue.textContent = balance;
@@ -331,6 +356,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         pointsStateBadge.classList.remove('points-state-badge-hidden');
     }
 
+    function initializePointsEarnedTotal(initialTotal) {
+        if (pointsEarnedTotal !== null) return;
+        const storedTotal = readStoredPointsEarnedTotal();
+        if (Number.isFinite(storedTotal)) {
+            pointsEarnedTotal = storedTotal;
+            return;
+        }
+        const parsed = Number(initialTotal);
+        pointsEarnedTotal = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+        persistPointsEarnedTotal(pointsEarnedTotal);
+    }
+
     function updatePointsStatus() {
         if (!pointsBalanceStatus) return;
         const totalEarned = Number.isFinite(pointsEarnedTotal) ? pointsEarnedTotal : 0;
@@ -350,10 +387,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         updatePointsBalance(newBalance);
 
         if (awarded > 0) {
-            if (!Number.isFinite(pointsEarnedTotal)) {
-                pointsEarnedTotal = 0;
-            }
+            initializePointsEarnedTotal();
             pointsEarnedTotal += awarded;
+            persistPointsEarnedTotal(pointsEarnedTotal);
             updatePointsStatus();
         }
 
