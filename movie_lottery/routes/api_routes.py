@@ -30,6 +30,9 @@ from ..utils.helpers import (
     change_voter_points_balance,
     prevent_caching,
     ensure_poll_tables,
+    get_custom_vote_cost,
+    get_poll_settings,
+    update_poll_settings,
 )
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -62,10 +65,15 @@ def _get_json_payload():
 
 
 def _get_custom_vote_cost():
-    try:
-        return max(0, int(current_app.config.get('POLL_CUSTOM_VOTE_COST', 10)))
-    except (TypeError, ValueError):
-        return 10
+    return get_custom_vote_cost()
+
+
+def _serialize_poll_settings(settings):
+    return {
+        'custom_vote_cost': _get_custom_vote_cost(),
+        'updated_at': settings.updated_at.isoformat() + 'Z' if settings and settings.updated_at else None,
+        'created_at': settings.created_at.isoformat() + 'Z' if settings and settings.created_at else None,
+    }
 
 
 def _read_creator_token_from_request():
@@ -119,6 +127,33 @@ def _set_creator_cookie(response, token):
         secure=request.is_secure,
     )
     return response
+
+
+@api_bp.route('/polls/settings', methods=['GET'])
+def get_poll_settings_api():
+    settings = get_poll_settings()
+    payload = _serialize_poll_settings(settings)
+    payload['source'] = 'database' if settings else 'default'
+    return prevent_caching(jsonify(payload))
+
+
+@api_bp.route('/polls/settings', methods=['PATCH'])
+def update_poll_settings_api():
+    data = _get_json_payload()
+    if data is None or 'custom_vote_cost' not in data:
+        return jsonify({'error': 'Передайте custom_vote_cost в теле запроса'}), 400
+
+    new_cost = data.get('custom_vote_cost')
+    if isinstance(new_cost, bool) or not isinstance(new_cost, int):
+        return jsonify({'error': 'custom_vote_cost должен быть целым числом'}), 400
+    if new_cost < 0:
+        return jsonify({'error': 'custom_vote_cost не может быть отрицательным'}), 400
+
+    settings = update_poll_settings(custom_vote_cost=new_cost)
+    if not settings:
+        return jsonify({'error': 'Сервис настроек временно недоступен'}), 503
+
+    return prevent_caching(jsonify(_serialize_poll_settings(settings)))
 
 
 def _parse_iso_date(raw_value, for_end=False):
@@ -577,10 +612,12 @@ def create_poll():
 def get_poll(poll_id):
     """Получение данных опроса"""
     poll = Poll.query.get_or_404(poll_id)
-    
+
     if poll.is_expired:
         return jsonify({"error": "Опрос истёк"}), 410
-    
+
+    poll_settings = get_poll_settings()
+
     # Получаем токен голосующего из cookie или генерируем новый
     voter_token = request.cookies.get('voter_token')
     if not voter_token:
@@ -637,7 +674,9 @@ def get_poll(poll_id):
         "points_earned_total": points_earned_total,
         "voter_token": voter_token,
         "custom_vote_cost": custom_vote_cost,
+        "custom_vote_cost_updated_at": poll_settings.updated_at.isoformat() + "Z" if poll_settings and poll_settings.updated_at else None,
         "can_vote_custom": can_vote_custom,
+        "poll_settings": _serialize_poll_settings(poll_settings),
     }))
 
     # Устанавливаем cookie с токеном голосующего
@@ -844,6 +883,8 @@ def get_poll_results(poll_id):
 
     if poll.is_expired:
         return jsonify({"error": "Опрос истёк"}), 410
+
+    poll_settings = get_poll_settings()
     
     # Получаем статистику голосов
     vote_counts = poll.get_vote_counts()
@@ -886,6 +927,8 @@ def get_poll_results(poll_id):
             }
             for w in winners
         ],
+        "custom_vote_cost": _get_custom_vote_cost(),
+        "poll_settings": _serialize_poll_settings(poll_settings),
         "created_at": poll.created_at.isoformat() + "Z",
         "expires_at": poll.expires_at.isoformat() + "Z"
     }))

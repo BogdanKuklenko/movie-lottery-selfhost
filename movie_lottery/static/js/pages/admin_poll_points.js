@@ -30,6 +30,10 @@ function initElements() {
     elements.messageBox = document.getElementById('admin-messages');
     elements.refreshButton = document.getElementById('refresh-table');
     elements.table = document.getElementById('stats-table');
+    elements.pollSettingsForm = document.getElementById('poll-settings-form');
+    elements.customVoteCost = document.getElementById('custom-vote-cost');
+    elements.pollSettingsStatus = document.getElementById('poll-settings-status');
+    elements.pollSettingsUpdated = document.getElementById('poll-settings-updated');
 }
 
 function setMessage(text, type = '') {
@@ -45,6 +49,18 @@ function setLoadingState() {
             <td colspan="6">Загружаем данные…</td>
         </tr>
     `;
+}
+
+function setSettingsStatus(text, type = '') {
+    if (!elements.pollSettingsStatus) return;
+    elements.pollSettingsStatus.textContent = text || '';
+    elements.pollSettingsStatus.className = `admin-hint ${type}`.trim();
+}
+
+function updateSettingsUpdatedAt(isoString) {
+    if (!elements.pollSettingsUpdated) return;
+    const formatted = isoString ? formatDateTime(isoString) : '—';
+    elements.pollSettingsUpdated.textContent = `Обновлено: ${formatted}`;
 }
 
 function escapeHtml(value) {
@@ -226,6 +242,65 @@ function validateDates() {
         return false;
     }
     return true;
+}
+
+async function loadPollSettings() {
+    if (!elements.customVoteCost) return;
+    setSettingsStatus('Загружаем...');
+
+    try {
+        const response = await fetch(buildPollApiUrl('/api/polls/settings'), {
+            credentials: 'include'
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.error || 'Не удалось загрузить настройки');
+        }
+
+        const cost = Number.parseInt(data.custom_vote_cost, 10);
+        elements.customVoteCost.value = Number.isFinite(cost) ? cost : '';
+        updateSettingsUpdatedAt(data.updated_at);
+        setSettingsStatus('Настройки загружены');
+    } catch (error) {
+        console.error(error);
+        setSettingsStatus(error.message || 'Не удалось загрузить настройки', 'error');
+    }
+}
+
+async function savePollSettings(event) {
+    event.preventDefault();
+    if (!elements.customVoteCost) return;
+
+    const parsedCost = Number.parseInt(elements.customVoteCost.value, 10);
+    if (!Number.isFinite(parsedCost) || parsedCost < 0) {
+        setSettingsStatus('Введите неотрицательное целое число', 'error');
+        return;
+    }
+
+    setSettingsStatus('Сохраняем...');
+
+    try {
+        const response = await fetch(buildPollApiUrl('/api/polls/settings'), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ custom_vote_cost: parsedCost }),
+            credentials: 'include'
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.error || 'Не удалось сохранить настройки');
+        }
+
+        const cost = Number.parseInt(data.custom_vote_cost, 10);
+        elements.customVoteCost.value = Number.isFinite(cost) ? cost : parsedCost;
+        updateSettingsUpdatedAt(data.updated_at);
+        setSettingsStatus('Настройки сохранены', 'success');
+    } catch (error) {
+        console.error(error);
+        setSettingsStatus(error.message || 'Не удалось сохранить настройки', 'error');
+    }
 }
 
 async function fetchStats() {
@@ -649,6 +724,7 @@ function attachEvents() {
     elements.prevPage?.addEventListener('click', () => handlePagination(-1));
     elements.nextPage?.addEventListener('click', () => handlePagination(1));
     elements.refreshButton?.addEventListener('click', fetchStats);
+    elements.pollSettingsForm?.addEventListener('submit', savePollSettings);
     elements.table?.querySelector('thead')?.addEventListener('click', handleSort);
     elements.tableBody?.addEventListener('click', handleCopy);
     elements.tableBody?.addEventListener('click', handleDeviceLabelClick);
@@ -669,6 +745,7 @@ function bootstrap() {
     initElements();
     if (!elements.tableBody) return;
     attachEvents();
+    loadPollSettings();
     fetchStats();
 }
 

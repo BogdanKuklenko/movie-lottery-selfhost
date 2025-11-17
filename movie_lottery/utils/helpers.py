@@ -13,6 +13,7 @@ from ..models import (
     Lottery,
     Poll,
     PollCreatorToken,
+    PollSettings,
     PollMovie,
     PollVoterProfile,
     Vote,
@@ -265,6 +266,7 @@ def ensure_poll_tables():
         'poll_voter_profile': PollVoterProfile.__table__,
         'vote': Vote.__table__,
         'poll_creator_token': PollCreatorToken.__table__,
+        'poll_settings': PollSettings.__table__,
     }
     existing_tables = set(inspector.get_table_names())
     missing_tables = [name for name in required_tables if name not in existing_tables]
@@ -290,6 +292,64 @@ def ensure_poll_tables():
         else:
             print(f"{message} Ошибка: {exc}")
         return False
+
+
+def _get_default_custom_vote_cost():
+    try:
+        return max(0, int(current_app.config.get('POLL_CUSTOM_VOTE_COST', 10)))
+    except (TypeError, ValueError):
+        return 10
+
+
+def get_poll_settings(create_if_missing=True):
+    """Получить или создать настройки опросов."""
+    default_cost = _get_default_custom_vote_cost()
+    try:
+        settings = PollSettings.query.get(1)
+        if settings is None and create_if_missing:
+            settings = PollSettings(id=1, custom_vote_cost=default_cost)
+            db.session.add(settings)
+            db.session.commit()
+        return settings
+    except (ProgrammingError, OperationalError) as exc:
+        db.session.rollback()
+        logger = getattr(current_app, 'logger', None)
+        message = 'Таблица настроек опросов недоступна.'
+        if logger:
+            logger.warning('%s Ошибка: %s', message, exc)
+        else:
+            print(f"{message} Ошибка: {exc}")
+        return None
+
+
+def get_custom_vote_cost():
+    """Вернуть актуальную стоимость кастомного голоса."""
+    default_cost = _get_default_custom_vote_cost()
+    settings = get_poll_settings(create_if_missing=True)
+    if not settings:
+        return default_cost
+
+    try:
+        return max(0, int(settings.custom_vote_cost))
+    except (TypeError, ValueError):
+        return default_cost
+
+
+def update_poll_settings(*, custom_vote_cost=None):
+    settings = get_poll_settings(create_if_missing=True)
+    if not settings:
+        return None
+
+    updated = False
+    if custom_vote_cost is not None:
+        settings.custom_vote_cost = max(0, int(custom_vote_cost))
+        updated = True
+
+    if updated:
+        settings.updated_at = datetime.utcnow()
+        db.session.commit()
+
+    return settings
 
 
 def get_background_photos():

@@ -68,6 +68,20 @@ class PollCreatorToken(db.Model):
     )
 
 
+class PollSettings(db.Model):
+    __tablename__ = 'poll_settings'
+
+    id = db.Column(db.Integer, primary_key=True, default=1)
+    custom_vote_cost = db.Column(db.Integer, nullable=False, default=10)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+
 class Poll(db.Model):
     id = db.Column(db.String(8), primary_key=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
