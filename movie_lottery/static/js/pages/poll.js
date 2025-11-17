@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ru: {
             pointsTitle: 'Ваши баллы',
             pointsStatusEmpty: 'Баллы ещё не начислены',
-            pointsStatusUpdated: (points) => `Всего начислено ${points}.`,
+            pointsStatusUpdated: (points) => `Всего начислено ${points}`,
             pointsBadgeEmpty: '—',
             pointsBadgeError: '—',
             pointsProgressDefault: 'Начисляем баллы…',
@@ -78,6 +78,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let isCustomVoteLoading = false;
     let isCustomVoteSubmitting = false;
     let pointsBalance = null;
+    let pointsEarnedTotal = null;
     let moviesList = [];
     const PLACEHOLDER_POSTER = 'https://via.placeholder.com/200x300.png?text=No+Image';
 
@@ -296,10 +297,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         pointsBalance = balance;
+        initializePointsEarnedTotal(balance);
         pointsBalanceCard.classList.remove('points-balance-card-error');
         hidePointsBadge();
         pointsBalanceValue.textContent = balance;
-        pointsBalanceStatus.textContent = T.pointsStatusUpdated(formatPoints(balance));
+        updatePointsStatus();
         updateCustomVoteButtonState();
     }
 
@@ -326,6 +328,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         pointsStateBadge.classList.remove('points-state-badge-hidden');
     }
 
+    function initializePointsEarnedTotal(balance) {
+        if (pointsEarnedTotal !== null) return;
+        const parsed = Number(balance);
+        pointsEarnedTotal = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+    }
+
+    function updatePointsStatus() {
+        if (!pointsBalanceStatus) return;
+        const totalEarned = Number.isFinite(pointsEarnedTotal) ? pointsEarnedTotal : 0;
+        pointsBalanceStatus.textContent = T.pointsStatusUpdated(totalEarned);
+    }
+
     function handlePointsAfterVote(result) {
         const awarded = Number(result.points_awarded);
         const newBalance = Number(result.points_balance);
@@ -337,6 +351,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         updatePointsBalance(newBalance);
+
+        if (awarded > 0) {
+            initializePointsEarnedTotal(newBalance);
+            pointsEarnedTotal += awarded;
+            updatePointsStatus();
+        }
 
         if (awarded < 0) {
             showToast(T.toastPointsDeducted(Math.abs(awarded)), 'info', { duration: 4000 });
