@@ -950,8 +950,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const handleOpenModal = (card) => {
         const movieData = getMovieDataFromCard(card);
+        const isModalAlreadyOpen = modalElement.style.display === 'flex';
+
         modalElement.dataset.activeCardId = card.dataset.movieId || '';
-        modal.open();
+
+        if (!isModalAlreadyOpen) {
+            modal.open();
+        } else {
+            modal.renderCustomContent('<div class="loader"></div>');
+        }
+
         const actions = {
             onSaveMagnet: async (kinopoiskId, magnetLink) => {
                 const result = await movieApi.saveMagnetLink(kinopoiskId, magnetLink);
