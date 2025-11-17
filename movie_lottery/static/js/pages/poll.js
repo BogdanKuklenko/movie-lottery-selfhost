@@ -458,12 +458,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     function updateCustomVoteCostLabels(cost = customVoteCost) {
         const capitalizedPhrase = formatCustomVoteCostPhrase(cost, { capitalized: true });
         const baseButtonLabel = 'Проголосовать за свой фильм';
-        const buttonLabel = capitalizedPhrase
-            ? `${baseButtonLabel} (${capitalizedPhrase})`
-            : baseButtonLabel;
 
         if (customVoteBtn) {
-            customVoteBtn.textContent = buttonLabel;
+            customVoteBtn.textContent = baseButtonLabel;
             customVoteBtn.title = capitalizedPhrase || baseButtonLabel;
         }
 
