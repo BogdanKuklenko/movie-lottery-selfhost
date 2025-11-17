@@ -4,6 +4,7 @@ import secrets
 from collections import defaultdict
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify, current_app
+from sqlalchemy import func
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from .. import db
@@ -590,6 +591,21 @@ def get_poll(poll_id):
     points_balance = profile.total_points or 0
     db.session.commit()
 
+    points_earned_total = 0
+    try:
+        points_earned_total = (
+            db.session.query(func.coalesce(func.sum(Vote.points_awarded), 0))
+            .filter(Vote.voter_token == voter_token, Vote.points_awarded > 0)
+            .scalar()
+            or 0
+        )
+    except (ProgrammingError, OperationalError) as exc:
+        db.session.rollback()
+        logger = getattr(current_app, 'logger', None)
+        if logger:
+            logger.warning('Не удалось получить сумму начисленных баллов: %s', exc)
+        points_earned_total = points_balance
+
     # Проверяем, голосовал ли уже этот пользователь
     existing_vote = Vote.query.filter_by(poll_id=poll_id, voter_token=voter_token).first()
     
@@ -615,6 +631,8 @@ def get_poll(poll_id):
         "voted_movie": voted_movie_data,
         "total_votes": len(poll.votes),
         "points_balance": points_balance,
+        "points_earned_total": points_earned_total,
+        "voter_token": voter_token,
         "custom_vote_cost": custom_vote_cost,
         "can_vote_custom": can_vote_custom,
     }))
@@ -973,8 +991,6 @@ def remove_movie_badge(movie_id):
 @api_bp.route('/library/badges/stats', methods=['GET'])
 def get_badge_stats():
     """Получение статистики по бейджам в библиотеке"""
-    from sqlalchemy import func
-    
     badge_stats = db.session.query(
         LibraryMovie.badge,
         func.count(LibraryMovie.id).label('count')
