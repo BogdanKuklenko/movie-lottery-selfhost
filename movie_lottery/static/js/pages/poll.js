@@ -448,7 +448,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         votedMoviePointsDelta = Number.isFinite(normalizedDelta) ? normalizedDelta : null;
         selectedMovie = null;
         pollDescription.textContent = 'Вы уже проголосовали в этом опросе.';
-        showMessage(`Вы уже проголосовали за «${movieData.name}».`, 'info');
+        if (pollMessage) {
+            pollMessage.style.display = 'none';
+            pollMessage.textContent = '';
+        }
         renderVotedMovie(movieData, votedMoviePointsDelta);
         highlightSelectedMovie(movieData.id);
         updateVotingDisabledState(true);
