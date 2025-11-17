@@ -615,6 +615,7 @@ def get_poll(poll_id):
         "voted_movie": voted_movie_data,
         "total_votes": len(poll.votes),
         "points_balance": points_balance,
+        "earned_points_total": profile.earned_points_total or 0,
         "custom_vote_cost": custom_vote_cost,
         "can_vote_custom": can_vote_custom,
     }))
@@ -678,6 +679,7 @@ def vote_in_poll(poll_id):
     )
 
     db.session.commit()
+    profile = PollVoterProfile.query.get(voter_token)
 
     if points_awarded > 0:
         success_message = f"Голос учтён! +{points_awarded} баллов к вашему счёту."
@@ -690,6 +692,7 @@ def vote_in_poll(poll_id):
         "movie_name": movie.name,
         "points_awarded": points_awarded,
         "points_balance": new_balance,
+        "earned_points_total": profile.earned_points_total if profile else 0,
         "voted_movie": _serialize_poll_movie(movie),
     }))
     
@@ -801,12 +804,14 @@ def custom_vote(poll_id):
     db.session.add(new_vote)
 
     db.session.commit()
+    profile = PollVoterProfile.query.get(voter_token)
 
     response = prevent_caching(jsonify({
         "success": True,
         "movie": _serialize_poll_movie(poll_movie),
         "points_awarded": points_awarded,
         "points_balance": new_balance,
+        "earned_points_total": profile.earned_points_total if profile else 0,
         "has_voted": True,
     }))
 
@@ -1056,6 +1061,7 @@ def list_voter_stats():
             'token': PollVoterProfile.token,
             'device_label': PollVoterProfile.device_label,
             'total_points': PollVoterProfile.total_points,
+            'earned_points_total': PollVoterProfile.earned_points_total,
             'created_at': PollVoterProfile.created_at,
             'updated_at': PollVoterProfile.updated_at,
         }
@@ -1087,13 +1093,14 @@ def list_voter_stats():
         items = []
         for profile in profiles:
             votes = votes_map.get(profile.token, [])
-            filtered_points = sum((vote.get('points_awarded') or 0) for vote in votes)
+            filtered_points = sum(max((vote.get('points_awarded') or 0), 0) for vote in votes)
             last_vote_at = votes[0]['voted_at'] if votes else None
             items.append({
                 'voter_token': profile.token,
                 'device_label': profile.device_label,
                 'total_points': profile.total_points or 0,
                 'filtered_points': filtered_points,
+                'earned_points_total': profile.earned_points_total or 0,
                 'created_at': profile.created_at.isoformat() if profile.created_at else None,
                 'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
                 'last_vote_at': last_vote_at,
@@ -1132,13 +1139,14 @@ def voter_stats_details(voter_token):
     profile = PollVoterProfile.query.get_or_404(voter_token)
     votes_map = _group_votes_by_token([profile.token], filters)
     votes = votes_map.get(profile.token, [])
-    filtered_points = sum((vote.get('points_awarded') or 0) for vote in votes)
+    filtered_points = sum(max((vote.get('points_awarded') or 0), 0) for vote in votes)
 
     payload = {
         'voter_token': profile.token,
         'device_label': profile.device_label,
         'total_points': profile.total_points or 0,
         'filtered_points': filtered_points,
+        'earned_points_total': profile.earned_points_total or 0,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
         'last_vote_at': votes[0]['voted_at'] if votes else None,
@@ -1174,6 +1182,7 @@ def update_voter_device_label(voter_token):
         'voter_token': profile.token,
         'device_label': profile.device_label,
         'total_points': profile.total_points or 0,
+        'earned_points_total': profile.earned_points_total or 0,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
     }
@@ -1200,6 +1209,7 @@ def update_voter_total_points(voter_token):
         'voter_token': profile.token,
         'device_label': profile.device_label,
         'total_points': profile.total_points or 0,
+        'earned_points_total': profile.earned_points_total or 0,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
     }
