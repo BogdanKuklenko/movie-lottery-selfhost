@@ -7,6 +7,18 @@ import { lockScroll, unlockScroll } from '../utils/scrollLock.js';
 
 // --- Вспомогательные функции для рендеринга ---
 
+// Стек открытых модальных окон для корректной работы истории и блокировки скролла
+const modalStack = [];
+let ignoreNextPopState = false;
+
+function consumeIgnoreFlag() {
+    if (ignoreNextPopState) {
+        ignoreNextPopState = false;
+        return true;
+    }
+    return false;
+}
+
 function escapeHtml(value) {
     if (value === null || value === undefined) return '';
     return String(value)
@@ -169,29 +181,75 @@ export class ModalManager {
         this.modal = modalElement;
         this.body = this.modal.querySelector('.modal-content > div'); // Первый div внутри .modal-content
         this.closeButton = this.modal.querySelector('.close-button');
-        
+
         this.close = this.close.bind(this);
         this.handleOutsideClick = this.handleOutsideClick.bind(this);
-        
+        this.handlePopState = this.handlePopState.bind(this);
+
         this.closeButton.addEventListener('click', this.close);
         this.modal.addEventListener('click', this.handleOutsideClick);
     }
-    
+
     open() {
+        if (!modalStack.includes(this)) {
+            modalStack.push(this);
+        }
         this.modal.style.display = 'flex';
-        lockScroll();
+        if (modalStack.length === 1) {
+            lockScroll();
+        }
         this.body.innerHTML = '<div class="loader"></div>';
+
+        window.addEventListener('popstate', this.handlePopState);
+        history.pushState({ modal: true }, '', window.location.href);
     }
 
-    close() {
+    close(options = {}) {
+        const { fromPopState = false } = options;
+
+        const stackIndex = modalStack.indexOf(this);
+        const wasTopModal = stackIndex === modalStack.length - 1;
+
+        if (stackIndex !== -1) {
+            modalStack.splice(stackIndex, 1);
+        }
+
         this.modal.style.display = 'none';
-        unlockScroll();
         this.body.innerHTML = '';
+
+        window.removeEventListener('popstate', this.handlePopState);
+
+        if (modalStack.length === 0) {
+            unlockScroll();
+        }
+
+        if (wasTopModal && !fromPopState) {
+            ignoreNextPopState = true;
+
+            const clearIgnoreFlag = () => {
+                consumeIgnoreFlag();
+                window.removeEventListener('popstate', clearIgnoreFlag);
+            };
+
+            window.addEventListener('popstate', clearIgnoreFlag);
+            history.back();
+        }
     }
 
     handleOutsideClick(event) {
         if (event.target === this.modal) {
             this.close();
+        }
+    }
+
+    handlePopState() {
+        if (consumeIgnoreFlag()) {
+            return;
+        }
+
+        const isTopModal = modalStack[modalStack.length - 1] === this;
+        if (isTopModal) {
+            this.close({ fromPopState: true });
         }
     }
 
