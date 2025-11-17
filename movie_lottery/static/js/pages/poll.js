@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (pollData.has_voted) {
             hasVoted = true;
             if (pollData.voted_movie) {
-                handleVotedState(pollData.voted_movie);
+                handleVotedState(pollData.voted_movie, pollData.voted_points_delta);
             } else {
                 showMessage('Вы уже проголосовали в этом опросе.', 'info');
                 updateVotingDisabledState(true);

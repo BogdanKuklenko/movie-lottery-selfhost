@@ -616,8 +616,10 @@ def get_poll(poll_id):
         movies_data.append(_serialize_poll_movie(m))
 
     voted_movie_data = None
+    voted_points_delta = None
     if existing_vote:
         voted_movie_data = _serialize_poll_movie(movies_by_id.get(existing_vote.movie_id))
+        voted_points_delta = existing_vote.points_awarded
 
     custom_vote_cost = _get_custom_vote_cost()
     can_vote_custom = not poll.is_expired and not existing_vote and points_balance >= custom_vote_cost
@@ -629,6 +631,7 @@ def get_poll(poll_id):
         "expires_at": poll.expires_at.isoformat() + "Z",
         "has_voted": bool(existing_vote),
         "voted_movie": voted_movie_data,
+        "voted_points_delta": voted_points_delta,
         "total_votes": len(poll.votes),
         "points_balance": points_balance,
         "points_earned_total": points_earned_total,
