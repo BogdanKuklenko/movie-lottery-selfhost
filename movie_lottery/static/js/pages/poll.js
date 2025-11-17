@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const pollData = await response.json();
-        updatePointsBalance(pollData.points_balance, pollData.points_earned_total);
+        updatePointsBalance(pollData.points_balance, pollData.earned_points_total);
         customVoteCost = Number(pollData.custom_vote_cost) || 0;
         moviesList = Array.isArray(pollData.movies) ? pollData.movies : [];
         updateCustomVoteButtonState({
@@ -325,7 +325,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         pointsBalance = balance;
-        initializePointsEarnedTotal(totalEarned);
+        const parsedEarnedTotal = Number(totalEarned);
+        if (Number.isFinite(parsedEarnedTotal)) {
+            pointsEarnedTotal = Math.max(0, parsedEarnedTotal);
+            persistPointsEarnedTotal(pointsEarnedTotal);
+        } else {
+            initializePointsEarnedTotal(totalEarned);
+        }
         pointsBalanceCard.classList.remove('points-balance-card-error');
         hidePointsBadge();
         pointsBalanceValue.textContent = balance;
@@ -358,14 +364,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function initializePointsEarnedTotal(initialTotal) {
         if (pointsEarnedTotal !== null) return;
-        const storedTotal = readStoredPointsEarnedTotal();
-        if (Number.isFinite(storedTotal)) {
-            pointsEarnedTotal = storedTotal;
+        const parsedInitial = Number(initialTotal);
+        if (Number.isFinite(parsedInitial)) {
+            pointsEarnedTotal = Math.max(0, parsedInitial);
+            persistPointsEarnedTotal(pointsEarnedTotal);
             return;
         }
-        const parsed = Number(initialTotal);
-        pointsEarnedTotal = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
-        persistPointsEarnedTotal(pointsEarnedTotal);
+
+        const storedTotal = readStoredPointsEarnedTotal();
+        if (Number.isFinite(storedTotal)) {
+            pointsEarnedTotal = Math.max(0, storedTotal);
+            return;
+        }
+
+        pointsEarnedTotal = 0;
     }
 
     function updatePointsStatus() {
@@ -384,9 +396,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        updatePointsBalance(newBalance);
+        updatePointsBalance(newBalance, result.earned_points_total);
 
-        if (awarded > 0) {
+        const serverEarnedTotal = Number(result.earned_points_total);
+        if (Number.isFinite(serverEarnedTotal)) {
+            pointsEarnedTotal = Math.max(0, serverEarnedTotal);
+            persistPointsEarnedTotal(pointsEarnedTotal);
+            updatePointsStatus();
+        } else if (awarded > 0) {
             initializePointsEarnedTotal();
             pointsEarnedTotal += awarded;
             persistPointsEarnedTotal(pointsEarnedTotal);
