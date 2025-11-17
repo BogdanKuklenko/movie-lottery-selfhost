@@ -23,13 +23,7 @@ class _FallbackVoterProfile:
     """In-memory profile used when the points tables are unavailable."""
 
     __slots__ = (
-        'token',
-        'device_label',
-        'total_points',
-        'earned_points_total',
-        'created_at',
-        'updated_at',
-        '_is_fallback',
+        'token', 'device_label', 'total_points', 'created_at', 'updated_at', '_is_fallback'
     )
 
     def __init__(self, token, device_label=None):
@@ -37,7 +31,6 @@ class _FallbackVoterProfile:
         self.token = token
         self.device_label = device_label
         self.total_points = 0
-        self.earned_points_total = 0
         self.created_at = now
         self.updated_at = now
         self._is_fallback = True
@@ -385,7 +378,6 @@ def ensure_voter_profile(voter_token, device_label=None):
             token=voter_token,
             device_label=normalized_label,
             total_points=0,
-            earned_points_total=0,
             created_at=now,
             updated_at=now,
         )
@@ -407,8 +399,6 @@ def change_voter_points_balance(voter_token, delta, device_label=None, commit=Fa
     profile = ensure_voter_profile(voter_token, device_label=device_label)
     if delta:
         profile.total_points = (profile.total_points or 0) + delta
-        if delta > 0:
-            profile.earned_points_total = (profile.earned_points_total or 0) + delta
         if not getattr(profile, '_is_fallback', False):
             profile.updated_at = datetime.utcnow()
 

@@ -106,12 +106,10 @@ function buildVotesMarkup(votes = []) {
 
 function buildRow(item) {
     const votes = item.votes || [];
-    const earnedPointsTotal = Number.isFinite(Number(item.earned_points_total))
-        ? Number(item.earned_points_total)
-        : 0;
+    const filteredPoints = item.filtered_points || 0;
     const votesBadge = votes.length
-        ? `<span class="badge"><strong>${votes.length}</strong> голосов · +${earnedPointsTotal} pts</span>`
-        : `<span class="badge">${earnedPointsTotal ? `+${earnedPointsTotal} pts` : '—'}</span>`;
+        ? `<span class="badge"><strong>${votes.length}</strong> голосов · ${filteredPoints >= 0 ? '+' : ''}${filteredPoints} pts</span>`
+        : '<span class="badge">—</span>';
     const lastVote = votes.length ? votes[0].voted_at : null;
     const deviceLabel = item.device_label || '';
 

@@ -296,13 +296,11 @@ def test_vote_in_poll_awards_movie_points(app):
 
     payload = vote_response.get_json()
     assert payload['points_awarded'] == 7
-    assert payload['earned_points_total'] == 7
     vote = Vote.query.filter_by(poll_id=poll_id).first()
     assert vote.points_awarded == 7
 
     profile = PollVoterProfile.query.first()
     assert profile.total_points == 7
-    assert profile.earned_points_total == 7
 
 
 def test_patch_device_label_updates_profile(app):
