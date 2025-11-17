@@ -43,11 +43,17 @@
                         id="custom-vote-btn"
                         class="custom-vote-btn"
                         type="button"
-                        title="За пользовательский голос будет списано 10 баллов"
+                        title="Проголосовать за свой фильм"
+                        data-custom-vote-cost="{{ custom_vote_cost }}"
                     >
-                        Проголосовать за свой фильм (−10 баллов)
+                        Проголосовать за свой фильм
                     </button>
-                    <p id="custom-vote-insufficient" class="custom-vote-warning" hidden>
+                    <p
+                        id="custom-vote-insufficient"
+                        class="custom-vote-warning"
+                        data-custom-vote-cost="{{ custom_vote_cost }}"
+                        hidden
+                    >
                         Недостаточно баллов для пользовательского голосования.
                     </p>
                 </div>
@@ -94,7 +100,13 @@
     <div id="custom-vote-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content custom-vote-content">
             <h2>Проголосовать за свой фильм</h2>
-            <p class="custom-vote-description">Для поиска и голосования будет списано 10 баллов.</p>
+            <p
+                id="custom-vote-cost-description"
+                class="custom-vote-description"
+                data-custom-vote-cost="{{ custom_vote_cost }}"
+            >
+                Будет списано {{ custom_vote_cost }} баллов за голосование.
+            </p>
             <label class="custom-vote-label" for="custom-vote-input">Название фильма или ссылка на Кинопоиск</label>
             <div class="custom-vote-input-row">
                 <input id="custom-vote-input" class="custom-vote-input" type="text" placeholder="Введите название фильма">
@@ -135,6 +147,7 @@
     <script>
         const pollId = {{ poll.id|tojson }};
     </script>
+    <div id="poll-config" data-custom-vote-cost="{{ custom_vote_cost }}" hidden></div>
     <script>
         window.appConfig = window.appConfig || {};
         window.appConfig.pollApiBaseUrl = {{ poll_api_base_url|tojson }};

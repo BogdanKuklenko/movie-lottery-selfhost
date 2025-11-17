@@ -17,6 +17,13 @@ def inject_poll_settings():
         'poll_api_base_url': current_app.config.get('POLL_API_BASE_URL'),
     }
 
+
+def _get_custom_vote_cost():
+    try:
+        return max(0, int(current_app.config.get('POLL_CUSTOM_VOTE_COST', 10)))
+    except (TypeError, ValueError):
+        return 10
+
 @main_bp.route('/health')
 def health():
     """Health check endpoint for Render.com monitoring"""
@@ -119,6 +126,7 @@ def view_poll(poll_id):
     return render_template(
         'poll.html',
         poll=poll,
+        custom_vote_cost=_get_custom_vote_cost(),
         background_photos=get_background_photos()
     )
 

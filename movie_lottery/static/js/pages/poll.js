@@ -63,7 +63,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const customVoteTitle = document.getElementById('custom-vote-title');
     const customVoteYear = document.getElementById('custom-vote-year');
     const customVoteRating = document.getElementById('custom-vote-rating');
+    const customVoteCostDescription = document.getElementById('custom-vote-cost-description');
     const customVoteDescription = document.getElementById('custom-vote-description');
+    const pollConfigNode = document.getElementById('poll-config');
 
     let selectedMovie = null;
     let progressTimeoutId = null;
@@ -84,6 +86,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const PLACEHOLDER_POSTER = 'https://via.placeholder.com/200x300.png?text=No+Image';
 
     initializePointsWidget();
+    const initialCustomVoteCost = Number(pollConfigNode?.dataset.customVoteCost);
+    if (Number.isFinite(initialCustomVoteCost)) {
+        customVoteCost = initialCustomVoteCost;
+    }
+    updateCustomVoteCostLabels(customVoteCost);
 
     const getMoviePoints = (movie) => {
         const rawPoints = movie?.points;
@@ -111,6 +118,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         voterToken = pollData.voter_token || null;
         updatePointsBalance(pollData.points_balance, pollData.points_earned_total);
         customVoteCost = Number(pollData.custom_vote_cost) || 0;
+        updateCustomVoteCostLabels(customVoteCost);
         moviesList = Array.isArray(pollData.movies) ? pollData.movies : [];
         updateCustomVoteButtonState({
             balance: pollData.points_balance,
@@ -429,11 +437,39 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `${value} ${decl}`;
     }
 
+    function formatCustomVoteCostPhrase(cost, { capitalized = false } = {}) {
+        const normalizedCost = Number.isFinite(cost) ? cost : 0;
+        const phrase = normalizedCost > 0
+            ? `будет списано ${formatPoints(normalizedCost)} за голосование`
+            : 'баллы не списываются за голосование';
+        if (!capitalized || !phrase) {
+            return phrase;
+        }
+        return `${phrase.charAt(0).toUpperCase()}${phrase.slice(1)}`;
+    }
+
     function formatPointsBadge(points) {
         if (!Number.isFinite(points) || points <= 0) {
             return '0';
         }
         return `+${points}`;
+    }
+
+    function updateCustomVoteCostLabels(cost = customVoteCost) {
+        const capitalizedPhrase = formatCustomVoteCostPhrase(cost, { capitalized: true });
+        const baseButtonLabel = 'Проголосовать за свой фильм';
+        const buttonLabel = capitalizedPhrase
+            ? `${baseButtonLabel} (${capitalizedPhrase})`
+            : baseButtonLabel;
+
+        if (customVoteBtn) {
+            customVoteBtn.textContent = buttonLabel;
+            customVoteBtn.title = capitalizedPhrase || baseButtonLabel;
+        }
+
+        if (customVoteCostDescription && capitalizedPhrase) {
+            customVoteCostDescription.textContent = `${capitalizedPhrase}.`;
+        }
     }
 
     function declOfNum(number, titles) {
@@ -519,7 +555,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             if (!canUseCustomVote()) {
-                showToast('Недостаточно баллов для пользовательского голосования', 'error');
+                showToast(buildCustomVoteInsufficientMessage(), 'error');
                 return;
             }
 
@@ -583,7 +619,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         customVoteTitle.textContent = '';
         customVoteYear.textContent = '';
         customVoteRating.textContent = '';
-        customVoteDescription.textContent = '';
+        if (customVoteDescription) {
+            customVoteDescription.textContent = '';
+        }
         showCustomVoteStatus('hidden');
         updateCustomVoteActionsState();
     }
@@ -654,6 +692,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         return !hasVoted && typeof pointsBalance === 'number' && pointsBalance >= customVoteCost;
     }
 
+    function buildCustomVoteInsufficientMessage() {
+        const costPhrase = formatCustomVoteCostPhrase(customVoteCost, { capitalized: true });
+        return costPhrase
+            ? `Недостаточно баллов: ${costPhrase}.`
+            : 'Недостаточно баллов для пользовательского голосования.';
+    }
+
     function updateCustomVoteButtonState(options = {}) {
         if (!customVoteBtn) return;
         const balanceValue = typeof options.balance === 'number' ? options.balance : pointsBalance;
@@ -668,13 +713,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         customVoteBtn.disabled = disabled;
         if (customVoteWarning) {
+            customVoteWarning.textContent = buildCustomVoteInsufficientMessage();
             customVoteWarning.hidden = !isInsufficient;
         }
-        const costLabel = customVoteCost > 0
-            ? `Проголосовать за свой фильм (−${customVoteCost} баллов)`
-            : 'Проголосовать за свой фильм';
-        customVoteBtn.textContent = costLabel;
-        customVoteBtn.title = costLabel;
+
+        updateCustomVoteCostLabels();
     }
 
     function updateCustomVoteActionsState() {
@@ -693,7 +736,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function submitCustomVote() {
         if (!customVoteMovie || isCustomVoteSubmitting) return;
         if (!canUseCustomVote()) {
-            showToast('Недостаточно баллов для пользовательского голосования', 'error');
+            showToast(buildCustomVoteInsufficientMessage(), 'error');
             return;
         }
 
