@@ -187,12 +187,20 @@
 }
 
 .points-state-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
     padding: 2px 8px;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.08);
     font-weight: 500;
     font-size: 11px;
     letter-spacing: 0.05em;
+}
+
+.points-state-badge-hidden {
+    visibility: hidden;
 }
 
 .points-balance-status {

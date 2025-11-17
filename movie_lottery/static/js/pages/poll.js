@@ -24,8 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             pointsStatusEmpty: 'Баллы ещё не начислены',
             pointsStatusUpdated: (points) => `Всего начислено ${points}.`,
             pointsBadgeEmpty: '—',
-            pointsBadgeReady: 'OK',
-            pointsBadgeError: 'ERR',
+            pointsBadgeError: '—',
             pointsProgressDefault: 'Начисляем баллы…',
             pointsProgressEarned: (points) => `+${points} за голос`,
             toastPointsEarned: (points) => `+${points} баллов за голос`,
@@ -282,7 +281,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         pointsBalanceLabel.textContent = T.pointsTitle;
         pointsBalanceStatus.textContent = T.pointsStatusEmpty;
-        pointsStateBadge.textContent = T.pointsBadgeEmpty;
+        hidePointsBadge();
         pointsProgressLabel.textContent = T.pointsProgressDefault;
     }
 
@@ -298,7 +297,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         pointsBalance = balance;
         pointsBalanceCard.classList.remove('points-balance-card-error');
-        pointsStateBadge.textContent = T.pointsBadgeReady;
+        hidePointsBadge();
         pointsBalanceValue.textContent = balance;
         pointsBalanceStatus.textContent = T.pointsStatusUpdated(formatPoints(balance));
         updateCustomVoteButtonState();
@@ -308,9 +307,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!pointsBalanceCard || !pointsStateBadge || !pointsBalanceStatus) return;
         pointsBalance = null;
         pointsBalanceCard.classList.add('points-balance-card-error');
-        pointsStateBadge.textContent = T.pointsBadgeError;
+        showPointsBadge(T.pointsBadgeError);
         pointsBalanceStatus.textContent = T.pointsUnavailable;
         updateCustomVoteButtonState();
+    }
+
+    function hidePointsBadge() {
+        if (!pointsStateBadge) return;
+        pointsStateBadge.textContent = '';
+        pointsStateBadge.setAttribute('aria-hidden', 'true');
+        pointsStateBadge.classList.add('points-state-badge-hidden');
+    }
+
+    function showPointsBadge(text) {
+        if (!pointsStateBadge) return;
+        pointsStateBadge.textContent = text;
+        pointsStateBadge.removeAttribute('aria-hidden');
+        pointsStateBadge.classList.remove('points-state-badge-hidden');
     }
 
     function handlePointsAfterVote(result) {
