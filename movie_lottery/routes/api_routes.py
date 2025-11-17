@@ -588,7 +588,6 @@ def get_poll(poll_id):
     device_label = _resolve_device_label()
     profile = ensure_voter_profile(voter_token, device_label=device_label)
     points_balance = profile.total_points or 0
-    earned_points_total = profile.earned_points_total or 0
     db.session.commit()
 
     # Проверяем, голосовал ли уже этот пользователь
@@ -616,7 +615,6 @@ def get_poll(poll_id):
         "voted_movie": voted_movie_data,
         "total_votes": len(poll.votes),
         "points_balance": points_balance,
-        "earned_points_total": earned_points_total,
         "custom_vote_cost": custom_vote_cost,
         "can_vote_custom": can_vote_custom,
     }))
@@ -673,11 +671,10 @@ def vote_in_poll(poll_id):
     )
     db.session.add(new_vote)
 
-    new_balance, earned_points_total = change_voter_points_balance(
+    new_balance = change_voter_points_balance(
         voter_token,
         points_awarded,
         device_label=device_label,
-        include_earned=True,
     )
 
     db.session.commit()
@@ -693,7 +690,6 @@ def vote_in_poll(poll_id):
         "movie_name": movie.name,
         "points_awarded": points_awarded,
         "points_balance": new_balance,
-        "earned_points_total": earned_points_total,
         "voted_movie": _serialize_poll_movie(movie),
     }))
     
@@ -786,11 +782,10 @@ def custom_vote(poll_id):
 
     points_awarded = -cost
 
-    new_balance, earned_points_total = change_voter_points_balance(
+    new_balance = change_voter_points_balance(
         voter_token,
         points_awarded,
         device_label=device_label,
-        include_earned=True,
     )
 
     if new_balance < 0:
@@ -812,7 +807,6 @@ def custom_vote(poll_id):
         "movie": _serialize_poll_movie(poll_movie),
         "points_awarded": points_awarded,
         "points_balance": new_balance,
-        "earned_points_total": earned_points_total,
         "has_voted": True,
     }))
 

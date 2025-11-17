@@ -119,31 +119,6 @@ def test_change_voter_points_balance_skips_db_when_profiles_missing(app, monkeyp
     assert balance == 5
 
 
-def test_change_voter_points_balance_tracks_earned_points(app):
-    token = 'token-earned'
-    profile = PollVoterProfile(token=token, total_points=0, earned_points_total=0)
-    db.session.add(profile)
-    db.session.commit()
-
-    balance, earned = helpers.change_voter_points_balance(
-        token, 7, include_earned=True, commit=True,
-    )
-
-    assert balance == 7
-    assert earned == 7
-
-    balance, earned = helpers.change_voter_points_balance(
-        token, -3, include_earned=True, commit=True,
-    )
-
-    assert balance == 4
-    assert earned == 7
-
-    refreshed = PollVoterProfile.query.get(token)
-    assert refreshed.total_points == 4
-    assert refreshed.earned_points_total == 7
-
-
 def test_ensure_poll_movie_points_column_backfills_missing_column(app):
     client = app.test_client()
     response = _create_poll_via_api(client, [_build_movie('One'), _build_movie('Two')])
