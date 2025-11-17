@@ -85,6 +85,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     let moviesList = [];
     const PLACEHOLDER_POSTER = 'https://via.placeholder.com/200x300.png?text=No+Image';
 
+    const modalHistoryStack = [];
+    let ignoreModalPopState = false;
+
     initializePointsWidget();
     const initialCustomVoteCost = Number(pollConfigNode?.dataset.customVoteCost);
     if (Number.isFinite(initialCustomVoteCost)) {
@@ -209,16 +212,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!isVoteModalOpen) {
             lockScroll();
             isVoteModalOpen = true;
+            pushModalHistory('vote');
         }
         voteConfirmModal.style.display = 'flex';
     }
 
-    function closeVoteConfirmation() {
+    function closeVoteConfirmation(options = {}) {
+        const { fromPopState = false } = options;
+        const wasTracked = modalHistoryStack.includes('vote');
         voteConfirmModal.style.display = 'none';
         selectedMovie = null;
         if (isVoteModalOpen) {
             unlockScroll();
             isVoteModalOpen = false;
+        }
+        removeModalFromHistory('vote');
+
+        if (!fromPopState && wasTracked) {
+            ignoreModalPopState = true;
+            history.back();
         }
     }
 
@@ -294,6 +306,55 @@ document.addEventListener('DOMContentLoaded', async () => {
         pointsBalanceStatus.textContent = T.pointsStatusEmpty;
         hidePointsBadge();
         pointsProgressLabel.textContent = T.pointsProgressDefault;
+    }
+
+    function ensureModalPopStateListener() {
+        window.addEventListener('popstate', handleModalPopState);
+    }
+
+    function removeModalPopStateListenerIfIdle() {
+        if (modalHistoryStack.length === 0) {
+            window.removeEventListener('popstate', handleModalPopState);
+        }
+    }
+
+    function pushModalHistory(modalId) {
+        if (!modalId) return;
+        const alreadyTracked = modalHistoryStack.includes(modalId);
+        if (!alreadyTracked) {
+            modalHistoryStack.push(modalId);
+            ensureModalPopStateListener();
+            history.pushState({ modal: modalId }, '', window.location.href);
+        }
+    }
+
+    function removeModalFromHistory(modalId) {
+        const index = modalHistoryStack.lastIndexOf(modalId);
+        if (index !== -1) {
+            modalHistoryStack.splice(index, 1);
+        }
+        removeModalPopStateListenerIfIdle();
+    }
+
+    function handleModalPopState() {
+        if (ignoreModalPopState) {
+            ignoreModalPopState = false;
+            return;
+        }
+
+        const modalId = modalHistoryStack.pop();
+        if (!modalId) {
+            removeModalPopStateListenerIfIdle();
+            return;
+        }
+
+        if (modalId === 'vote') {
+            closeVoteConfirmation({ fromPopState: true });
+        } else if (modalId === 'custom') {
+            closeCustomVoteModal({ fromPopState: true });
+        }
+
+        removeModalPopStateListenerIfIdle();
     }
 
     function getPointsEarnedStorageKey() {
@@ -591,17 +652,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!isCustomVoteModalOpen) {
             lockScroll();
             isCustomVoteModalOpen = true;
+            pushModalHistory('custom');
         }
         customVoteInput.focus();
         showCustomVoteStatus('empty');
     }
 
-    function closeCustomVoteModal() {
+    function closeCustomVoteModal(options = {}) {
+        const { fromPopState = false } = options;
+        const wasTracked = modalHistoryStack.includes('custom');
         customVoteModal.style.display = 'none';
         resetCustomVoteModal();
         if (isCustomVoteModalOpen) {
             unlockScroll();
             isCustomVoteModalOpen = false;
+        }
+        removeModalFromHistory('custom');
+
+        if (!fromPopState && wasTracked) {
+            ignoreModalPopState = true;
+            history.back();
         }
     }
 
