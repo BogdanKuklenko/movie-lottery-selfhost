@@ -84,6 +84,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!gallery || !modalElement) return;
 
     const modal = new ModalManager(modalElement);
+    const closeModalIfOpen = () => {
+        if (modalElement.style.display === 'flex') {
+            modal.close();
+        }
+    };
 
     // --- Функционал выбора фильмов и создания опросов ---
     const toggleSelectModeBtn = document.getElementById('toggle-select-mode-btn');
@@ -265,6 +270,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const modalBody = modal.body;
         if (!modalBody) return;
 
+        modalBody.querySelectorAll('a[target="_blank"]').forEach((link) => {
+            link.addEventListener('click', closeModalIfOpen);
+        });
+
         modalBody.querySelectorAll('.copy-btn').forEach((button) => {
             button.addEventListener('click', () => {
                 const targetId = button.getAttribute('data-copy-target');
@@ -369,6 +378,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         modal.open();
         modal.renderCustomContent(pollsHtml);
 
+        const modalBody = modal.body;
+        if (modalBody) {
+            modalBody.querySelectorAll('.my-polls-list a').forEach(link => {
+                link.addEventListener('click', closeModalIfOpen);
+            });
+        }
+
         // Отмечаем все опросы как просмотренные
         const viewedPolls = JSON.parse(localStorage.getItem('viewedPolls') || '{}');
         allPolls.forEach(poll => {
@@ -388,6 +404,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const searchQuery = `${movieSearchName || movieName}${movieYear ? ' ' + movieYear : ''}`;
                 const encodedQuery = encodeURIComponent(searchQuery);
                 const rutrackerUrl = `https://rutracker.org/forum/tracker.php?nm=${encodedQuery}`;
+                closeModalIfOpen();
                 window.open(rutrackerUrl, '_blank');
                 showToast(`Открыт поиск на RuTracker: "${searchQuery}"`, 'info');
             });
@@ -397,9 +414,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.querySelectorAll('.create-poll-from-winners').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 const winners = JSON.parse(e.target.dataset.winners);
-                
+
                 btn.disabled = true;
                 btn.textContent = 'Создание...';
+                let reopenedWithResult = false;
 
                 try {
                     const response = await fetch(buildPollApiUrl('/api/polls/create'), {
@@ -415,6 +433,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         throw new Error(data.error || 'Не удалось создать опрос');
                     }
 
+                    closeModalIfOpen();
+                    reopenedWithResult = true;
+
                     showPollCreatedModal({
                         pollUrl: data.poll_url,
                         resultsUrl: data.results_url,
@@ -423,8 +444,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 } catch (error) {
                     showToast(error.message, 'error');
+                } finally {
                     btn.disabled = false;
                     btn.textContent = 'Создать опрос из победителей';
+                    if (!reopenedWithResult) {
+                        closeModalIfOpen();
+                    }
                 }
             });
         });
@@ -527,6 +552,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             confirmBtn.addEventListener('click', async () => {
                 confirmBtn.disabled = true;
                 confirmBtn.textContent = 'Создание...';
+                let reopenedWithResult = false;
 
                 try {
                     // Получаем фильмы с выбранным бейджем
@@ -557,6 +583,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
 
                     // Показываем модальное окно с результатом
+                    closeModalIfOpen();
+                    reopenedWithResult = true;
+
                     showPollCreatedModal({
                         pollUrl: createData.poll_url,
                         resultsUrl: createData.results_url,
@@ -569,8 +598,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 } catch (error) {
                     showToast(error.message, 'error');
+                } finally {
                     confirmBtn.disabled = false;
                     confirmBtn.textContent = 'Создать опрос';
+                    if (!reopenedWithResult) {
+                        closeModalIfOpen();
+                    }
                 }
             });
         });
