@@ -21,6 +21,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const banConfirmBtn = document.getElementById('ban-confirm-btn');
     const banCancelBtn = document.getElementById('ban-cancel-btn');
     const banDaysInput = document.getElementById('ban-days-input');
+    const banDaysRange = document.getElementById('ban-days-range');
+    const banPresetButtons = Array.from(document.querySelectorAll('[data-ban-preset]'));
+    const banStepButtons = Array.from(document.querySelectorAll('[data-ban-step]'));
     const banModalDescription = document.getElementById('ban-modal-description');
     const banModalError = document.getElementById('ban-modal-error');
     const pollWinnerBanner = document.getElementById('poll-winner-banner');
@@ -357,7 +360,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         resetBanModal();
         const movieYear = movie?.year ? ` (${movie.year})` : '';
         banModalDescription.textContent = `Исключить «${movie?.name || 'Фильм'}»${movieYear} из опроса.`;
-        banDaysInput.value = '1';
+        setBanDaysValue(1);
         banModal.style.display = 'flex';
         if (!isBanModalOpen) {
             lockScroll();
@@ -521,15 +524,57 @@ document.addEventListener('DOMContentLoaded', async () => {
             banConfirmBtn.disabled = false;
             banConfirmBtn.textContent = 'Исключить';
         }
-        if (banDaysInput) {
-            banDaysInput.value = '1';
-        }
+        setBanDaysValue(1);
     }
 
     function setBanModalError(text = '') {
         if (!banModalError) return;
         banModalError.textContent = text;
         banModalError.hidden = !text;
+    }
+
+    function parseBanDays(rawValue) {
+        const parsed = Number.parseInt(rawValue, 10);
+        if (!Number.isFinite(parsed)) return null;
+        return Math.max(1, parsed);
+    }
+
+    function syncBanRangeValue(days) {
+        if (!banDaysRange) return;
+        const rangeMin = Number.parseInt(banDaysRange.min, 10) || 1;
+        const currentMax = Number.parseInt(banDaysRange.max, 10) || rangeMin;
+        if (days > currentMax) {
+            banDaysRange.max = String(days);
+        }
+        const clamped = Math.min(Math.max(days, rangeMin), Number.parseInt(banDaysRange.max, 10) || days);
+        banDaysRange.value = String(clamped);
+    }
+
+    function setBanDaysValue(rawValue) {
+        const days = parseBanDays(rawValue);
+        if (!days) {
+            setBanModalError('Укажите длительность не менее 1 дня.');
+            return null;
+        }
+
+        if (banDaysInput) {
+            banDaysInput.value = String(days);
+        }
+
+        syncBanRangeValue(days);
+        setBanModalError('');
+        return days;
+    }
+
+    function validateBanDaysInput() {
+        const days = parseBanDays(banDaysInput?.value ?? '');
+        const isValid = Number.isFinite(days) && days >= 1;
+        if (!isValid) {
+            setBanModalError('Укажите длительность не менее 1 дня.');
+        } else {
+            setBanModalError('');
+        }
+        return isValid ? days : null;
     }
 
     function applyBanResult(movieId, payload = {}) {
@@ -554,13 +599,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        const days = Number.parseInt(banDaysInput.value, 10);
-        if (!Number.isFinite(days) || days <= 0) {
-            setBanModalError('Укажите длительность не менее 1 дня.');
+        const days = validateBanDaysInput();
+        if (!days) {
             return;
         }
-
-        setBanModalError('');
         banConfirmBtn.disabled = true;
         banConfirmBtn.textContent = 'Исключаем...';
 
@@ -893,6 +935,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (event.target === banModal) {
             closeBanModal();
         }
+    });
+
+    banDaysInput?.addEventListener('input', (event) => {
+        setBanDaysValue(event.target.value);
+    });
+
+    banDaysInput?.addEventListener('blur', validateBanDaysInput);
+
+    banDaysRange?.addEventListener('input', (event) => {
+        setBanDaysValue(event.target.value);
+    });
+
+    banPresetButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            const preset = button.dataset.banPreset;
+            setBanDaysValue(preset);
+        });
+    });
+
+    banStepButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            const step = Number.parseInt(button.dataset.banStep, 10) || 0;
+            const current = parseBanDays(banDaysInput?.value ?? '1') || 1;
+            setBanDaysValue(current + step);
+        });
     });
 
     if (customVoteBtn && customVoteModal && customVoteCancelBtn && customVoteInput) {

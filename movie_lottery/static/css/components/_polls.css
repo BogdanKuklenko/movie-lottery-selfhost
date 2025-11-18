@@ -449,6 +449,36 @@
     flex-wrap: wrap;
 }
 
+.ban-stepper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ban-step-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.06);
+    color: white;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+}
+
+.ban-step-btn:hover,
+.ban-step-btn:focus-visible {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.2);
+    outline: none;
+}
+
+.ban-step-btn:active {
+    transform: translateY(1px);
+}
+
 .ban-days-input {
     width: 120px;
     padding: 10px 12px;
@@ -462,6 +492,53 @@
     outline: 2px solid var(--accent-purple);
     outline-offset: 2px;
     border-color: transparent;
+}
+
+.ban-presets {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.ban-preset-btn {
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: white;
+    padding: 8px 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.ban-preset-btn:hover,
+.ban-preset-btn:focus-visible {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.2);
+    outline: none;
+}
+
+.ban-preset-btn:active {
+    transform: translateY(1px);
+}
+
+.ban-range-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.ban-days-range {
+    width: 100%;
+    accent-color: var(--accent-purple);
+    cursor: pointer;
+}
+
+.ban-range-hint {
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 13px;
 }
 
 .ban-cost-hint {
