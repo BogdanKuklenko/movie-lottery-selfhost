@@ -288,7 +288,37 @@ def _serialize_poll_movie(movie):
         "genres": movie.genres,
         "countries": movie.countries,
         "points": movie.points if movie.points is not None else 1,
+        "ban_until": movie.ban_until.isoformat() if getattr(movie, 'ban_until', None) else None,
+        "ban_status": getattr(movie, 'ban_status', 'none'),
+        "ban_remaining_seconds": getattr(movie, 'ban_remaining_seconds', 0),
     }
+
+
+def _is_movie_banned_for_poll(movie_data):
+    ban_status = str(movie_data.get('ban_status') or '').lower()
+    if ban_status in {'active', 'pending'}:
+        return True
+
+    library_movie = None
+    movie_id = movie_data.get('id')
+    if movie_id:
+        library_movie = LibraryMovie.query.get(movie_id)
+    elif movie_data.get('kinopoisk_id'):
+        library_movie = LibraryMovie.query.filter_by(kinopoisk_id=movie_data.get('kinopoisk_id')).first()
+    elif movie_data.get('name') and movie_data.get('year'):
+        library_movie = LibraryMovie.query.filter_by(
+            name=movie_data.get('name'),
+            year=movie_data.get('year'),
+        ).first()
+
+    if library_movie and library_movie.badge == 'ban':
+        return library_movie.ban_status in {'active', 'pending'}
+
+    return False
+
+
+def _get_active_poll_movies(poll):
+    return [movie for movie in poll.movies if not getattr(movie, 'is_banned', False)]
 
 
 def _normalize_poll_movie_points(raw_value, default=1):
@@ -598,6 +628,15 @@ def create_poll():
     if len(movies_json) > 25:
         return jsonify({"error": "Максимум 25 фильмов в опросе"}), 400
 
+    _refresh_library_bans()
+
+    for movie_data in movies_json:
+        if _is_movie_banned_for_poll(movie_data):
+            movie_name = movie_data.get('name') or 'Неизвестный фильм'
+            return jsonify({
+                "error": f"Фильм \"{movie_name}\" находится в бане и не может быть добавлен в опрос"
+            }), 422
+
     creator_token, _ = _get_or_issue_creator_token()
 
     new_poll = Poll(id=generate_unique_poll_id(), creator_token=creator_token)
@@ -640,7 +679,9 @@ def get_poll(poll_id):
     """Получение данных опроса"""
     poll = Poll.query.get_or_404(poll_id)
 
-    if poll.is_expired:
+    closed_by_ban = bool(poll.forced_winner_movie_id)
+
+    if poll.is_expired and not closed_by_ban:
         return jsonify({"error": "Опрос истёк"}), 410
 
     poll_settings = get_poll_settings()
@@ -703,6 +744,9 @@ def get_poll(poll_id):
         "custom_vote_cost": custom_vote_cost,
         "custom_vote_cost_updated_at": poll_settings.updated_at.isoformat() + "Z" if poll_settings and poll_settings.updated_at else None,
         "can_vote_custom": can_vote_custom,
+        "is_expired": poll.is_expired,
+        "closed_by_ban": closed_by_ban,
+        "forced_winner": _serialize_poll_movie(poll.winners[0]) if closed_by_ban and poll.winners else None,
         "poll_settings": _serialize_poll_settings(poll_settings),
     }))
 
@@ -718,8 +762,16 @@ def vote_in_poll(poll_id):
     """Голосование в опросе"""
     poll = Poll.query.get_or_404(poll_id)
 
-    if poll.is_expired:
+    closed_by_ban = bool(poll.forced_winner_movie_id)
+
+    if poll.is_expired and not closed_by_ban:
         return jsonify({"error": "Опрос истёк"}), 410
+
+    if closed_by_ban:
+        return jsonify({
+            "error": "Голосование завершено из-за банов",
+            "forced_winner": _serialize_poll_movie(poll.winners[0]) if poll.winners else None,
+        }), 409
 
     payload = _get_json_payload()
     if payload is None:
@@ -733,6 +785,9 @@ def vote_in_poll(poll_id):
     movie = PollMovie.query.filter_by(id=movie_id, poll_id=poll_id).first()
     if not movie:
         return jsonify({"error": "Фильм не найден в опросе"}), 404
+
+    if getattr(movie, 'is_banned', False):
+        return jsonify({"error": "Фильм заблокирован для голосования"}), 403
     
     # Получаем или создаём токен голосующего
     voter_token = request.cookies.get('voter_token')
@@ -787,12 +842,106 @@ def vote_in_poll(poll_id):
     return response
 
 
+@api_bp.route('/polls/<poll_id>/ban', methods=['POST'])
+def ban_poll_movie(poll_id):
+    poll = Poll.query.get_or_404(poll_id)
+
+    closed_by_ban = bool(poll.forced_winner_movie_id)
+    if poll.is_expired and not closed_by_ban:
+        return jsonify({"error": "Опрос истёк"}), 410
+
+    if closed_by_ban:
+        return jsonify({
+            "error": "Голосование уже завершено из-за банов",
+            "forced_winner": _serialize_poll_movie(poll.winners[0]) if poll.winners else None,
+        }), 409
+
+    payload = _get_json_payload()
+    if payload is None:
+        return jsonify({"error": "Некорректный JSON-запрос"}), 400
+
+    movie_id = payload.get('movie_id')
+    days = payload.get('days')
+
+    try:
+        movie_id = int(movie_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Некорректный идентификатор фильма"}), 400
+
+    try:
+        days = int(days)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Количество дней должно быть числом"}), 400
+
+    if days <= 0:
+        return jsonify({"error": "Минимальный бан — 1 день"}), 400
+
+    movie = PollMovie.query.filter_by(id=movie_id, poll_id=poll_id).first()
+    if not movie:
+        return jsonify({"error": "Фильм не найден в опросе"}), 404
+
+    active_movies_before = _get_active_poll_movies(poll)
+    if not movie.is_banned and len(active_movies_before) <= 1:
+        return jsonify({"error": "Нельзя забанить последний фильм"}), 409
+
+    voter_token = request.cookies.get('voter_token') or secrets.token_hex(16)
+    device_label = _resolve_device_label()
+    profile = ensure_voter_profile(voter_token, device_label=device_label)
+    balance_before = profile.total_points or 0
+
+    if balance_before < days:
+        return jsonify({"error": "Недостаточно баллов для бана"}), 403
+
+    base_time = movie.ban_until if movie.is_banned and movie.ban_until else datetime.utcnow()
+    movie.ban_until = base_time + timedelta(days=days)
+
+    new_balance = change_voter_points_balance(
+        voter_token,
+        -days,
+        device_label=device_label,
+    )
+
+    active_movies_after = _get_active_poll_movies(poll)
+    forced_winner = None
+    closed_by_ban = False
+    if len(active_movies_after) == 1:
+        forced_winner = active_movies_after[0]
+        poll.forced_winner_movie_id = forced_winner.id
+        poll.expires_at = datetime.utcnow()
+        closed_by_ban = True
+
+    db.session.commit()
+
+    response = prevent_caching(jsonify({
+        "success": True,
+        "ban_until": movie.ban_until.isoformat() if movie.ban_until else None,
+        "ban_status": movie.ban_status,
+        "ban_remaining_seconds": movie.ban_remaining_seconds,
+        "points_balance": new_balance,
+        "closed_by_ban": closed_by_ban,
+        "forced_winner": _serialize_poll_movie(forced_winner) if forced_winner else None,
+    }))
+
+    if not request.cookies.get('voter_token'):
+        response.set_cookie('voter_token', voter_token, max_age=60*60*24*30)
+
+    return response
+
+
 @api_bp.route('/polls/<poll_id>/custom-vote', methods=['POST'])
 def custom_vote(poll_id):
     poll = Poll.query.get_or_404(poll_id)
 
-    if poll.is_expired:
+    closed_by_ban = bool(poll.forced_winner_movie_id)
+
+    if poll.is_expired and not closed_by_ban:
         return jsonify({"error": "Опрос истёк"}), 410
+
+    if closed_by_ban:
+        return jsonify({
+            "error": "Голосование завершено из-за банов",
+            "forced_winner": _serialize_poll_movie(poll.winners[0]) if poll.winners else None,
+        }), 409
 
     payload = _get_json_payload()
     if payload is None:
@@ -908,7 +1057,9 @@ def get_poll_results(poll_id):
     """Получение результатов опроса"""
     poll = Poll.query.get_or_404(poll_id)
 
-    if poll.is_expired:
+    closed_by_ban = bool(poll.forced_winner_movie_id)
+
+    if poll.is_expired and not closed_by_ban:
         return jsonify({"error": "Опрос истёк"}), 410
 
     poll_settings = get_poll_settings()
@@ -932,6 +1083,9 @@ def get_poll_results(poll_id):
             "genres": movie.genres,
             "countries": movie.countries,
             "points": movie.points if movie.points is not None else 1,
+            "ban_until": movie.ban_until.isoformat() if movie.ban_until else None,
+            "ban_status": movie.ban_status,
+            "ban_remaining_seconds": movie.ban_remaining_seconds,
             "votes": votes,
             "is_winner": movie in winners
         })
@@ -957,7 +1111,8 @@ def get_poll_results(poll_id):
         "custom_vote_cost": _get_custom_vote_cost(),
         "poll_settings": _serialize_poll_settings(poll_settings),
         "created_at": poll.created_at.isoformat() + "Z",
-        "expires_at": poll.expires_at.isoformat() + "Z"
+        "expires_at": poll.expires_at.isoformat() + "Z",
+        "closed_by_ban": closed_by_ban,
     }))
 
 
@@ -980,8 +1135,8 @@ def get_my_polls():
     
     polls_data = []
     for poll in polls:
-        # Проверяем, есть ли голоса
-        if len(poll.votes) == 0:
+        # Проверяем, есть ли голоса или форсированный победитель
+        if len(poll.votes) == 0 and not poll.forced_winner_movie_id:
             continue
         
         vote_counts = poll.get_vote_counts()
@@ -992,6 +1147,7 @@ def get_my_polls():
             "created_at": poll.created_at.isoformat() + "Z",
             "expires_at": poll.expires_at.isoformat() + "Z",
             "is_expired": poll.is_expired,
+            "closed_by_ban": bool(poll.forced_winner_movie_id),
             "total_votes": len(poll.votes),
             "movies_count": len(poll.movies),
             "winners": [
@@ -1141,9 +1297,16 @@ def get_movies_by_badge(badge_type):
     _refresh_library_bans()
     movies = LibraryMovie.query.filter_by(badge=badge_type).all()
 
+    banned_movies = [m for m in movies if m.ban_status in {'active', 'pending'}]
+
+    if banned_movies:
+        if badge_type == 'ban':
+            return jsonify({"error": "Нельзя использовать фильмы с активным баном для опросов"}), 403
+        movies = [m for m in movies if m not in banned_movies]
+
     if len(movies) < 2:
-        return jsonify({"error": f"Недостаточно фильмов с бейджем '{badge_type}' для создания опроса (минимум 2)"}), 400
-    
+        return jsonify({"error": "Недостаточно доступных фильмов для создания опроса (минимум 2)"}), 422
+
     # Ограничиваем количество фильмов до 25
     limited = False
     if len(movies) > 25:
