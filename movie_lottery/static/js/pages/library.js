@@ -29,6 +29,20 @@ function formatDate(isoString) {
     return date.toLocaleDateString('ru-RU');
 }
 
+function formatDateTime(isoString) {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    return date.toLocaleString('ru-RU');
+}
+
+function formatDurationShort(seconds) {
+    const totalSeconds = Math.max(0, Math.floor(seconds));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
 /**
  * Динамически переключает иконку "копировать"/"искать" на карточке.
  * @param {HTMLElement} card - Элемент карточки.
@@ -766,6 +780,64 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --- Конец функционала быстрого просмотра постера ---
 
+    function getBanRemainingSeconds(card) {
+        if (!card) return 0;
+        if (card.dataset.banUntil) {
+            const untilMs = new Date(card.dataset.banUntil).getTime();
+            return Math.max(0, Math.floor((untilMs - Date.now()) / 1000));
+        }
+
+        const raw = Number.parseInt(card.dataset.banRemaining || '0', 10);
+        if (Number.isNaN(raw)) return 0;
+        return Math.max(0, raw);
+    }
+
+    function renderBanStatus(card) {
+        if (!card) return;
+
+        const status = card.dataset.banStatus || 'none';
+        let pill = card.querySelector('.ban-status-chip');
+
+        if (status === 'none') {
+            if (pill) pill.remove();
+            return;
+        }
+
+        if (!pill) {
+            pill = document.createElement('div');
+            pill.className = 'ban-status-chip';
+            pill.innerHTML = '<span class="ban-icon">⛔</span><span class="ban-text"></span><span class="ban-timer"></span>';
+            card.appendChild(pill);
+        }
+
+        const textEl = pill.querySelector('.ban-text');
+        const timerEl = pill.querySelector('.ban-timer');
+
+        pill.classList.toggle('active', status === 'active' || status === 'pending');
+
+        if (status === 'active') {
+            const remaining = getBanRemainingSeconds(card);
+            card.dataset.banRemaining = String(remaining);
+            textEl.textContent = card.dataset.banUntil ? `Бан до ${formatDateTime(card.dataset.banUntil)}` : 'Бан активен';
+            timerEl.textContent = `(${formatDurationShort(remaining)})`;
+            timerEl.style.display = '';
+        } else if (status === 'pending') {
+            textEl.textContent = 'Бан без срока';
+            timerEl.textContent = '';
+            timerEl.style.display = 'none';
+        } else {
+            pill.remove();
+        }
+    }
+
+    function updateBanTimers() {
+        document.querySelectorAll('.gallery-item').forEach(card => {
+            if ((card.dataset.banStatus || 'none') === 'active') {
+                renderBanStatus(card);
+            }
+        });
+    }
+
     const getMovieDataFromCard = (card) => {
         const ds = card.dataset;
         return {
@@ -785,6 +857,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             torrent_hash: ds.torrentHash,
             badge: ds.badge || null,
             points: parseMoviePoints(ds.moviePoints),
+            ban_status: ds.banStatus || 'none',
+            ban_until: ds.banUntil || null,
+            ban_remaining_seconds: Number.parseInt(ds.banRemaining || '0', 10) || 0,
+            ban_applied_by: ds.banAppliedBy || '',
+            ban_cost: ds.banCost ? Number.parseInt(ds.banCost, 10) : null,
         };
     };
 
@@ -797,6 +874,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const badgeIcons = {
         'favorite': '⭐',
+        'ban': '⛔',
         'watchlist': '👁️',
         'top': '🏆',
         'watched': '✅',
@@ -824,12 +902,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         currentBadgeCard = null;
     }
 
-    async function setBadge(movieId, badgeType) {
+    async function setBadge(movieId, badgeType, extraPayload = {}) {
         try {
             const response = await fetch(`/api/library/${movieId}/badge`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ badge: badgeType })
+                body: JSON.stringify({ badge: badgeType, ...extraPayload })
             });
 
             const data = await response.json();
@@ -864,8 +942,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    function updateBadgeOnCard(card, badgeType) {
+    function updateBadgeOnCard(card, badgeType, payload = {}) {
         card.dataset.badge = badgeType || '';
+        if (badgeType === 'ban') {
+            card.dataset.banStatus = payload.ban_status || 'active';
+            card.dataset.banUntil = payload.ban_until || '';
+            card.dataset.banRemaining = (payload.ban_remaining_seconds ?? '').toString();
+            card.dataset.banAppliedBy = payload.ban_applied_by || '';
+            card.dataset.banCost = payload.ban_cost != null ? payload.ban_cost.toString() : '';
+        } else {
+            card.dataset.banStatus = 'none';
+            card.dataset.banUntil = '';
+            card.dataset.banRemaining = '';
+            card.dataset.banAppliedBy = '';
+            card.dataset.banCost = '';
+        }
 
         let badgeElement = card.querySelector('.movie-badge');
 
@@ -884,6 +975,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // После обновления бейджа пересчитываем статистику и сохраняем текущий фильтр
         updateBadgeFilterStats();
         applyBadgeFilter(currentFilter);
+        renderBanStatus(card);
     }
 
     // Обработчик клика по опциям бейджа
@@ -895,8 +987,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const movieId = currentBadgeCard.dataset.movieId;
 
             try {
-                await setBadge(movieId, badgeType);
-                updateBadgeOnCard(currentBadgeCard, badgeType);
+                const result = await setBadge(movieId, badgeType);
+                updateBadgeOnCard(currentBadgeCard, badgeType, result);
                 showToast('Бейдж установлен', 'success');
                 closeBadgeSelector();
                 // Обновляем статистику бейджей
@@ -914,8 +1006,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const movieId = currentBadgeCard.dataset.movieId;
 
         try {
-            await removeBadge(movieId);
-            updateBadgeOnCard(currentBadgeCard, null);
+            const result = await removeBadge(movieId);
+            updateBadgeOnCard(currentBadgeCard, null, result);
             showToast('Бейдж удалён', 'success');
             closeBadgeSelector();
             // Обновляем статистику бейджей
@@ -981,8 +1073,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             },
             onSetBadge: async (movieId, badgeType) => {
                 try {
-                    await setBadge(movieId, badgeType);
-                    updateBadgeOnCard(card, badgeType);
+                    const result = await setBadge(movieId, badgeType);
+                    updateBadgeOnCard(card, badgeType, result);
                     notify('Бейдж установлен', 'success');
                     handleOpenModal(card);
                 } catch (error) {
@@ -991,8 +1083,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             },
             onRemoveBadge: async (movieId) => {
                 try {
-                    await removeBadge(movieId);
-                    updateBadgeOnCard(card, null);
+                    const result = await removeBadge(movieId);
+                    updateBadgeOnCard(card, null, result);
                     notify('Бейдж удалён', 'success');
                     handleOpenModal(card);
                 } catch (error) {
@@ -1107,4 +1199,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.querySelectorAll('.date-badge').forEach(badge => {
         badge.textContent = formatDate(badge.dataset.date);
     });
+
+    document.querySelectorAll('.gallery-item').forEach(card => renderBanStatus(card));
+    setInterval(updateBanTimers, 1000);
 });

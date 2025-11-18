@@ -2,7 +2,7 @@ import random
 import re
 import secrets
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy import func
 from sqlalchemy.exc import OperationalError, ProgrammingError
@@ -66,6 +66,33 @@ def _get_json_payload():
 
 def _get_custom_vote_cost():
     return get_custom_vote_cost()
+
+
+def _serialize_library_movie(movie):
+    return {
+        'id': movie.id,
+        'kinopoisk_id': movie.kinopoisk_id,
+        'name': movie.name,
+        'search_name': movie.search_name,
+        'year': movie.year,
+        'poster': movie.poster,
+        'description': movie.description,
+        'rating_kp': movie.rating_kp,
+        'genres': movie.genres,
+        'countries': movie.countries,
+        'badge': movie.badge,
+        'points': movie.points if movie.points is not None else 1,
+        'ban_until': movie.ban_until.isoformat() if movie.ban_until else None,
+        'ban_status': movie.ban_status,
+        'ban_remaining_seconds': movie.ban_remaining_seconds,
+        'ban_applied_by': movie.ban_applied_by,
+        'ban_cost': movie.ban_cost,
+    }
+
+
+def _refresh_library_bans():
+    if LibraryMovie.refresh_all_bans():
+        db.session.commit()
 
 
 def _serialize_poll_settings(settings):
@@ -1004,6 +1031,7 @@ def cleanup_expired_polls():
 @api_bp.route('/library/<int:movie_id>/badge', methods=['PUT'])
 def set_movie_badge(movie_id):
     """Установка бейджа для фильма в библиотеке"""
+    _refresh_library_bans()
     library_movie = LibraryMovie.query.get_or_404(movie_id)
 
     payload = _get_json_payload()
@@ -1011,18 +1039,53 @@ def set_movie_badge(movie_id):
         return jsonify({"success": False, "message": "Некорректный JSON-запрос"}), 400
 
     badge_type = payload.get('badge')
-    allowed_badges = ['favorite', 'watchlist', 'top', 'watched', 'new']
-    
+    allowed_badges = ['favorite', 'ban', 'watchlist', 'top', 'watched', 'new']
+
     if badge_type and badge_type not in allowed_badges:
         return jsonify({"success": False, "message": "Недопустимый тип бейджа"}), 400
-    
+
+    ban_until = None
+    ban_applied_by = None
+    ban_cost = None
+
+    if badge_type == 'ban':
+        ban_until_raw = payload.get('ban_until')
+        ban_duration_hours = payload.get('ban_duration_hours')
+        ban_until = _parse_iso_date(ban_until_raw, for_end=True)
+
+        if ban_until is None and ban_duration_hours is not None:
+            try:
+                hours = float(ban_duration_hours)
+                ban_until = datetime.utcnow() + timedelta(hours=max(hours, 0))
+            except (TypeError, ValueError):
+                return jsonify({"success": False, "message": "Некорректная длительность бана"}), 400
+
+        if ban_until is None:
+            ban_until = datetime.utcnow() + timedelta(hours=24)
+
+        ban_applied_by = (payload.get('ban_applied_by') or '').strip() or None
+        raw_cost = payload.get('ban_cost')
+        try:
+            ban_cost = int(raw_cost) if raw_cost is not None else None
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "message": "Стоимость бана должна быть числом"}), 400
+
     library_movie.badge = badge_type
+    library_movie.ban_until = ban_until
+    library_movie.ban_applied_by = ban_applied_by
+    library_movie.ban_cost = ban_cost
+    library_movie.bumped_at = db.func.now()
     db.session.commit()
-    
+
     return jsonify({
-        "success": True, 
+        "success": True,
         "message": "Бейдж установлен" if badge_type else "Бейдж удалён",
-        "badge": badge_type
+        "badge": badge_type,
+        "ban_until": library_movie.ban_until.isoformat() if library_movie.ban_until else None,
+        "ban_status": library_movie.ban_status,
+        "ban_remaining_seconds": library_movie.ban_remaining_seconds,
+        "ban_applied_by": library_movie.ban_applied_by,
+        "ban_cost": library_movie.ban_cost,
     })
 
 @api_bp.route('/library/<int:movie_id>/badge', methods=['DELETE'])
@@ -1030,13 +1093,26 @@ def remove_movie_badge(movie_id):
     """Удаление бейджа у фильма в библиотеке"""
     library_movie = LibraryMovie.query.get_or_404(movie_id)
     library_movie.badge = None
+    library_movie.ban_until = None
+    library_movie.ban_applied_by = None
+    library_movie.ban_cost = None
+    library_movie.bumped_at = db.func.now()
     db.session.commit()
-    
-    return jsonify({"success": True, "message": "Бейдж удалён"})
+
+    return jsonify({
+        "success": True,
+        "message": "Бейдж удалён",
+        "badge": None,
+        "ban_status": library_movie.ban_status,
+        "ban_remaining_seconds": library_movie.ban_remaining_seconds,
+        "ban_applied_by": library_movie.ban_applied_by,
+        "ban_cost": library_movie.ban_cost,
+    })
 
 @api_bp.route('/library/badges/stats', methods=['GET'])
 def get_badge_stats():
     """Получение статистики по бейджам в библиотеке"""
+    _refresh_library_bans()
     badge_stats = db.session.query(
         LibraryMovie.badge,
         func.count(LibraryMovie.id).label('count')
@@ -1049,21 +1125,22 @@ def get_badge_stats():
     stats = {badge: count for badge, count in badge_stats}
     
     # Добавляем все типы бейджей с нулевыми значениями для отсутствующих
-    all_badges = ['favorite', 'watchlist', 'top', 'watched', 'new']
+    all_badges = ['favorite', 'ban', 'watchlist', 'top', 'watched', 'new']
     result = {badge: stats.get(badge, 0) for badge in all_badges}
-    
+
     return jsonify(result)
 
 @api_bp.route('/library/badges/<badge_type>/movies', methods=['GET'])
 def get_movies_by_badge(badge_type):
     """Получение списка фильмов с определённым бейджем для создания опроса"""
-    allowed_badges = ['favorite', 'watchlist', 'top', 'watched', 'new']
-    
+    allowed_badges = ['favorite', 'ban', 'watchlist', 'top', 'watched', 'new']
+
     if badge_type not in allowed_badges:
         return jsonify({"error": "Недопустимый тип бейджа"}), 400
-    
+
+    _refresh_library_bans()
     movies = LibraryMovie.query.filter_by(badge=badge_type).all()
-    
+
     if len(movies) < 2:
         return jsonify({"error": f"Недостаточно фильмов с бейджем '{badge_type}' для создания опроса (минимум 2)"}), 400
     
@@ -1073,22 +1150,7 @@ def get_movies_by_badge(badge_type):
         movies = movies[:25]
         limited = True
     
-    movies_data = []
-    for movie in movies:
-        movies_data.append({
-            'id': movie.id,
-            'kinopoisk_id': movie.kinopoisk_id,
-            'name': movie.name,
-            'search_name': movie.search_name,
-            'year': movie.year,
-            'poster': movie.poster,
-            'description': movie.description,
-            'rating_kp': movie.rating_kp,
-            'genres': movie.genres,
-            'countries': movie.countries,
-            'badge': movie.badge,
-            'points': movie.points if movie.points is not None else 1,
-        })
+    movies_data = [_serialize_library_movie(movie) for movie in movies]
     
     return jsonify({
         'movies': movies_data,

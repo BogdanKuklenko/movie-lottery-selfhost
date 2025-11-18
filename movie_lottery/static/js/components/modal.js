@@ -31,6 +31,48 @@ function escapeHtml(value) {
 
 const placeholderPoster = 'https://via.placeholder.com/200x300.png?text=No+Image';
 
+function formatDateTime(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    return date.toLocaleString('ru-RU');
+}
+
+function formatBanDuration(seconds) {
+    const totalSeconds = Math.max(0, Math.floor(seconds || 0));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
+function renderBanInfo(movieData) {
+    if (!movieData || movieData.ban_status === 'none') {
+        return '';
+    }
+
+    if (movieData.ban_status === 'pending') {
+        return `<div class="ban-info">⛔ Бан без срока</div>`;
+    }
+
+    if (movieData.ban_status === 'expired') {
+        return `<div class="ban-info">⛔ Бан истёк и будет автоматически снят</div>`;
+    }
+
+    const untilText = movieData.ban_until ? `до ${formatDateTime(movieData.ban_until)}` : 'активен';
+    const remaining = formatBanDuration(movieData.ban_remaining_seconds || 0);
+    const appliedBy = movieData.ban_applied_by ? `<div class="ban-meta">Назначил: ${escapeHtml(movieData.ban_applied_by)}</div>` : '';
+    const costValue = Number.parseInt(movieData.ban_cost, 10);
+    const cost = Number.isFinite(costValue) ? `<div class="ban-meta">Стоимость: ${costValue}</div>` : '';
+
+    return `
+        <div class="ban-info">
+            <div class="ban-header">⛔ Бан ${untilText} (${remaining})</div>
+            ${appliedBy}
+            ${cost}
+        </div>
+    `;
+}
+
 /**
  * Создает HTML-разметку для списка участников лотереи.
  * @param {Array<object>} movies - Массив фильмов-участников.
@@ -83,6 +125,7 @@ function createWinnerCardHTML(movieData, isLibrary) {
     // Секция выбора бейджа (только для библиотеки)
     const badgeIcons = {
         'favorite': '⭐',
+        'ban': '⛔',
         'watchlist': '👁️',
         'top': '🏆',
         'watched': '✅',
@@ -91,13 +134,14 @@ function createWinnerCardHTML(movieData, isLibrary) {
     
     const badgeLabels = {
         'favorite': 'Любимое',
+        'ban': 'Бан',
         'watchlist': 'Хочу посмотреть',
         'top': 'Топ',
         'watched': 'Просмотрено',
         'new': 'Новинка'
     };
-    
-    const badgeTypes = ['favorite', 'watchlist', 'top', 'watched', 'new'];
+
+    const badgeTypes = ['favorite', 'ban', 'watchlist', 'top', 'watched', 'new'];
     const currentBadge = movieData.badge || null;
 
     const badgeSectionHTML = isLibrary ? `
@@ -125,6 +169,8 @@ function createWinnerCardHTML(movieData, isLibrary) {
             <p class="movie-points-hint">По умолчанию каждому фильму присваивается 1 балл. Вы можете указать своё значение.</p>
         </div>
     ` : '';
+
+    const banSectionHTML = isLibrary ? renderBanInfo(movieData) : '';
 
     return `
         <div class="winner-card">
@@ -155,6 +201,7 @@ function createWinnerCardHTML(movieData, isLibrary) {
                     </div>` : '<p class="meta-info">Kinopoisk ID не указан, работа с magnet-ссылкой недоступна.</p>'}
 
                 ${pointsSectionHTML}
+                ${banSectionHTML}
                 ${badgeSectionHTML}
 
                 <div class="library-modal-actions">

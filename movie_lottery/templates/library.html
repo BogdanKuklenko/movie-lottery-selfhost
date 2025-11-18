@@ -32,6 +32,11 @@
                             <span class="badge-name">Любимое</span>
                             <span class="badge-count">(0)</span>
                         </button>
+                        <button class="badge-poll-option" data-badge="ban" disabled>
+                            <span class="badge-icon">⛔</span>
+                            <span class="badge-name">Бан</span>
+                            <span class="badge-count">(0)</span>
+                        </button>
                         <button class="badge-poll-option" data-badge="watchlist" disabled>
                             <span class="badge-icon">👁️</span>
                             <span class="badge-name">Хочу посмотреть</span>
@@ -73,6 +78,11 @@
             <button class="badge-filter" data-badge="favorite">
                 <span class="badge-filter-icon">⭐</span>
                 <span class="badge-filter-name">Любимое</span>
+                <span class="badge-filter-count">(0)</span>
+            </button>
+            <button class="badge-filter" data-badge="ban">
+                <span class="badge-filter-icon">⛔</span>
+                <span class="badge-filter-name">Бан</span>
                 <span class="badge-filter-count">(0)</span>
             </button>
             <button class="badge-filter" data-badge="watchlist">
@@ -155,6 +165,11 @@
                     data-is-on-client="{{ 'true' if movie.is_on_client else 'false' }}"
                     data-torrent-hash="{{ movie.torrent_hash|e if movie.torrent_hash else '' }}"
                     data-badge="{{ movie.badge or '' }}"
+                    data-ban-until="{{ movie.ban_until.isoformat() if movie.ban_until else '' }}"
+                    data-ban-status="{{ movie.ban_status }}"
+                    data-ban-remaining="{{ movie.ban_remaining_seconds }}"
+                    data-ban-applied-by="{{ movie.ban_applied_by or '' }}"
+                    data-ban-cost="{{ movie.ban_cost if movie.ban_cost is not none else '' }}"
                 >
                     <input type="checkbox" class="movie-checkbox" style="display: none;" data-movie-id="{{ movie.id }}">
                     <div class="torrent-status-indicator"></div>
@@ -162,6 +177,7 @@
                     {% if movie.badge %}
                     <div class="movie-badge" data-badge-type="{{ movie.badge }}">
                         {% if movie.badge == 'favorite' %}⭐
+                        {% elif movie.badge == 'ban' %}⛔
                         {% elif movie.badge == 'watchlist' %}👁️
                         {% elif movie.badge == 'top' %}🏆
                         {% elif movie.badge == 'watched' %}✅
@@ -231,6 +247,10 @@
                 <div class="badge-option" data-badge="favorite">
                     <span class="badge-icon">⭐</span>
                     <span class="badge-label">Любимое</span>
+                </div>
+                <div class="badge-option" data-badge="ban">
+                    <span class="badge-icon">⛔</span>
+                    <span class="badge-label">Бан</span>
                 </div>
                 <div class="badge-option" data-badge="watchlist">
                     <span class="badge-icon">👁️</span>

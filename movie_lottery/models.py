@@ -41,8 +41,56 @@ class LibraryMovie(db.Model):
     countries = db.Column(db.String(200), nullable=True)
     added_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     bumped_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    badge = db.Column(db.String(20), nullable=True)  # Бейдж: favorite, watchlist, top, watched, new
+    badge = db.Column(db.String(20), nullable=True)  # Бейдж: favorite, ban, watchlist, top, watched, new
     points = db.Column(db.Integer, nullable=False, default=1)
+    ban_until = db.Column(db.DateTime, nullable=True)
+    ban_applied_by = db.Column(db.String(120), nullable=True)
+    ban_cost = db.Column(db.Integer, nullable=True)
+
+    def refresh_ban_status(self):
+        """Переводит фильм из бана в watchlist после истечения срока."""
+        if self.badge != 'ban' or not self.ban_until:
+            return False
+
+        if datetime.utcnow() >= self.ban_until:
+            self.badge = 'watchlist'
+            self.ban_until = None
+            self.ban_applied_by = None
+            self.ban_cost = None
+            self.bumped_at = db.func.now()
+            return True
+        return False
+
+    @property
+    def ban_status(self):
+        if self.badge != 'ban':
+            return 'none'
+        if not self.ban_until:
+            return 'pending'
+        return 'active' if datetime.utcnow() < self.ban_until else 'expired'
+
+    @property
+    def ban_remaining_seconds(self):
+        if self.badge != 'ban' or not self.ban_until:
+            return 0
+        remaining = (self.ban_until - datetime.utcnow()).total_seconds()
+        return max(0, int(remaining))
+
+    @classmethod
+    def refresh_all_bans(cls):
+        """Пакетно обновляет истёкшие баны."""
+        now = datetime.utcnow()
+        expired = cls.query.filter(
+            cls.badge == 'ban',
+            cls.ban_until.isnot(None),
+            cls.ban_until <= now,
+        ).all()
+
+        changed = False
+        for movie in expired:
+            changed = movie.refresh_ban_status() or changed
+
+        return changed
 
 class BackgroundPhoto(db.Model):
     id = db.Column(db.Integer, primary_key=True)

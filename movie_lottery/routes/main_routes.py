@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, current_app
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
+from .. import db
 from ..models import Lottery, LibraryMovie, MovieIdentifier, Poll
 from ..utils.helpers import (
     get_background_photos,
@@ -72,6 +73,10 @@ def history():
 
 @main_bp.route('/library')
 def library():
+    # Обновляем истёкшие баны перед отображением списка
+    if LibraryMovie.refresh_all_bans():
+        db.session.commit()
+
     try:
         library_movies = LibraryMovie.query.order_by(LibraryMovie.bumped_at.desc()).all()
     except (OperationalError, ProgrammingError) as exc:
