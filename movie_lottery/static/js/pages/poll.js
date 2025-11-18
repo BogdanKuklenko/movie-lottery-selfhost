@@ -366,7 +366,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             isBanModalOpen = true;
             pushModalHistory('ban');
         }
-        banDaysInput.focus();
     }
 
     function closeBanModal(options = {}) {
