@@ -260,6 +260,73 @@
     font-weight: 700;
 }
 
+.library-card.is-banned img {
+    filter: grayscale(0.4) brightness(0.7);
+}
+
+.ban-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.7) 100%);
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 12px;
+    border-radius: 8px;
+    z-index: 5;
+    color: #f8f9fa;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+}
+
+.ban-overlay.visible {
+    display: flex;
+}
+
+.ban-overlay-content {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 14px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    backdrop-filter: blur(6px);
+}
+
+.ban-overlay-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 800;
+    font-size: 12px;
+    background: rgba(220, 53, 69, 0.9);
+    color: #fff;
+    box-shadow: 0 6px 20px rgba(220, 53, 69, 0.35);
+}
+
+.ban-overlay-timer {
+    font-size: 14px;
+    font-weight: 700;
+    color: rgba(248, 249, 250, 0.92);
+}
+
+.library-card.selection-blocked {
+    cursor: not-allowed;
+}
+
+.library-card .movie-checkbox:disabled {
+    cursor: not-allowed;
+}
+
+.library-card.selection-blocked .movie-checkbox {
+    opacity: 0.7;
+}
+
 /* Кнопка управления бейджами */
 .badge-control-btn {
     position: absolute;

@@ -84,6 +84,19 @@ export async function addOrUpdateLibraryMovie(movieData) {
 }
 
 /**
+ * Загружает фильмы библиотеки с актуальными статусами бейджей и банов.
+ * @returns {Promise<object[]>} - Список фильмов библиотеки.
+ */
+export async function loadLibraryMovies() {
+    const response = await fetch('/api/library', { method: 'GET' });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !Array.isArray(data.movies)) {
+        throw new Error(data.message || data.error || 'Не удалось загрузить библиотеку.');
+    }
+    return data.movies;
+}
+
+/**
  * Удаляет фильм из библиотеки.
  * @param {string|number} movieId - ID фильма в библиотеке.
  * @returns {Promise<object>} - Результат операции.

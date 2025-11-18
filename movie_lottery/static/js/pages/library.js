@@ -43,6 +43,8 @@ function formatDurationShort(seconds) {
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
+const BAN_STATE_POLL_INTERVAL_MS = 30000;
+
 /**
  * Динамически переключает иконку "копировать"/"искать" на карточке.
  * @param {HTMLElement} card - Элемент карточки.
@@ -95,6 +97,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     let selectionMode = false;
     let selectedMovies = new Set();
 
+    const isCardBanned = (card) => {
+        if (!card) return false;
+        const status = card.dataset.banStatus || 'none';
+        return status === 'active' || status === 'pending';
+    };
+
+    const enforceSelectionRestrictionsForCard = (card) => {
+        if (!card) return;
+        const checkbox = card.querySelector('.movie-checkbox');
+        if (!checkbox) return;
+
+        const banned = isCardBanned(card);
+        checkbox.disabled = banned;
+
+        if (banned && checkbox.checked) {
+            checkbox.checked = false;
+            selectedMovies.delete(card.dataset.movieId);
+        }
+
+        card.classList.toggle('selection-blocked', selectionMode && banned);
+
+        if (selectionMode) {
+            updateSelectionUI();
+        }
+    };
+
+    const enforceSelectionRestrictionsForAll = () => {
+        document.querySelectorAll('.library-card').forEach(card => enforceSelectionRestrictionsForCard(card));
+        updateSelectionUI();
+    };
+
     // Проверяем и загружаем "Мои опросы"
     const refreshMyPolls = () => loadMyPolls({
         myPollsButton: myPollsBtn,
@@ -112,6 +145,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             cb.style.display = selectionMode ? 'block' : 'none';
             cb.checked = false;
         });
+
+        enforceSelectionRestrictionsForAll();
 
         if (selectionMode) {
             toggleSelectModeBtn.textContent = 'Отменить выбор';
@@ -796,46 +831,119 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!card) return;
 
         const status = card.dataset.banStatus || 'none';
+        let overlay = card.querySelector('.ban-overlay');
         let pill = card.querySelector('.ban-status-chip');
 
-        if (status === 'none') {
+        if (status !== 'active' && status !== 'pending') {
+            if (overlay) overlay.remove();
             if (pill) pill.remove();
+            card.classList.remove('is-banned');
             return;
         }
 
-        if (!pill) {
-            pill = document.createElement('div');
-            pill.className = 'ban-status-chip';
-            pill.innerHTML = '<span class="ban-icon">⛔</span><span class="ban-text"></span><span class="ban-timer"></span>';
-            card.appendChild(pill);
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.className = 'ban-overlay';
+            overlay.innerHTML = `
+                <div class="ban-overlay-content">
+                    <span class="ban-overlay-badge">ban</span>
+                    <span class="ban-overlay-timer"></span>
+                </div>
+            `;
+            card.appendChild(overlay);
         }
 
-        const textEl = pill.querySelector('.ban-text');
-        const timerEl = pill.querySelector('.ban-timer');
-
-        pill.classList.toggle('active', status === 'active' || status === 'pending');
-
+        const timerEl = overlay.querySelector('.ban-overlay-timer');
+        const remaining = getBanRemainingSeconds(card);
         if (status === 'active') {
-            const remaining = getBanRemainingSeconds(card);
             card.dataset.banRemaining = String(remaining);
-            textEl.textContent = card.dataset.banUntil ? `Бан до ${formatDateTime(card.dataset.banUntil)}` : 'Бан активен';
-            timerEl.textContent = `(${formatDurationShort(remaining)})`;
-            timerEl.style.display = '';
-        } else if (status === 'pending') {
-            textEl.textContent = 'Бан без срока';
-            timerEl.textContent = '';
-            timerEl.style.display = 'none';
+            timerEl.textContent = formatDurationShort(remaining);
         } else {
+            timerEl.textContent = '∞';
+        }
+
+        if (pill) {
             pill.remove();
+        }
+
+        overlay.classList.add('visible');
+        card.classList.add('is-banned');
+    }
+
+    function applyApiMovieDataToCard(card, movieData) {
+        if (!card || !movieData) return false;
+        const previousBadge = card.dataset.badge || '';
+
+        card.dataset.moviePoints = movieData.points != null ? String(movieData.points) : card.dataset.moviePoints;
+        card.dataset.badge = movieData.badge || '';
+        card.dataset.banStatus = movieData.ban_status || 'none';
+        card.dataset.banUntil = movieData.ban_until || '';
+        card.dataset.banRemaining = (movieData.ban_remaining_seconds ?? '').toString();
+        card.dataset.banAppliedBy = movieData.ban_applied_by || '';
+        card.dataset.banCost = movieData.ban_cost != null ? movieData.ban_cost.toString() : '';
+
+        if (Object.prototype.hasOwnProperty.call(movieData, 'has_magnet')) {
+            card.dataset.hasMagnet = movieData.has_magnet ? 'true' : 'false';
+            toggleDownloadIcon(card, movieData.has_magnet);
+        }
+        if (Object.prototype.hasOwnProperty.call(movieData, 'magnet_link')) {
+            card.dataset.magnetLink = movieData.magnet_link || '';
+        }
+        if (Object.prototype.hasOwnProperty.call(movieData, 'torrent_hash')) {
+            card.dataset.torrentHash = movieData.torrent_hash || '';
+        }
+
+        updateBadgeOnCard(card, movieData.badge || null, movieData, { skipStats: true });
+        enforceSelectionRestrictionsForCard(card);
+        return previousBadge !== (movieData.badge || '');
+    }
+
+    async function refreshLibraryData({ silent = false } = {}) {
+        try {
+            const movies = await movieApi.loadLibraryMovies();
+            let shouldRefreshFilters = false;
+            movies.forEach(movie => {
+                const card = document.querySelector(`[data-movie-id="${movie.id}"]`);
+                if (card) {
+                    const badgeChanged = applyApiMovieDataToCard(card, movie);
+                    shouldRefreshFilters = shouldRefreshFilters || badgeChanged;
+                }
+            });
+
+            if (shouldRefreshFilters) {
+                updateBadgeFilterStats();
+                applyBadgeFilter(currentFilter);
+            } else {
+                document.querySelectorAll('.library-card').forEach(renderBanStatus);
+            }
+        } catch (error) {
+            if (!silent) {
+                console.error('Не удалось обновить библиотеку:', error);
+                showToast('Не удалось обновить данные библиотеки', 'error');
+            }
         }
     }
 
     function updateBanTimers() {
+        let needsServerRefresh = false;
+
         document.querySelectorAll('.gallery-item').forEach(card => {
-            if ((card.dataset.banStatus || 'none') === 'active') {
-                renderBanStatus(card);
+            const status = card.dataset.banStatus || 'none';
+
+            if (status === 'active') {
+                const remaining = getBanRemainingSeconds(card);
+                card.dataset.banRemaining = String(remaining);
+                if (remaining <= 0) {
+                    needsServerRefresh = true;
+                }
             }
+
+            renderBanStatus(card);
         });
+
+        if (needsServerRefresh) {
+            refreshLibraryData({ silent: true });
+        }
     }
 
     const getMovieDataFromCard = (card) => {
@@ -942,7 +1050,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    function updateBadgeOnCard(card, badgeType, payload = {}) {
+    function updateBadgeOnCard(card, badgeType, payload = {}, options = {}) {
+        const { skipStats = false } = options;
         card.dataset.badge = badgeType || '';
         if (badgeType === 'ban') {
             card.dataset.banStatus = payload.ban_status || 'active';
@@ -973,9 +1082,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         // После обновления бейджа пересчитываем статистику и сохраняем текущий фильтр
-        updateBadgeFilterStats();
-        applyBadgeFilter(currentFilter);
+        if (!skipStats) {
+            updateBadgeFilterStats();
+            applyBadgeFilter(currentFilter);
+        }
         renderBanStatus(card);
+        enforceSelectionRestrictionsForCard(card);
     }
 
     // Обработчик клика по опциям бейджа
@@ -1201,5 +1313,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     document.querySelectorAll('.gallery-item').forEach(card => renderBanStatus(card));
+    enforceSelectionRestrictionsForAll();
+    refreshLibraryData({ silent: true });
     setInterval(updateBanTimers, 1000);
+    setInterval(() => refreshLibraryData({ silent: true }), BAN_STATE_POLL_INTERVAL_MS);
 });
