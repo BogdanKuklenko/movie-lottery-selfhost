@@ -108,9 +108,23 @@
                 </label>
                 <div class="ban-input-row">
                     <div class="ban-stepper">
-                        <button type="button" class="ban-step-btn" data-ban-step="-1" aria-label="Уменьшить на 1 день">−</button>
+                        <button
+                            type="button"
+                            class="ban-step-btn ban-step-btn--decrease"
+                            data-ban-step="-1"
+                            aria-label="Уменьшить на 1 день"
+                        >
+                            <span class="ban-step-icon" aria-hidden="true"></span>
+                        </button>
                         <input id="ban-days-input" class="ban-days-input" type="number" inputmode="numeric" min="1" step="1" value="1">
-                        <button type="button" class="ban-step-btn" data-ban-step="1" aria-label="Увеличить на 1 день">+</button>
+                        <button
+                            type="button"
+                            class="ban-step-btn ban-step-btn--increase"
+                            data-ban-step="1"
+                            aria-label="Увеличить на 1 день"
+                        >
+                            <span class="ban-step-icon" aria-hidden="true"></span>
+                        </button>
                     </div>
                     <span class="ban-cost-hint">Используйте кнопки −/+ или выберите готовый вариант ниже — баллы списываются с вашего баланса</span>
                 </div>
