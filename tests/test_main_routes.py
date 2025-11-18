@@ -241,6 +241,82 @@ def test_poll_ban_sets_forced_winner(app):
     assert poll.is_expired is True
 
 
+def test_poll_ban_updates_library_movie(app):
+    client = app.test_client()
+
+    library_movie = LibraryMovie(
+        kinopoisk_id=321,
+        name='Library Match',
+        year='2024',
+        badge='watchlist',
+    )
+    db.session.add(library_movie)
+    db.session.commit()
+
+    create_response = _create_poll_via_api(client, [
+        _build_movie('Library Match', kinopoisk_id=321, year='2024'),
+        _build_movie('Other Movie'),
+    ])
+
+    poll_id = create_response.get_json()['poll_id']
+    poll = Poll.query.get(poll_id)
+    target_movie = poll.movies[0]
+
+    voter_token = 'library-ban'
+    client.set_cookie('voter_token', voter_token)
+    db.session.add(PollVoterProfile(token=voter_token, total_points=10))
+    db.session.commit()
+
+    response = client.post(
+        f'/api/polls/{poll_id}/ban',
+        json={'movie_id': target_movie.id, 'days': 3},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    library_payload = payload.get('library_ban')
+
+    assert library_payload is not None
+    assert library_payload['badge'] == 'ban'
+    assert library_payload['ban_cost'] == 3
+    assert library_payload['ban_applied_by'] == 'poll-ban'
+
+    db.session.expire_all()
+    updated_library_movie = LibraryMovie.query.filter_by(kinopoisk_id=321).first()
+    assert updated_library_movie.badge == 'ban'
+    assert updated_library_movie.ban_cost == 3
+    assert updated_library_movie.ban_applied_by == 'poll-ban'
+    assert updated_library_movie.ban_until is not None
+
+
+def test_library_ban_resets_after_expiry(app):
+    client = app.test_client()
+
+    expired_ban = LibraryMovie(
+        name='Expired Ban',
+        year='2023',
+        badge='ban',
+        ban_until=datetime.utcnow() - timedelta(hours=1),
+    )
+    db.session.add(expired_ban)
+    db.session.commit()
+
+    response = client.get('/api/library')
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    movie_payload = next((m for m in payload['movies'] if m['name'] == 'Expired Ban'), None)
+
+    assert movie_payload is not None
+    assert movie_payload['badge'] == 'watchlist'
+    assert movie_payload['ban_until'] is None
+
+    db.session.expire_all()
+    refreshed_movie = LibraryMovie.query.filter_by(name='Expired Ban').first()
+    assert refreshed_movie.badge == 'watchlist'
+    assert refreshed_movie.ban_until is None
+
+
 def test_cannot_ban_last_movie(app):
     client = app.test_client()
 
