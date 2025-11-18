@@ -589,6 +589,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    function markMovieCardAsBanned(movie) {
+        if (!movie) return;
+        const card = pollGrid?.querySelector(`[data-movie-id="${movie.id}"]`);
+        if (!card) return;
+
+        card.classList.add('poll-movie-card-banned');
+        card.style.pointerEvents = 'none';
+
+        const banBtn = card.querySelector('.poll-ban-button');
+        if (banBtn) {
+            banBtn.classList.add('poll-ban-button-static');
+            banBtn.setAttribute('aria-disabled', 'true');
+            banBtn.disabled = true;
+            banBtn.textContent = buildBanLabel(movie);
+        }
+    }
+
     async function submitBan() {
         if (!banTargetMovie || !banConfirmBtn) return;
         if (!banDaysInput) return;
@@ -616,25 +633,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const result = await response.json();
             if (!response.ok) {
-                if (result?.forced_winner) {
-                    forcedWinner = result.forced_winner;
-                    handlePollClosedByBan(forcedWinner);
-                }
                 throw new Error(result.error || 'Не удалось исключить фильм');
             }
 
             closeBanModal();
-            applyBanResult(banTargetMovie.id, result);
-            renderMovies(moviesList);
-            updatePointsBalance(result.points_balance);
+
+            const banPayload = {
+                ban_until: result.ban_until,
+                ban_status: result.ban_status,
+                ban_remaining_seconds: result.ban_remaining_seconds,
+            };
+            applyBanResult(banTargetMovie.id, banPayload);
+            banTargetMovie = { ...banTargetMovie, ...banPayload };
+            markMovieCardAsBanned(banTargetMovie);
 
             const banMessage = `«${banTargetMovie.name}» исключён на ${days} ${declOfNum(days, ['день', 'дня', 'дней'])}.`;
             showToast(banMessage, 'success');
-
-            if (result.closed_by_ban) {
-                forcedWinner = result.forced_winner || getActiveMovies(moviesList)[0] || banTargetMovie;
-                handlePollClosedByBan(forcedWinner);
-            }
 
             try {
                 await fetchPollData({ skipVoteHandling: true, showErrors: false });
