@@ -134,6 +134,12 @@ def ensure_library_movie_columns():
         missing_columns.append('bumped_at')
     if 'points' not in existing_columns:
         missing_columns.append('points')
+    if 'ban_until' not in existing_columns:
+        missing_columns.append('ban_until')
+    if 'ban_applied_by' not in existing_columns:
+        missing_columns.append('ban_applied_by')
+    if 'ban_cost' not in existing_columns:
+        missing_columns.append('ban_cost')
 
     if not missing_columns:
         return False
@@ -168,6 +174,33 @@ def ensure_library_movie_columns():
                 connection.execute(text(
                     "UPDATE library_movie SET points = COALESCE(points, 1)"
                 ))
+
+            if 'ban_until' in missing_columns:
+                if dialect == 'postgresql':
+                    connection.execute(text(
+                        "ALTER TABLE library_movie "
+                        "ADD COLUMN IF NOT EXISTS ban_until TIMESTAMP WITHOUT TIME ZONE"
+                    ))
+                else:
+                    connection.execute(text("ALTER TABLE library_movie ADD COLUMN ban_until DATETIME"))
+
+            if 'ban_applied_by' in missing_columns:
+                if dialect == 'postgresql':
+                    connection.execute(text(
+                        "ALTER TABLE library_movie "
+                        "ADD COLUMN IF NOT EXISTS ban_applied_by VARCHAR(120)"
+                    ))
+                else:
+                    connection.execute(text("ALTER TABLE library_movie ADD COLUMN ban_applied_by VARCHAR(120)"))
+
+            if 'ban_cost' in missing_columns:
+                if dialect == 'postgresql':
+                    connection.execute(text(
+                        "ALTER TABLE library_movie "
+                        "ADD COLUMN IF NOT EXISTS ban_cost INTEGER"
+                    ))
+                else:
+                    connection.execute(text("ALTER TABLE library_movie ADD COLUMN ban_cost INTEGER"))
 
         logger = getattr(current_app, 'logger', None)
         message = (

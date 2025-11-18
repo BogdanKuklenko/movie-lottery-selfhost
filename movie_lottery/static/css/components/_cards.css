@@ -232,6 +232,34 @@
     display: none;
 }
 
+.ban-status-chip {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: none;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: rgba(220, 53, 69, 0.9);
+    color: #fff;
+    border-radius: 14px;
+    font-size: 12px;
+    z-index: 4;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.ban-status-chip.active {
+    display: flex;
+}
+
+.ban-status-chip .ban-icon {
+    font-size: 14px;
+}
+
+.ban-status-chip .ban-timer {
+    font-weight: 700;
+}
+
 /* Кнопка управления бейджами */
 .badge-control-btn {
     position: absolute;
