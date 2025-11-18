@@ -437,6 +437,10 @@
     margin-bottom: 8px;
 }
 
+.ban-label-formula {
+    white-space: nowrap;
+}
+
 .ban-input-row {
     display: flex;
     gap: 10px;
