@@ -21,7 +21,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const banConfirmBtn = document.getElementById('ban-confirm-btn');
     const banCancelBtn = document.getElementById('ban-cancel-btn');
     const banDaysInput = document.getElementById('ban-days-input');
-    const banDaysRange = document.getElementById('ban-days-range');
     const banPresetButtons = Array.from(document.querySelectorAll('[data-ban-preset]'));
     const banStepButtons = Array.from(document.querySelectorAll('[data-ban-step]'));
     const banModalDescription = document.getElementById('ban-modal-description');
@@ -539,17 +538,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         return Math.max(1, parsed);
     }
 
-    function syncBanRangeValue(days) {
-        if (!banDaysRange) return;
-        const rangeMin = Number.parseInt(banDaysRange.min, 10) || 1;
-        const currentMax = Number.parseInt(banDaysRange.max, 10) || rangeMin;
-        if (days > currentMax) {
-            banDaysRange.max = String(days);
-        }
-        const clamped = Math.min(Math.max(days, rangeMin), Number.parseInt(banDaysRange.max, 10) || days);
-        banDaysRange.value = String(clamped);
-    }
-
     function setBanDaysValue(rawValue) {
         const days = parseBanDays(rawValue);
         if (!days) {
@@ -561,7 +549,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             banDaysInput.value = String(days);
         }
 
-        syncBanRangeValue(days);
         setBanModalError('');
         return days;
     }
@@ -956,10 +943,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     banDaysInput?.addEventListener('blur', validateBanDaysInput);
-
-    banDaysRange?.addEventListener('input', (event) => {
-        setBanDaysValue(event.target.value);
-    });
 
     banPresetButtons.forEach((button) => {
         button.addEventListener('click', () => {

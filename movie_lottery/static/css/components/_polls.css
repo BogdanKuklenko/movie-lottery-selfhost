@@ -523,24 +523,6 @@
     transform: translateY(1px);
 }
 
-.ban-range-row {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 12px;
-}
-
-.ban-days-range {
-    width: 100%;
-    accent-color: var(--accent-purple);
-    cursor: pointer;
-}
-
-.ban-range-hint {
-    color: rgba(255, 255, 255, 0.65);
-    font-size: 13px;
-}
-
 .ban-cost-hint {
     color: rgba(255, 255, 255, 0.65);
     font-size: 13px;
