@@ -492,6 +492,39 @@ def delete_lottery(lottery_id):
 
 # --- Маршруты для Библиотеки ---
 
+@api_bp.route('/library', methods=['GET'])
+def get_library_movies():
+    _refresh_library_bans()
+
+    try:
+        movies = LibraryMovie.query.order_by(LibraryMovie.bumped_at.desc()).all()
+    except (OperationalError, ProgrammingError) as exc:
+        current_app.logger.warning(
+            "LibraryMovie.bumped_at unavailable, falling back to added_at sorting. "
+            "Run pending migrations. Error: %s",
+            exc,
+        )
+        movies = LibraryMovie.query.order_by(LibraryMovie.added_at.desc()).all()
+
+    kp_ids = [m.kinopoisk_id for m in movies if m.kinopoisk_id]
+    identifiers_map = {}
+    if kp_ids:
+        identifiers = MovieIdentifier.query.filter(MovieIdentifier.kinopoisk_id.in_(kp_ids)).all()
+        identifiers_map = {i.kinopoisk_id: i for i in identifiers}
+
+    payload = []
+    for movie in movies:
+        data = _serialize_library_movie(movie)
+        identifier = identifiers_map.get(movie.kinopoisk_id)
+        data['has_magnet'] = bool(identifier)
+        data['magnet_link'] = identifier.magnet_link if identifier else ''
+        data['is_on_client'] = False
+        data['torrent_hash'] = None
+        payload.append(data)
+
+    return prevent_caching(jsonify({'movies': payload}))
+
+
 @api_bp.route('/library', methods=['POST'])
 def add_library_movie():
     payload = _get_json_payload()
