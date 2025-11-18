@@ -273,6 +273,100 @@ def ensure_poll_movie_points_column():
         return False
 
 
+def ensure_poll_movie_ban_column():
+    """Добавляет колонку ban_until в poll_movie, если её ещё нет."""
+    engine = db.engine
+
+    try:
+        inspector = inspect(engine)
+    except Exception:
+        return False
+
+    table_name = 'poll_movie'
+    if table_name not in inspector.get_table_names():
+        return False
+
+    existing_columns = {col['name'] for col in inspector.get_columns(table_name)}
+    if 'ban_until' in existing_columns:
+        return False
+
+    dialect = engine.dialect.name
+
+    try:
+        with engine.begin() as connection:
+            if dialect == 'postgresql':
+                connection.execute(text(
+                    "ALTER TABLE poll_movie "
+                    "ADD COLUMN IF NOT EXISTS ban_until TIMESTAMP WITHOUT TIME ZONE"
+                ))
+            else:
+                connection.execute(text("ALTER TABLE poll_movie ADD COLUMN ban_until DATETIME"))
+
+        logger = getattr(current_app, 'logger', None)
+        message = 'Автоматически добавлена колонка ban_until в poll_movie.'
+        if logger:
+            logger.info(message)
+        else:
+            print(message)
+        return True
+    except Exception as exc:
+        logger = getattr(current_app, 'logger', None)
+        message = 'Не удалось автоматически обновить таблицу poll_movie (ban_until).'
+        if logger:
+            logger.warning('%s Ошибка: %s', message, exc)
+        else:
+            print(f"{message} Ошибка: {exc}")
+        return False
+
+
+def ensure_poll_forced_winner_column():
+    """Добавляет колонку forced_winner_movie_id в poll, если её нет."""
+    engine = db.engine
+
+    try:
+        inspector = inspect(engine)
+    except Exception:
+        return False
+
+    table_name = 'poll'
+    if table_name not in inspector.get_table_names():
+        return False
+
+    existing_columns = {col['name'] for col in inspector.get_columns(table_name)}
+    if 'forced_winner_movie_id' in existing_columns:
+        return False
+
+    dialect = engine.dialect.name
+
+    try:
+        with engine.begin() as connection:
+            if dialect == 'postgresql':
+                connection.execute(text(
+                    "ALTER TABLE poll "
+                    "ADD COLUMN IF NOT EXISTS forced_winner_movie_id INTEGER"
+                ))
+            else:
+                connection.execute(text(
+                    "ALTER TABLE poll ADD COLUMN forced_winner_movie_id INTEGER"
+                ))
+
+        logger = getattr(current_app, 'logger', None)
+        message = 'Автоматически добавлена колонка forced_winner_movie_id в poll.'
+        if logger:
+            logger.info(message)
+        else:
+            print(message)
+        return True
+    except Exception as exc:
+        logger = getattr(current_app, 'logger', None)
+        message = 'Не удалось автоматически обновить таблицу poll (forced_winner_movie_id).'
+        if logger:
+            logger.warning('%s Ошибка: %s', message, exc)
+        else:
+            print(f"{message} Ошибка: {exc}")
+        return False
+
+
 def ensure_poll_tables():
     """
     Ensure that all tables required for polls exist.

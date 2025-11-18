@@ -135,6 +135,7 @@ class Poll(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     expires_at = db.Column(db.DateTime, nullable=False)
     creator_token = db.Column(db.String(64), nullable=False)
+    forced_winner_movie_id = db.Column(db.Integer, nullable=True)
     movies = db.relationship('PollMovie', backref='poll', lazy=True, cascade="all, delete-orphan")
     votes = db.relationship('Vote', backref='poll', lazy=True, cascade="all, delete-orphan")
 
@@ -146,10 +147,20 @@ class Poll(db.Model):
     @property
     def is_expired(self):
         return datetime.utcnow() > self.expires_at
-    
+
     @property
     def winners(self):
         """Возвращает список фильмов-победителей с максимальным количеством голосов"""
+        forced_winner = None
+        if self.forced_winner_movie_id:
+            forced_winner = next(
+                (movie for movie in self.movies if movie.id == self.forced_winner_movie_id),
+                None,
+            )
+
+        if forced_winner:
+            return [forced_winner]
+
         if not self.votes:
             return []
         
@@ -187,6 +198,24 @@ class PollMovie(db.Model):
     genres = db.Column(db.String(200), nullable=True)
     countries = db.Column(db.String(200), nullable=True)
     points = db.Column(db.Integer, nullable=False, default=1)
+    ban_until = db.Column(db.DateTime, nullable=True)
+
+    @property
+    def ban_status(self):
+        if not self.ban_until:
+            return 'none'
+        return 'active' if datetime.utcnow() < self.ban_until else 'expired'
+
+    @property
+    def ban_remaining_seconds(self):
+        if not self.ban_until:
+            return 0
+        remaining = (self.ban_until - datetime.utcnow()).total_seconds()
+        return max(0, int(remaining))
+
+    @property
+    def is_banned(self):
+        return self.ban_status == 'active'
 
 
 class PollVoterProfile(db.Model):

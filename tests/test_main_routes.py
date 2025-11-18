@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy import inspect, text
+from datetime import datetime, timedelta
 from sqlalchemy.exc import OperationalError
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -158,6 +159,27 @@ def test_create_poll_sets_creator_cookie(app):
     assert cookie.value == poll.creator_token
 
 
+def test_create_poll_rejects_banned_library_movies(app):
+    client = app.test_client()
+
+    banned = LibraryMovie(
+        name='Banned Movie',
+        year='2024',
+        badge='ban',
+        ban_until=datetime.utcnow() + timedelta(days=1),
+    )
+    db.session.add(banned)
+    db.session.commit()
+
+    response = _create_poll_via_api(client, [
+        {"id": banned.id, "name": banned.name, "year": banned.year},
+        _build_movie('Allowed Movie'),
+    ])
+
+    assert response.status_code == 422
+    assert 'бане' in response.get_json()['error']
+
+
 def test_create_poll_reuses_existing_creator_token(app):
     client = app.test_client()
     existing_token = 'a' * 32
@@ -182,6 +204,71 @@ def test_create_poll_requires_minimum_movies(app):
     assert response.status_code == 400
     data = response.get_json()
     assert 'Нужно добавить хотя бы два фильма' in data['error']
+
+
+def test_poll_ban_sets_forced_winner(app):
+    client = app.test_client()
+
+    create_response = _create_poll_via_api(client, [
+        _build_movie('Movie A'),
+        _build_movie('Movie B'),
+    ])
+
+    poll_id = create_response.get_json()['poll_id']
+    poll = Poll.query.get(poll_id)
+    other_movie = poll.movies[1]
+    target_movie = poll.movies[0]
+
+    voter_token = 'ban-voter-token'
+    client.set_cookie('voter_token', voter_token)
+    db.session.add(PollVoterProfile(token=voter_token, total_points=5))
+    db.session.commit()
+
+    ban_response = client.post(
+        f'/api/polls/{poll_id}/ban',
+        json={'movie_id': target_movie.id, 'days': 2},
+    )
+
+    assert ban_response.status_code == 200
+    payload = ban_response.get_json()
+    assert payload['closed_by_ban'] is True
+    assert payload['points_balance'] == 3
+    assert payload['forced_winner']['id'] == other_movie.id
+
+    db.session.expire_all()
+    poll = Poll.query.get(poll_id)
+    assert poll.forced_winner_movie_id == other_movie.id
+    assert poll.is_expired is True
+
+
+def test_cannot_ban_last_movie(app):
+    client = app.test_client()
+
+    create_response = _create_poll_via_api(client, [
+        _build_movie('Solo A'),
+        _build_movie('Solo B'),
+    ])
+
+    poll_id = create_response.get_json()['poll_id']
+    poll = Poll.query.get(poll_id)
+    first_movie = poll.movies[0]
+    second_movie = poll.movies[1]
+
+    first_movie.ban_until = datetime.utcnow() + timedelta(days=1)
+    db.session.commit()
+
+    voter_token = 'limited-bans'
+    client.set_cookie('voter_token', voter_token)
+    db.session.add(PollVoterProfile(token=voter_token, total_points=10))
+    db.session.commit()
+
+    response = client.post(
+        f'/api/polls/{poll_id}/ban',
+        json={'movie_id': second_movie.id, 'days': 1},
+    )
+
+    assert response.status_code == 409
+    assert 'Нельзя забанить последний фильм' in response.get_json()['error']
 
 
 def test_create_poll_persists_extended_payload(app):
