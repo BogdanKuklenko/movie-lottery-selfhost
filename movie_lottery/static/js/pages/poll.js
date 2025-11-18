@@ -213,21 +213,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             const banBtn = document.createElement('button');
             banBtn.type = 'button';
             banBtn.className = 'secondary-button poll-ban-button';
-            banBtn.textContent = isBanned ? 'Уже исключён' : 'Исключить из опроса';
-            banBtn.disabled = isBanned || pollClosedByBan;
-            banBtn.addEventListener('click', (event) => {
-                event.stopPropagation();
-                handleBanClick(movie);
-            });
+            if (isBanned) {
+                banBtn.classList.add('poll-ban-button-static');
+                banBtn.textContent = buildBanLabel(movie);
+                banBtn.setAttribute('aria-disabled', 'true');
+            } else {
+                banBtn.textContent = 'Исключить из опроса';
+                banBtn.disabled = pollClosedByBan;
+                banBtn.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    handleBanClick(movie);
+                });
+            }
             actions.appendChild(banBtn);
             movieCard.appendChild(actions);
 
             if (isBanned) {
                 movieCard.classList.add('poll-movie-card-banned');
-                const banLabel = document.createElement('div');
-                banLabel.className = 'poll-ban-label';
-                banLabel.textContent = buildBanLabel(movie);
-                movieCard.appendChild(banLabel);
             }
 
             movieCard.addEventListener('click', () => {
@@ -759,12 +761,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function buildBanLabel(movie) {
-        if (!movie) return 'Исключён из опроса';
+        if (!movie) return 'Уже исключён';
         const banUntil = movie.ban_until ? new Date(movie.ban_until) : null;
         if (banUntil && !Number.isNaN(banUntil.getTime())) {
             return `Исключён до ${banUntil.toLocaleDateString('ru-RU')}`;
         }
-        return 'Исключён из опроса';
+        return 'Уже исключён';
     }
 
     function updateCustomVoteCostLabels(cost = customVoteCost) {

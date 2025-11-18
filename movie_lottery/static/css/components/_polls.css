@@ -328,6 +328,15 @@
     opacity: 0.6;
 }
 
+.poll-ban-button-static {
+    background: #ef4444;
+    border-color: #ef4444;
+    color: #fff;
+    cursor: default;
+    pointer-events: none;
+    box-shadow: none;
+}
+
 .poll-movie-info h3 {
     font-size: 16px;
     margin: 0 0 8px 0;
@@ -388,19 +397,6 @@
 .poll-movie-card-banned .poll-movie-info h3,
 .poll-movie-card-banned .poll-movie-info p {
     text-decoration: line-through;
-}
-
-.poll-ban-label {
-    position: absolute;
-    bottom: 10px;
-    right: 10px;
-    background: rgba(239, 68, 68, 0.9);
-    color: #fff;
-    padding: 8px 12px;
-    border-radius: 10px;
-    font-weight: 700;
-    font-size: 12px;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
 .poll-winner-banner {
