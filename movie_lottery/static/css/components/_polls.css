@@ -310,6 +310,24 @@
     text-align: center;
 }
 
+.poll-movie-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    padding: 0 16px 16px 16px;
+    flex-wrap: wrap;
+}
+
+.poll-ban-button {
+    width: 100%;
+    justify-content: center;
+}
+
+.poll-ban-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
 .poll-movie-info h3 {
     font-size: 16px;
     margin: 0 0 8px 0;
@@ -361,9 +379,99 @@
     color: var(--accent-gold);
 }
 
+.poll-movie-card-banned {
+    position: relative;
+    opacity: 0.65;
+    pointer-events: none;
+}
+
+.poll-movie-card-banned .poll-movie-info h3,
+.poll-movie-card-banned .poll-movie-info p {
+    text-decoration: line-through;
+}
+
+.poll-ban-label {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background: rgba(239, 68, 68, 0.9);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 12px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.poll-winner-banner {
+    margin-top: 10px;
+    padding: 12px 16px;
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.4);
+    border-radius: 10px;
+    color: #bbf7d0;
+    font-weight: 600;
+}
+
+.poll-winner-banner strong {
+    color: #22c55e;
+}
+
 /* --- Модальное окно подтверждения голосования --- */
 .vote-confirm-content {
     max-width: 500px;
+}
+
+.ban-modal-content {
+    max-width: 520px;
+}
+
+.ban-modal-body {
+    margin: 12px 0 8px 0;
+}
+
+.ban-modal-description {
+    margin-bottom: 12px;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.ban-modal-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.ban-input-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.ban-days-input {
+    width: 120px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: white;
+}
+
+.ban-days-input:focus {
+    outline: 2px solid var(--accent-purple);
+    outline-offset: 2px;
+    border-color: transparent;
+}
+
+.ban-cost-hint {
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 13px;
+}
+
+.ban-modal-error {
+    color: #fca5a5;
+    font-weight: 600;
 }
 
 .custom-vote-content {

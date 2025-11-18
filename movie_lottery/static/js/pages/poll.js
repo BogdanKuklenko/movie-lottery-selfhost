@@ -17,6 +17,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const voteConfirmPoints = document.getElementById('vote-confirm-points');
     const votedMovieWrapper = document.getElementById('voted-movie-wrapper');
     const votedMovieCard = document.getElementById('voted-movie-card');
+    const banModal = document.getElementById('ban-modal');
+    const banConfirmBtn = document.getElementById('ban-confirm-btn');
+    const banCancelBtn = document.getElementById('ban-cancel-btn');
+    const banDaysInput = document.getElementById('ban-days-input');
+    const banModalDescription = document.getElementById('ban-modal-description');
+    const banModalError = document.getElementById('ban-modal-error');
+    const pollWinnerBanner = document.getElementById('poll-winner-banner');
 
     const TEXTS = {
         ru: {
@@ -83,6 +90,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     let pointsEarnedTotal = null;
     let voterToken = null;
     let moviesList = [];
+    let banTargetMovie = null;
+    let isBanModalOpen = false;
+    let pollClosedByBan = false;
+    let forcedWinner = null;
     const PLACEHOLDER_POSTER = 'https://via.placeholder.com/200x300.png?text=No+Image';
 
     const modalHistoryStack = [];
@@ -104,6 +115,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         return Math.min(999, Math.max(0, parsed));
     };
 
+    const isMovieBanned = (movie) => {
+        const status = String(movie?.ban_status || '').toLowerCase();
+        return status === 'active' || status === 'pending';
+    };
+
+    const getActiveMovies = (movies) => {
+        if (!Array.isArray(movies)) return [];
+        return movies.filter(movie => !isMovieBanned(movie));
+    };
+
     // Загружаем данные опроса
     try {
         const response = await fetch(buildPollApiUrl(`/api/polls/${pollId}`), {
@@ -123,6 +144,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         customVoteCost = Number(pollData.custom_vote_cost) || 0;
         updateCustomVoteCostLabels(customVoteCost);
         moviesList = Array.isArray(pollData.movies) ? pollData.movies : [];
+        pollClosedByBan = Boolean(pollData.closed_by_ban);
+        forcedWinner = pollData.forced_winner || null;
         updateCustomVoteButtonState({
             balance: pollData.points_balance,
             canVoteCustom: pollData.can_vote_custom,
@@ -132,6 +155,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Отображаем фильмы
         renderMovies(moviesList);
         pollDescription.textContent = `Выберите один фильм из ${pollData.movies.length}. Проголосовало: ${pollData.total_votes}`;
+
+        if (pollClosedByBan) {
+            handlePollClosedByBan(forcedWinner);
+        }
 
         if (pollData.has_voted) {
             hasVoted = true;
@@ -157,6 +184,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const movieCard = document.createElement('div');
             movieCard.className = 'poll-movie-card';
             movieCard.dataset.movieId = movie.id;
+            const isBanned = isMovieBanned(movie);
             const pointsValue = getMoviePoints(movie);
             const badgeValue = formatPointsBadge(pointsValue);
             const badgeTitle = pointsValue > 0
@@ -180,7 +208,38 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
             `;
 
+            const actions = document.createElement('div');
+            actions.className = 'poll-movie-actions';
+            const banBtn = document.createElement('button');
+            banBtn.type = 'button';
+            banBtn.className = 'secondary-button poll-ban-button';
+            banBtn.textContent = isBanned ? 'Уже исключён' : 'Исключить из опроса';
+            banBtn.disabled = isBanned || pollClosedByBan;
+            banBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                handleBanClick(movie);
+            });
+            actions.appendChild(banBtn);
+            movieCard.appendChild(actions);
+
+            if (isBanned) {
+                movieCard.classList.add('poll-movie-card-banned');
+                const banLabel = document.createElement('div');
+                banLabel.className = 'poll-ban-label';
+                banLabel.textContent = buildBanLabel(movie);
+                movieCard.appendChild(banLabel);
+            }
+
             movieCard.addEventListener('click', () => {
+                if (pollClosedByBan) {
+                    renderWinnerBanner(forcedWinner || movie);
+                    showMessage('Голосование завершено из-за банов.', 'info');
+                    return;
+                }
+                if (isBanned) {
+                    showToast('Фильм уже исключён из опроса.', 'info');
+                    return;
+                }
                 if (hasVoted) {
                     const text = votedMovie
                         ? `Вы уже проголосовали за «${votedMovie.name}».`
@@ -198,7 +257,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateVotingDisabledState(hasVoted);
     }
 
+    function handleBanClick(movie) {
+        if (!movie) return;
+        if (pollClosedByBan) {
+            renderWinnerBanner(forcedWinner || movie);
+            showToast('Голосование завершено из-за банов.', 'info');
+            return;
+        }
+
+        if (isMovieBanned(movie)) {
+            showToast('Фильм уже исключён из опроса.', 'info');
+            return;
+        }
+
+        const activeMovies = getActiveMovies(moviesList);
+        if (activeMovies.length <= 1) {
+            showToast('Нельзя забанить последний фильм.', 'error');
+            return;
+        }
+
+        openBanModal(movie);
+    }
+
     function openVoteConfirmation(movie) {
+        if (pollClosedByBan) {
+            renderWinnerBanner(forcedWinner || movie);
+            showMessage('Голосование завершено из-за банов.', 'info');
+            return;
+        }
+
+        if (isMovieBanned(movie)) {
+            showToast('Фильм уже исключён из опроса.', 'info');
+            return;
+        }
+
         selectedMovie = movie;
         voteConfirmPoster.src = movie.poster || PLACEHOLDER_POSTER;
         voteConfirmTitle.textContent = movie.name;
@@ -227,6 +319,42 @@ document.addEventListener('DOMContentLoaded', async () => {
             isVoteModalOpen = false;
         }
         removeModalFromHistory('vote');
+
+        if (!fromPopState && wasTracked) {
+            ignoreModalPopState = true;
+            history.back();
+        }
+    }
+
+    function openBanModal(movie) {
+        if (!banModal || !banDaysInput || !banModalDescription) return;
+        banTargetMovie = movie;
+        resetBanModal();
+        const movieYear = movie?.year ? ` (${movie.year})` : '';
+        banModalDescription.textContent = `Исключить «${movie?.name || 'Фильм'}»${movieYear} из опроса.`;
+        banDaysInput.value = '1';
+        banModal.style.display = 'flex';
+        if (!isBanModalOpen) {
+            lockScroll();
+            isBanModalOpen = true;
+            pushModalHistory('ban');
+        }
+        banDaysInput.focus();
+    }
+
+    function closeBanModal(options = {}) {
+        const { fromPopState = false } = options;
+        const wasTracked = modalHistoryStack.includes('ban');
+        if (banModal) {
+            banModal.style.display = 'none';
+        }
+        banTargetMovie = null;
+        resetBanModal();
+        if (isBanModalOpen) {
+            unlockScroll();
+            isBanModalOpen = false;
+        }
+        removeModalFromHistory('ban');
 
         if (!fromPopState && wasTracked) {
             ignoreModalPopState = true;
@@ -352,9 +480,123 @@ document.addEventListener('DOMContentLoaded', async () => {
             closeVoteConfirmation({ fromPopState: true });
         } else if (modalId === 'custom') {
             closeCustomVoteModal({ fromPopState: true });
+        } else if (modalId === 'ban') {
+            closeBanModal({ fromPopState: true });
         }
 
         removeModalPopStateListenerIfIdle();
+    }
+
+    function resetBanModal() {
+        if (banModalError) {
+            banModalError.hidden = true;
+            banModalError.textContent = '';
+        }
+        if (banConfirmBtn) {
+            banConfirmBtn.disabled = false;
+            banConfirmBtn.textContent = 'Исключить';
+        }
+        if (banDaysInput) {
+            banDaysInput.value = '1';
+        }
+    }
+
+    function setBanModalError(text = '') {
+        if (!banModalError) return;
+        banModalError.textContent = text;
+        banModalError.hidden = !text;
+    }
+
+    function applyBanResult(movieId, payload = {}) {
+        moviesList = moviesList.map((movie) => {
+            if (movie.id !== movieId) return movie;
+            return {
+                ...movie,
+                ban_until: payload.ban_until || movie.ban_until,
+                ban_status: payload.ban_status || 'active',
+                ban_remaining_seconds: payload.ban_remaining_seconds ?? movie.ban_remaining_seconds,
+            };
+        });
+    }
+
+    async function submitBan() {
+        if (!banTargetMovie || !banConfirmBtn) return;
+        if (!banDaysInput) return;
+
+        const activeMovies = getActiveMovies(moviesList);
+        if (activeMovies.length <= 1) {
+            setBanModalError('Нельзя забанить последний фильм.');
+            return;
+        }
+
+        const days = Number.parseInt(banDaysInput.value, 10);
+        if (!Number.isFinite(days) || days <= 0) {
+            setBanModalError('Укажите длительность не менее 1 дня.');
+            return;
+        }
+
+        setBanModalError('');
+        banConfirmBtn.disabled = true;
+        banConfirmBtn.textContent = 'Исключаем...';
+
+        try {
+            const response = await fetch(buildPollApiUrl(`/api/polls/${pollId}/ban`), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ movie_id: banTargetMovie.id, days }),
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+                if (result?.forced_winner) {
+                    forcedWinner = result.forced_winner;
+                    handlePollClosedByBan(forcedWinner);
+                }
+                throw new Error(result.error || 'Не удалось исключить фильм');
+            }
+
+            closeBanModal();
+            applyBanResult(banTargetMovie.id, result);
+            renderMovies(moviesList);
+            updatePointsBalance(result.points_balance);
+
+            const banMessage = `«${banTargetMovie.name}» исключён на ${days} ${declOfNum(days, ['день', 'дня', 'дней'])}.`;
+            showToast(banMessage, 'success');
+
+            if (result.closed_by_ban) {
+                forcedWinner = result.forced_winner || getActiveMovies(moviesList)[0] || banTargetMovie;
+                handlePollClosedByBan(forcedWinner);
+            }
+        } catch (error) {
+            console.error('Ошибка бана фильма:', error);
+            setBanModalError(error.message || 'Не удалось исключить фильм.');
+            banConfirmBtn.disabled = false;
+            banConfirmBtn.textContent = 'Исключить';
+        }
+    }
+
+    function renderWinnerBanner(winnerMovie) {
+        if (!pollWinnerBanner) return;
+        if (!pollClosedByBan) {
+            pollWinnerBanner.hidden = true;
+            pollWinnerBanner.textContent = '';
+            return;
+        }
+
+        const winnerName = winnerMovie?.name ? `«${winnerMovie.name}»${winnerMovie.year ? ` (${winnerMovie.year})` : ''}` : 'одного из фильмов';
+        pollWinnerBanner.hidden = false;
+        pollWinnerBanner.innerHTML = `Голосование завершено из-за банов. Победитель: <strong>${escapeHtml(winnerName)}</strong>.`;
+    }
+
+    function handlePollClosedByBan(winnerMovie) {
+        pollClosedByBan = true;
+        forcedWinner = winnerMovie || forcedWinner;
+        renderWinnerBanner(forcedWinner);
+        pollDescription.textContent = 'Голосование завершено из-за банов.';
+        showMessage('Голосование завершено из-за банов.', 'info');
+        updateCustomVoteButtonState();
+        renderMovies(moviesList);
     }
 
     function getPointsEarnedStorageKey() {
@@ -516,6 +758,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `+${points}`;
     }
 
+    function buildBanLabel(movie) {
+        if (!movie) return 'Исключён из опроса';
+        const banUntil = movie.ban_until ? new Date(movie.ban_until) : null;
+        if (banUntil && !Number.isNaN(banUntil.getTime())) {
+            return `Исключён до ${banUntil.toLocaleDateString('ru-RU')}`;
+        }
+        return 'Исключён из опроса';
+    }
+
     function updateCustomVoteCostLabels(cost = customVoteCost) {
         const capitalizedPhrase = formatCustomVoteCostPhrase(cost, { capitalized: true });
         const baseButtonLabel = 'Проголосовать за свой фильм';
@@ -605,8 +856,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    banCancelBtn?.addEventListener('click', closeBanModal);
+    banConfirmBtn?.addEventListener('click', submitBan);
+    banModal?.addEventListener('click', (event) => {
+        if (event.target === banModal) {
+            closeBanModal();
+        }
+    });
+
     if (customVoteBtn && customVoteModal && customVoteCancelBtn && customVoteInput) {
         customVoteBtn.addEventListener('click', () => {
+            if (pollClosedByBan) {
+                renderWinnerBanner(forcedWinner);
+                showToast('Голосование завершено из-за банов.', 'info');
+                return;
+            }
             if (hasVoted) {
                 showToast('Вы уже проголосовали в этом опросе.', 'info');
                 return;
@@ -756,7 +1020,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function canUseCustomVote() {
-        return !hasVoted && typeof pointsBalance === 'number' && pointsBalance >= customVoteCost;
+        return !hasVoted && !pollClosedByBan && typeof pointsBalance === 'number' && pointsBalance >= customVoteCost;
     }
 
     function buildCustomVoteInsufficientMessage() {
@@ -776,7 +1040,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const effectiveBalance = typeof balanceValue === 'number' ? balanceValue : pointsBalance;
         const isBalanceKnown = Number.isFinite(effectiveBalance);
         const isInsufficient = isBalanceKnown ? effectiveBalance < customVoteCost : true;
-        const disabled = Boolean(hasVoteFlag || isInsufficient || canVoteCustom === false);
+        const disabled = Boolean(hasVoteFlag || isInsufficient || canVoteCustom === false || pollClosedByBan);
 
         customVoteBtn.disabled = disabled;
         if (customVoteWarning) {
