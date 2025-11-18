@@ -596,6 +596,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!banTargetMovie || !banConfirmBtn) return;
         if (!banDaysInput) return;
 
+        const bannedMovie = banTargetMovie;
         const activeMovies = getActiveMovies(moviesList);
         if (activeMovies.length <= 1) {
             setBanModalError('Нельзя забанить последний фильм.');
@@ -622,18 +623,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 throw new Error(result.error || 'Не удалось исключить фильм');
             }
 
-            closeBanModal();
-
             const banPayload = {
                 ban_until: result.ban_until,
                 ban_status: result.ban_status,
                 ban_remaining_seconds: result.ban_remaining_seconds,
             };
-            applyBanResult(banTargetMovie.id, banPayload);
-            banTargetMovie = { ...banTargetMovie, ...banPayload };
-            markMovieCardAsBanned(banTargetMovie);
+            applyBanResult(bannedMovie.id, banPayload);
+            const updatedBannedMovie = { ...bannedMovie, ...banPayload };
+            markMovieCardAsBanned(updatedBannedMovie);
 
-            const banMessage = `«${banTargetMovie.name}» исключён на ${days} ${declOfNum(days, ['день', 'дня', 'дней'])}.`;
+            const banMessage = `«${updatedBannedMovie.name}» исключён на ${days} ${declOfNum(days, ['день', 'дня', 'дней'])}.`;
             showToast(banMessage, 'success');
 
             try {
@@ -641,6 +640,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             } catch (refreshError) {
                 console.error('Не удалось обновить состояние опроса после бана', refreshError);
             }
+
+            closeBanModal();
         } catch (error) {
             console.error('Ошибка бана фильма:', error);
             setBanModalError(error.message || 'Не удалось исключить фильм.');
