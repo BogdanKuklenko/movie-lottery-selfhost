@@ -125,42 +125,64 @@ document.addEventListener('DOMContentLoaded', async () => {
         return movies.filter(movie => !isMovieBanned(movie));
     };
 
-    // Загружаем данные опроса
-    try {
-        const response = await fetch(buildPollApiUrl(`/api/polls/${pollId}`), {
-            credentials: 'include'
-        });
+    async function fetchPollData(options = {}) {
+        const { skipVoteHandling = false, showErrors = true } = options;
 
-        if (!response.ok) {
-            const error = await response.json();
-            showMessage(error.error || 'Опрос не найден', 'error');
-            markPointsAsUnavailable();
-            return;
+        try {
+            const response = await fetch(buildPollApiUrl(`/api/polls/${pollId}`), {
+                credentials: 'include',
+            });
+
+            const pollData = await response.json();
+
+            if (!response.ok) {
+                const errorMessage = pollData?.error || 'Не удалось загрузить опрос';
+                if (showErrors) {
+                    showMessage(errorMessage, 'error');
+                    markPointsAsUnavailable();
+                }
+                throw new Error(errorMessage);
+            }
+
+            applyPollData(pollData, { skipVoteHandling });
+            return pollData;
+        } catch (error) {
+            console.error('Ошибка загрузки опроса:', error);
+            if (showErrors) {
+                showMessage('Не удалось загрузить опрос', 'error');
+                markPointsAsUnavailable();
+            }
+            throw error;
         }
+    }
 
-        const pollData = await response.json();
-        voterToken = pollData.voter_token || null;
+    function applyPollData(pollData, { skipVoteHandling = false } = {}) {
+        if (!pollData) return;
+
+        voterToken = pollData.voter_token || voterToken;
         updatePointsBalance(pollData.points_balance, pollData.points_earned_total);
-        customVoteCost = Number(pollData.custom_vote_cost) || 0;
+        customVoteCost = Number(pollData.custom_vote_cost) || customVoteCost;
         updateCustomVoteCostLabels(customVoteCost);
         moviesList = Array.isArray(pollData.movies) ? pollData.movies : [];
         pollClosedByBan = Boolean(pollData.closed_by_ban);
         forcedWinner = pollData.forced_winner || null;
         updateCustomVoteButtonState({
             balance: pollData.points_balance,
-            canVoteCustom: pollData.can_vote_custom,
+            can_vote_custom: pollData.can_vote_custom,
             hasVoted: pollData.has_voted,
         });
 
-        // Отображаем фильмы
         renderMovies(moviesList);
-        pollDescription.textContent = `Выберите один фильм из ${pollData.movies.length}. Проголосовало: ${pollData.total_votes}`;
+
+        if (pollDescription && typeof pollData.total_votes === 'number') {
+            pollDescription.textContent = `Выберите один фильм из ${moviesList.length}. Проголосовало: ${pollData.total_votes}`;
+        }
 
         if (pollClosedByBan) {
             handlePollClosedByBan(forcedWinner);
         }
 
-        if (pollData.has_voted) {
+        if (!skipVoteHandling && pollData.has_voted) {
             hasVoted = true;
             if (pollData.voted_movie) {
                 handleVotedState(pollData.voted_movie, pollData.voted_points_delta);
@@ -169,11 +191,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 updateVotingDisabledState(true);
             }
         }
+    }
 
+    try {
+        await fetchPollData();
     } catch (error) {
         console.error('Ошибка загрузки опроса:', error);
-        showMessage('Не удалось загрузить опрос', 'error');
-        markPointsAsUnavailable();
     }
 
     function renderMovies(movies) {
@@ -569,6 +592,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (result.closed_by_ban) {
                 forcedWinner = result.forced_winner || getActiveMovies(moviesList)[0] || banTargetMovie;
                 handlePollClosedByBan(forcedWinner);
+            }
+
+            try {
+                await fetchPollData({ skipVoteHandling: true, showErrors: false });
+            } catch (refreshError) {
+                console.error('Не удалось обновить состояние опроса после бана', refreshError);
             }
         } catch (error) {
             console.error('Ошибка бана фильма:', error);
