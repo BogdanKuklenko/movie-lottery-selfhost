@@ -928,6 +928,21 @@ def ban_poll_movie(poll_id):
     base_time = movie.ban_until if movie.is_banned and movie.ban_until else datetime.utcnow()
     movie.ban_until = base_time + timedelta(days=days)
 
+    library_movie = None
+    if movie.kinopoisk_id:
+        library_movie = LibraryMovie.query.filter_by(kinopoisk_id=movie.kinopoisk_id).first()
+    if not library_movie and movie.name and movie.year:
+        library_movie = LibraryMovie.query.filter_by(name=movie.name, year=movie.year).first()
+
+    library_ban_data = None
+    if library_movie:
+        library_movie.badge = 'ban'
+        library_movie.ban_until = movie.ban_until
+        library_movie.ban_applied_by = device_label or 'poll-ban'
+        library_movie.ban_cost = days
+        library_movie.bumped_at = db.func.now()
+        library_ban_data = _serialize_library_movie(library_movie)
+
     new_balance = change_voter_points_balance(
         voter_token,
         -days,
@@ -953,6 +968,7 @@ def ban_poll_movie(poll_id):
         "points_balance": new_balance,
         "closed_by_ban": closed_by_ban,
         "forced_winner": _serialize_poll_movie(forced_winner) if forced_winner else None,
+        "library_ban": library_ban_data,
     }))
 
     if not request.cookies.get('voter_token'):
