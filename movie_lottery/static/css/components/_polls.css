@@ -295,6 +295,65 @@
     pointer-events: none;
 }
 
+.poll-movie-points-badge--max {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: linear-gradient(135deg, #fef3c7 0%, #fcd34d 35%, #f97316 50%, #fef3c7 100%);
+    background-size: 220% 220%;
+    color: #1f1300;
+    text-shadow: 0 1px 4px rgba(255, 255, 255, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 8px 18px rgba(255, 184, 51, 0.45), 0 0 0 1px rgba(255, 226, 164, 0.9);
+    animation: poll-max-badge-shimmer 6s ease-in-out infinite, poll-max-badge-pulse 3.6s ease-in-out infinite;
+}
+
+.poll-movie-points-badge--max::after {
+    content: '👑';
+    font-size: 12px;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+}
+
+.poll-movie-points-badge--max.poll-movie-points-badge-muted {
+    color: #2b1903;
+}
+
+.poll-movie-points-badge--max.poll-movie-points-badge-muted::after {
+    opacity: 0.8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .poll-movie-points-badge--max {
+        animation: none;
+    }
+}
+
+@keyframes poll-max-badge-shimmer {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+@keyframes poll-max-badge-pulse {
+    0% {
+        box-shadow: 0 8px 18px rgba(255, 184, 51, 0.45), 0 0 0 1px rgba(255, 226, 164, 0.9);
+        transform: translateZ(0);
+    }
+    50% {
+        box-shadow: 0 10px 22px rgba(255, 196, 81, 0.55), 0 0 0 3px rgba(255, 218, 170, 0.4);
+        transform: translateZ(0) scale(1.02);
+    }
+    100% {
+        box-shadow: 0 8px 18px rgba(255, 184, 51, 0.45), 0 0 0 1px rgba(255, 226, 164, 0.9);
+        transform: translateZ(0);
+    }
+}
+
 .poll-movie-points-badge-muted {
     color: rgba(255, 232, 196, 0.85);
     text-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
