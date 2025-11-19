@@ -241,6 +241,87 @@ def test_poll_ban_sets_forced_winner(app):
     assert poll.is_expired is True
 
 
+def test_poll_ban_aligns_to_end_of_day(app):
+    client = app.test_client()
+
+    create_response = _create_poll_via_api(client, [
+        _build_movie('Movie A'),
+        _build_movie('Movie B'),
+    ])
+
+    poll_id = create_response.get_json()['poll_id']
+    poll = Poll.query.get(poll_id)
+    target_movie = poll.movies[0]
+
+    now_utc = datetime.utcnow()
+    voter_token = 'ban-aligned'
+    client.set_cookie('voter_token', voter_token)
+    db.session.add(PollVoterProfile(token=voter_token, total_points=5))
+    db.session.commit()
+
+    response = client.post(
+        f'/api/polls/{poll_id}/ban',
+        json={'movie_id': target_movie.id, 'days': 2},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    ban_until = datetime.fromisoformat(payload['ban_until'])
+
+    expected_end = datetime(
+        now_utc.year,
+        now_utc.month,
+        now_utc.day,
+        23,
+        59,
+        59,
+    ) + timedelta(days=1)
+
+    assert ban_until == expected_end
+
+
+def test_poll_ban_extension_aligns_to_end_of_day(app):
+    client = app.test_client()
+
+    create_response = _create_poll_via_api(client, [
+        _build_movie('Movie A'),
+        _build_movie('Movie B'),
+    ])
+
+    poll_id = create_response.get_json()['poll_id']
+    poll = Poll.query.get(poll_id)
+    target_movie = poll.movies[0]
+
+    base_ban_until = datetime.utcnow() + timedelta(hours=12)
+    target_movie.ban_until = base_ban_until
+    db.session.commit()
+
+    voter_token = 'extended-ban'
+    client.set_cookie('voter_token', voter_token)
+    db.session.add(PollVoterProfile(token=voter_token, total_points=5))
+    db.session.commit()
+
+    response = client.post(
+        f'/api/polls/{poll_id}/ban',
+        json={'movie_id': target_movie.id, 'days': 2},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    ban_until = datetime.fromisoformat(payload['ban_until'])
+
+    expected_end = datetime(
+        base_ban_until.year,
+        base_ban_until.month,
+        base_ban_until.day,
+        23,
+        59,
+        59,
+    ) + timedelta(days=1)
+
+    assert ban_until == expected_end
+
+
 def test_poll_ban_updates_library_movie(app):
     client = app.test_client()
 
