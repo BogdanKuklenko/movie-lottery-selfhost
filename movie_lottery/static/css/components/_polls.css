@@ -647,7 +647,7 @@
     filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45));
 }
 
-.ban-days-input {
+.ban-months-input {
     width: 120px;
     padding: 10px 12px;
     border-radius: 10px;
@@ -656,7 +656,7 @@
     color: white;
 }
 
-.ban-days-input:focus {
+.ban-months-input:focus {
     outline: 2px solid var(--accent-purple);
     outline-offset: 2px;
     border-color: transparent;

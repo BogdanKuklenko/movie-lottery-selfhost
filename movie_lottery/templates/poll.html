@@ -103,8 +103,8 @@
             <h2>Исключить из опроса</h2>
             <div class="ban-modal-body">
                 <p id="ban-modal-description" class="ban-modal-description"></p>
-                <label class="ban-modal-label" for="ban-days-input">
-                    На сколько дней исключить? <span class="ban-label-formula">(1 день = 1 балл)</span>
+                <label class="ban-modal-label" for="ban-months-input">
+                    На сколько месяцев исключить? <span class="ban-label-formula">(1 месяц = 1 балл)</span>
                 </label>
                 <div class="ban-input-row">
                     <div class="ban-stepper">
@@ -112,16 +112,16 @@
                             type="button"
                             class="ban-step-btn ban-step-btn--decrease"
                             data-ban-step="-1"
-                            aria-label="Уменьшить на 1 день"
+                            aria-label="Уменьшить на 1 месяц"
                         >
                             <span class="ban-step-icon" aria-hidden="true"></span>
                         </button>
-                        <input id="ban-days-input" class="ban-days-input" type="number" inputmode="numeric" min="1" step="1" value="1">
+                        <input id="ban-months-input" class="ban-months-input" type="number" inputmode="numeric" min="1" step="1" value="1">
                         <button
                             type="button"
                             class="ban-step-btn ban-step-btn--increase"
                             data-ban-step="1"
-                            aria-label="Увеличить на 1 день"
+                            aria-label="Увеличить на 1 месяц"
                         >
                             <span class="ban-step-icon" aria-hidden="true"></span>
                         </button>
@@ -129,10 +129,10 @@
                     <span class="ban-cost-hint">Используйте кнопки −/+ или выберите готовый вариант ниже — баллы списываются с вашего баланса</span>
                 </div>
                 <div class="ban-presets" aria-label="Быстрый выбор длительности">
-                    <button type="button" class="ban-preset-btn" data-ban-preset="1">1 день</button>
-                    <button type="button" class="ban-preset-btn" data-ban-preset="3">3 дня</button>
-                    <button type="button" class="ban-preset-btn" data-ban-preset="7">7 дней</button>
-                    <button type="button" class="ban-preset-btn" data-ban-preset="10">10 дней</button>
+                    <button type="button" class="ban-preset-btn" data-ban-preset="1">1 месяц</button>
+                    <button type="button" class="ban-preset-btn" data-ban-preset="3">3 месяца</button>
+                    <button type="button" class="ban-preset-btn" data-ban-preset="6">6 месяцев</button>
+                    <button type="button" class="ban-preset-btn" data-ban-preset="12">12 месяцев</button>
                 </div>
                 <p id="ban-modal-error" class="ban-modal-error" hidden></p>
             </div>
