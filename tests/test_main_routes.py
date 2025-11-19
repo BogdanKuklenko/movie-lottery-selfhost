@@ -1,6 +1,7 @@
 import os
 import sys
 import os
+import calendar
 import shutil
 import sys
 import tempfile
@@ -26,6 +27,23 @@ def _build_movie(name, **extra):
     }
     payload.update(extra)
     return payload
+
+
+def _align_to_end_of_day(dt):
+    return datetime.combine(dt.date(), time(23, 59, 59))
+
+
+def _add_months(dt, months):
+    total_months = dt.month - 1 + months
+    year = dt.year + total_months // 12
+    month = total_months % 12 + 1
+    last_day = calendar.monthrange(year, month)[1]
+    day = min(dt.day, last_day)
+    return dt.replace(year=year, month=month, day=day)
+
+
+def _calculate_expected_ban_until(base_time, months):
+    return _add_months(_align_to_end_of_day(base_time), months)
 
 
 def _create_poll_via_api(client, movies, token=None):
@@ -226,7 +244,7 @@ def test_poll_ban_sets_forced_winner(app):
 
     ban_response = client.post(
         f'/api/polls/{poll_id}/ban',
-        json={'movie_id': target_movie.id, 'days': 2},
+        json={'movie_id': target_movie.id, 'months': 2},
     )
 
     assert ban_response.status_code == 200
@@ -259,23 +277,18 @@ def test_poll_ban_aligns_to_end_of_day(app):
     db.session.add(PollVoterProfile(token=voter_token, total_points=5))
     db.session.commit()
 
+    months = 2
+
     response = client.post(
         f'/api/polls/{poll_id}/ban',
-        json={'movie_id': target_movie.id, 'days': 2},
+        json={'movie_id': target_movie.id, 'months': months},
     )
 
     assert response.status_code == 200
     payload = response.get_json()
     ban_until = datetime.fromisoformat(payload['ban_until'])
 
-    expected_end = datetime(
-        now_utc.year,
-        now_utc.month,
-        now_utc.day,
-        23,
-        59,
-        59,
-    ) + timedelta(days=1)
+    expected_end = _calculate_expected_ban_until(now_utc, months)
 
     assert ban_until == expected_end
 
@@ -301,23 +314,18 @@ def test_poll_ban_extension_aligns_to_end_of_day(app):
     db.session.add(PollVoterProfile(token=voter_token, total_points=5))
     db.session.commit()
 
+    months = 2
+
     response = client.post(
         f'/api/polls/{poll_id}/ban',
-        json={'movie_id': target_movie.id, 'days': 2},
+        json={'movie_id': target_movie.id, 'months': months},
     )
 
     assert response.status_code == 200
     payload = response.get_json()
     ban_until = datetime.fromisoformat(payload['ban_until'])
 
-    expected_end = datetime(
-        base_ban_until.year,
-        base_ban_until.month,
-        base_ban_until.day,
-        23,
-        59,
-        59,
-    ) + timedelta(days=1)
+    expected_end = _calculate_expected_ban_until(base_ban_until, months)
 
     assert ban_until == expected_end
 
@@ -350,7 +358,7 @@ def test_poll_ban_updates_library_movie(app):
 
     response = client.post(
         f'/api/polls/{poll_id}/ban',
-        json={'movie_id': target_movie.id, 'days': 3},
+        json={'movie_id': target_movie.id, 'months': 3},
     )
 
     assert response.status_code == 200
@@ -411,16 +419,18 @@ def test_library_badge_ban_aligns_to_end_of_day(app):
 
     now_utc = datetime.utcnow()
 
+    months = 1
+
     response = client.put(
         f'/api/library/{movie.id}/badge',
-        json={'badge': 'ban', 'ban_duration_hours': 2},
+        json={'badge': 'ban', 'ban_duration_months': months},
     )
 
     assert response.status_code == 200
     payload = response.get_json()
     ban_until = datetime.fromisoformat(payload['ban_until'])
 
-    expected_end = datetime.combine(now_utc.date(), time(23, 59, 59)) + timedelta(days=1)
+    expected_end = _calculate_expected_ban_until(now_utc, months)
     assert ban_until == expected_end
 
 
@@ -463,16 +473,18 @@ def test_library_badge_ban_extends_from_existing_ban(app):
     db.session.add(movie)
     db.session.commit()
 
+    months = 1
+
     response = client.put(
         f'/api/library/{movie.id}/badge',
-        json={'badge': 'ban', 'ban_duration_hours': 2},
+        json={'badge': 'ban', 'ban_duration_months': months},
     )
 
     assert response.status_code == 200
     payload = response.get_json()
     ban_until = datetime.fromisoformat(payload['ban_until'])
 
-    expected_end = datetime.combine(base_ban_until.date(), time(23, 59, 59)) + timedelta(days=1)
+    expected_end = _calculate_expected_ban_until(base_ban_until, months)
     assert ban_until == expected_end
 
 
@@ -499,7 +511,7 @@ def test_cannot_ban_last_movie(app):
 
     response = client.post(
         f'/api/polls/{poll_id}/ban',
-        json={'movie_id': second_movie.id, 'days': 1},
+        json={'movie_id': second_movie.id, 'months': 1},
     )
 
     assert response.status_code == 409

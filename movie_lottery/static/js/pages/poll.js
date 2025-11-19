@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const banModal = document.getElementById('ban-modal');
     const banConfirmBtn = document.getElementById('ban-confirm-btn');
     const banCancelBtn = document.getElementById('ban-cancel-btn');
-    const banDaysInput = document.getElementById('ban-days-input');
+    const banMonthsInput = document.getElementById('ban-months-input');
     const banPresetButtons = Array.from(document.querySelectorAll('[data-ban-preset]'));
     const banStepButtons = Array.from(document.querySelectorAll('[data-ban-step]'));
     const banModalDescription = document.getElementById('ban-modal-description');
@@ -362,12 +362,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function openBanModal(movie) {
-        if (!banModal || !banDaysInput || !banModalDescription) return;
+        if (!banModal || !banMonthsInput || !banModalDescription) return;
         banTargetMovie = movie;
         resetBanModal();
         const movieYear = movie?.year ? ` (${movie.year})` : '';
         banModalDescription.textContent = `Исключить «${movie?.name || 'Фильм'}»${movieYear} из опроса.`;
-        setBanDaysValue(1);
+        setBanMonthsValue(1);
         banModal.style.display = 'flex';
         if (!isBanModalOpen) {
             lockScroll();
@@ -530,7 +530,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             banConfirmBtn.disabled = false;
             banConfirmBtn.textContent = 'Исключить';
         }
-        setBanDaysValue(1);
+        setBanMonthsValue(1);
     }
 
     function setBanModalError(text = '') {
@@ -539,36 +539,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         banModalError.hidden = !text;
     }
 
-    function parseBanDays(rawValue) {
+    function parseBanMonths(rawValue) {
         const parsed = Number.parseInt(rawValue, 10);
         if (!Number.isFinite(parsed)) return null;
         return Math.max(1, parsed);
     }
 
-    function setBanDaysValue(rawValue) {
-        const days = parseBanDays(rawValue);
-        if (!days) {
-            setBanModalError('Укажите длительность не менее 1 дня.');
+    function setBanMonthsValue(rawValue) {
+        const months = parseBanMonths(rawValue);
+        if (!months) {
+            setBanModalError('Укажите длительность не менее 1 месяца.');
             return null;
         }
 
-        if (banDaysInput) {
-            banDaysInput.value = String(days);
+        if (banMonthsInput) {
+            banMonthsInput.value = String(months);
         }
 
         setBanModalError('');
-        return days;
+        return months;
     }
 
-    function validateBanDaysInput() {
-        const days = parseBanDays(banDaysInput?.value ?? '');
-        const isValid = Number.isFinite(days) && days >= 1;
+    function validateBanMonthsInput() {
+        const months = parseBanMonths(banMonthsInput?.value ?? '');
+        const isValid = Number.isFinite(months) && months >= 1;
         if (!isValid) {
-            setBanModalError('Укажите длительность не менее 1 дня.');
+            setBanModalError('Укажите длительность не менее 1 месяца.');
         } else {
             setBanModalError('');
         }
-        return isValid ? days : null;
+        return isValid ? months : null;
     }
 
     function applyBanResult(movieId, payload = {}) {
@@ -602,7 +602,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function submitBan() {
         if (!banTargetMovie || !banConfirmBtn) return;
-        if (!banDaysInput) return;
+        if (!banMonthsInput) return;
 
         const bannedMovie = banTargetMovie;
         const activeMovies = getActiveMovies(moviesList);
@@ -611,8 +611,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        const days = validateBanDaysInput();
-        if (!days) {
+        const months = validateBanMonthsInput();
+        if (!months) {
             return;
         }
         banConfirmBtn.disabled = true;
@@ -623,7 +623,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ movie_id: banTargetMovie.id, days }),
+                body: JSON.stringify({ movie_id: banTargetMovie.id, months }),
             });
 
             const result = await response.json();
@@ -640,7 +640,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const updatedBannedMovie = { ...bannedMovie, ...banPayload };
             markMovieCardAsBanned(updatedBannedMovie);
 
-            const banMessage = `«${updatedBannedMovie.name}» исключён на ${days} ${declOfNum(days, ['день', 'дня', 'дней'])}.`;
+            const banMessage = `«${updatedBannedMovie.name}» исключён на ${months} ${declOfNum(months, ['месяц', 'месяца', 'месяцев'])}.`;
             showToast(banMessage, 'success');
 
             try {
@@ -946,24 +946,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    banDaysInput?.addEventListener('input', (event) => {
-        setBanDaysValue(event.target.value);
+    banMonthsInput?.addEventListener('input', (event) => {
+        setBanMonthsValue(event.target.value);
     });
 
-    banDaysInput?.addEventListener('blur', validateBanDaysInput);
+    banMonthsInput?.addEventListener('blur', validateBanMonthsInput);
 
     banPresetButtons.forEach((button) => {
         button.addEventListener('click', () => {
             const preset = button.dataset.banPreset;
-            setBanDaysValue(preset);
+            setBanMonthsValue(preset);
         });
     });
 
     banStepButtons.forEach((button) => {
         button.addEventListener('click', () => {
             const step = Number.parseInt(button.dataset.banStep, 10) || 0;
-            const current = parseBanDays(banDaysInput?.value ?? '1') || 1;
-            setBanDaysValue(current + step);
+            const current = parseBanMonths(banMonthsInput?.value ?? '1') || 1;
+            setBanMonthsValue(current + step);
         });
     });
 

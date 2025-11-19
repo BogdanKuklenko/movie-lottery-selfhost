@@ -1,8 +1,9 @@
+import calendar
 import random
 import re
 import secrets
 from collections import defaultdict
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, time, timezone
 from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy import func
 from sqlalchemy.exc import OperationalError, ProgrammingError
@@ -212,9 +213,18 @@ def _align_to_end_of_day(dt):
     return datetime.combine(dt.date(), time(23, 59, 59))
 
 
-def _calculate_ban_until(base_time, days):
+def _add_months(dt, months):
+    total_months = dt.month - 1 + months
+    year = dt.year + total_months // 12
+    month = total_months % 12 + 1
+    last_day = calendar.monthrange(year, month)[1]
+    day = min(dt.day, last_day)
+    return dt.replace(year=year, month=month, day=day)
+
+
+def _calculate_ban_until(base_time, months):
     end_of_base_day = _align_to_end_of_day(base_time)
-    return end_of_base_day + timedelta(days=days)
+    return _add_months(end_of_base_day, months)
 
 
 def _prepare_voter_filters(args):
@@ -903,7 +913,7 @@ def ban_poll_movie(poll_id):
         return jsonify({"error": "Некорректный JSON-запрос"}), 400
 
     movie_id = payload.get('movie_id')
-    days = payload.get('days')
+    months = payload.get('months')
 
     try:
         movie_id = int(movie_id)
@@ -911,12 +921,12 @@ def ban_poll_movie(poll_id):
         return jsonify({"error": "Некорректный идентификатор фильма"}), 400
 
     try:
-        days = int(days)
+        months = int(months)
     except (TypeError, ValueError):
-        return jsonify({"error": "Количество дней должно быть числом"}), 400
+        return jsonify({"error": "Количество месяцев должно быть числом"}), 400
 
-    if days <= 0:
-        return jsonify({"error": "Минимальный бан — 1 день"}), 400
+    if months <= 0:
+        return jsonify({"error": "Минимальный бан — 1 месяц"}), 400
 
     movie = PollMovie.query.filter_by(id=movie_id, poll_id=poll_id).first()
     if not movie:
@@ -931,7 +941,7 @@ def ban_poll_movie(poll_id):
     profile = ensure_voter_profile(voter_token, device_label=device_label)
     balance_before = profile.total_points or 0
 
-    if balance_before < days:
+    if balance_before < months:
         return jsonify({"error": "Недостаточно баллов для бана"}), 403
 
     now_utc = datetime.utcnow()
@@ -940,7 +950,7 @@ def ban_poll_movie(poll_id):
         if movie.is_banned and movie.ban_until and movie.ban_until > now_utc
         else now_utc
     )
-    movie.ban_until = _calculate_ban_until(base_time, days)
+    movie.ban_until = _calculate_ban_until(base_time, months)
 
     library_movie = None
     if movie.kinopoisk_id:
@@ -953,13 +963,13 @@ def ban_poll_movie(poll_id):
         library_movie.badge = 'ban'
         library_movie.ban_until = movie.ban_until
         library_movie.ban_applied_by = device_label or 'poll-ban'
-        library_movie.ban_cost = days
+        library_movie.ban_cost = months
         library_movie.bumped_at = db.func.now()
         library_ban_data = _serialize_library_movie(library_movie)
 
     new_balance = change_voter_points_balance(
         voter_token,
-        -days,
+        -months,
         device_label=device_label,
     )
 
@@ -1269,9 +1279,7 @@ def set_movie_badge(movie_id):
 
     if badge_type == 'ban':
         ban_until_raw = payload.get('ban_until')
-        ban_duration_days = payload.get('ban_duration_days')
-        if ban_duration_days is None:
-            ban_duration_days = payload.get('ban_duration_hours')
+        ban_duration_months = payload.get('ban_duration_months')
 
         now_utc = datetime.utcnow()
         base_time = (
@@ -1286,16 +1294,16 @@ def set_movie_badge(movie_id):
                 return jsonify({"success": False, "message": "Некорректная дата окончания бана"}), 400
             ban_until = _align_to_end_of_day(parsed_until)
         else:
-            duration_value = 1 if ban_duration_days is None else ban_duration_days
+            duration_value = 1 if ban_duration_months is None else ban_duration_months
             try:
-                days = int(duration_value)
+                months = int(duration_value)
             except (TypeError, ValueError):
-                return jsonify({"success": False, "message": "Длительность бана должна быть числом дней"}), 400
+                return jsonify({"success": False, "message": "Длительность бана должна быть числом месяцев"}), 400
 
-            if days <= 0:
-                return jsonify({"success": False, "message": "Минимальный бан — 1 день"}), 400
+            if months <= 0:
+                return jsonify({"success": False, "message": "Минимальный бан — 1 месяц"}), 400
 
-            ban_until = _calculate_ban_until(base_time, days)
+            ban_until = _calculate_ban_until(base_time, months)
 
         ban_applied_by = (payload.get('ban_applied_by') or '').strip() or None
         raw_cost = payload.get('ban_cost')
