@@ -205,6 +205,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         moviesList = Array.isArray(movies) ? movies : [];
         pollGrid.innerHTML = '';
 
+        const maxPoints = moviesList.reduce((max, movie) => {
+            const pointsValue = getMoviePoints(movie);
+            return pointsValue > max ? pointsValue : max;
+        }, 0);
+
         moviesList.forEach(movie => {
             const movieCard = document.createElement('div');
             movieCard.className = 'poll-movie-card';
@@ -218,6 +223,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const badgeClasses = ['poll-movie-points-badge'];
             if (pointsValue <= 0) {
                 badgeClasses.push('poll-movie-points-badge-muted');
+            }
+            if (pointsValue === maxPoints && moviesList.length > 0) {
+                badgeClasses.push('poll-movie-points-badge--max');
             }
 
             movieCard.innerHTML = `
