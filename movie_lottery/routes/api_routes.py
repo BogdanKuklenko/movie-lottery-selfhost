@@ -208,6 +208,15 @@ def _parse_iso_date(raw_value, for_end=False):
     return parsed
 
 
+def _align_to_end_of_day(dt):
+    return datetime.combine(dt.date(), time(23, 59, 59))
+
+
+def _calculate_ban_until(base_time, days):
+    end_of_base_day = _align_to_end_of_day(base_time)
+    return end_of_base_day + timedelta(days=days - 1)
+
+
 def _prepare_voter_filters(args):
     token = (args.get('token') or '').strip()
     poll_id = (args.get('poll_id') or '').strip()
@@ -931,8 +940,7 @@ def ban_poll_movie(poll_id):
         if movie.is_banned and movie.ban_until and movie.ban_until > now_utc
         else now_utc
     )
-    end_of_base_day = datetime.combine(base_time.date(), time(23, 59, 59))
-    movie.ban_until = end_of_base_day + timedelta(days=days - 1)
+    movie.ban_until = _calculate_ban_until(base_time, days)
 
     library_movie = None
     if movie.kinopoisk_id:
@@ -1261,18 +1269,33 @@ def set_movie_badge(movie_id):
 
     if badge_type == 'ban':
         ban_until_raw = payload.get('ban_until')
-        ban_duration_hours = payload.get('ban_duration_hours')
-        ban_until = _parse_iso_date(ban_until_raw, for_end=True)
+        ban_duration_days = payload.get('ban_duration_days')
+        if ban_duration_days is None:
+            ban_duration_days = payload.get('ban_duration_hours')
 
-        if ban_until is None and ban_duration_hours is not None:
+        now_utc = datetime.utcnow()
+        base_time = (
+            library_movie.ban_until
+            if library_movie.badge == 'ban' and library_movie.ban_until and library_movie.ban_until > now_utc
+            else now_utc
+        )
+
+        if ban_until_raw is not None:
+            parsed_until = _parse_iso_date(ban_until_raw)
+            if parsed_until is None:
+                return jsonify({"success": False, "message": "Некорректная дата окончания бана"}), 400
+            ban_until = _align_to_end_of_day(parsed_until)
+        else:
+            duration_value = 1 if ban_duration_days is None else ban_duration_days
             try:
-                hours = float(ban_duration_hours)
-                ban_until = datetime.utcnow() + timedelta(hours=max(hours, 0))
+                days = int(duration_value)
             except (TypeError, ValueError):
-                return jsonify({"success": False, "message": "Некорректная длительность бана"}), 400
+                return jsonify({"success": False, "message": "Длительность бана должна быть числом дней"}), 400
 
-        if ban_until is None:
-            ban_until = datetime.utcnow() + timedelta(hours=24)
+            if days <= 0:
+                return jsonify({"success": False, "message": "Минимальный бан — 1 день"}), 400
+
+            ban_until = _calculate_ban_until(base_time, days)
 
         ban_applied_by = (payload.get('ban_applied_by') or '').strip() or None
         raw_cost = payload.get('ban_cost')
