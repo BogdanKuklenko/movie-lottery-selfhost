@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+from flask import current_app
+from sqlalchemy.exc import OperationalError, ProgrammingError
 from . import db
 
 class MovieIdentifier(db.Model):
@@ -82,11 +84,18 @@ class LibraryMovie(db.Model):
     def refresh_all_bans(cls):
         """Пакетно обновляет истёкшие баны."""
         now = datetime.utcnow()
-        expired = cls.query.filter(
-            cls.badge == 'ban',
-            cls.ban_until.isnot(None),
-            cls.ban_until <= now,
-        ).all()
+        try:
+            expired = cls.query.filter(
+                cls.badge == 'ban',
+                cls.ban_until.isnot(None),
+                cls.ban_until <= now,
+            ).all()
+        except (OperationalError, ProgrammingError) as exc:
+            current_app.logger.warning(
+                "Skipping ban refresh because column is missing. Run pending migrations. Error: %s",
+                exc,
+            )
+            return False
 
         changed = False
         for movie in expired:
