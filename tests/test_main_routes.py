@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy import inspect, text
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from sqlalchemy.exc import OperationalError
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -396,6 +396,84 @@ def test_library_ban_resets_after_expiry(app):
     refreshed_movie = LibraryMovie.query.filter_by(name='Expired Ban').first()
     assert refreshed_movie.badge == 'watchlist'
     assert refreshed_movie.ban_until is None
+
+
+def test_library_badge_ban_aligns_to_end_of_day(app):
+    client = app.test_client()
+
+    movie = LibraryMovie(
+        name='Manual Ban',
+        year='2024',
+        badge='watchlist',
+    )
+    db.session.add(movie)
+    db.session.commit()
+
+    now_utc = datetime.utcnow()
+
+    response = client.put(
+        f'/api/library/{movie.id}/badge',
+        json={'badge': 'ban', 'ban_duration_hours': 2},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    ban_until = datetime.fromisoformat(payload['ban_until'])
+
+    expected_end = datetime.combine(now_utc.date(), time(23, 59, 59)) + timedelta(days=1)
+    assert ban_until == expected_end
+
+
+def test_library_badge_accepts_ban_until_and_aligns(app):
+    client = app.test_client()
+
+    movie = LibraryMovie(
+        name='Ban Until',
+        year='2024',
+        badge='watchlist',
+    )
+    db.session.add(movie)
+    db.session.commit()
+
+    target_until = datetime.utcnow() + timedelta(days=3, hours=5)
+
+    response = client.put(
+        f'/api/library/{movie.id}/badge',
+        json={'badge': 'ban', 'ban_until': target_until.isoformat()},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    ban_until = datetime.fromisoformat(payload['ban_until'])
+
+    expected_end = datetime.combine(target_until.date(), time(23, 59, 59))
+    assert ban_until == expected_end
+
+
+def test_library_badge_ban_extends_from_existing_ban(app):
+    client = app.test_client()
+
+    base_ban_until = datetime.utcnow() + timedelta(hours=12)
+    movie = LibraryMovie(
+        name='Extended Ban',
+        year='2024',
+        badge='ban',
+        ban_until=base_ban_until,
+    )
+    db.session.add(movie)
+    db.session.commit()
+
+    response = client.put(
+        f'/api/library/{movie.id}/badge',
+        json={'badge': 'ban', 'ban_duration_hours': 2},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    ban_until = datetime.fromisoformat(payload['ban_until'])
+
+    expected_end = datetime.combine(base_ban_until.date(), time(23, 59, 59)) + timedelta(days=1)
+    assert ban_until == expected_end
 
 
 def test_cannot_ban_last_movie(app):
