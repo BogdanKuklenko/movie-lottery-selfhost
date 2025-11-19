@@ -378,7 +378,6 @@ def test_library_ban_resets_after_expiry(app):
         year='2023',
         badge='ban',
         ban_until=datetime.utcnow() - timedelta(hours=1),
-        previous_badge='watchlist',
     )
     db.session.add(expired_ban)
     db.session.commit()
@@ -392,13 +391,11 @@ def test_library_ban_resets_after_expiry(app):
     assert movie_payload is not None
     assert movie_payload['badge'] == 'watchlist'
     assert movie_payload['ban_until'] is None
-    assert movie_payload['previous_badge'] is None
 
     db.session.expire_all()
     refreshed_movie = LibraryMovie.query.filter_by(name='Expired Ban').first()
     assert refreshed_movie.badge == 'watchlist'
     assert refreshed_movie.ban_until is None
-    assert refreshed_movie.previous_badge is None
 
 
 def test_library_badge_ban_aligns_to_end_of_day(app):
