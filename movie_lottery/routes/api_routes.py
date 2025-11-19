@@ -81,7 +81,6 @@ def _serialize_library_movie(movie):
         'genres': movie.genres,
         'countries': movie.countries,
         'badge': movie.badge,
-        'previous_badge': getattr(movie, 'previous_badge', None),
         'points': movie.points if movie.points is not None else 1,
         'ban_until': movie.ban_until.isoformat() if movie.ban_until else None,
         'ban_status': movie.ban_status,
@@ -215,8 +214,7 @@ def _align_to_end_of_day(dt):
 
 def _calculate_ban_until(base_time, days):
     end_of_base_day = _align_to_end_of_day(base_time)
-    safe_days = max(0, int(days) - 1)
-    return end_of_base_day + timedelta(days=safe_days)
+    return end_of_base_day + timedelta(days=days)
 
 
 def _prepare_voter_filters(args):
@@ -952,8 +950,6 @@ def ban_poll_movie(poll_id):
 
     library_ban_data = None
     if library_movie:
-        if library_movie.badge != 'ban' and library_movie.previous_badge is None:
-            library_movie.previous_badge = library_movie.badge
         library_movie.badge = 'ban'
         library_movie.ban_until = movie.ban_until
         library_movie.ban_applied_by = device_label or 'poll-ban'
@@ -1308,11 +1304,6 @@ def set_movie_badge(movie_id):
         except (TypeError, ValueError):
             return jsonify({"success": False, "message": "Стоимость бана должна быть числом"}), 400
 
-        if library_movie.badge != 'ban' and library_movie.previous_badge is None:
-            library_movie.previous_badge = library_movie.badge
-    else:
-        library_movie.previous_badge = None
-
     library_movie.badge = badge_type
     library_movie.ban_until = ban_until
     library_movie.ban_applied_by = ban_applied_by
@@ -1329,7 +1320,6 @@ def set_movie_badge(movie_id):
         "ban_remaining_seconds": library_movie.ban_remaining_seconds,
         "ban_applied_by": library_movie.ban_applied_by,
         "ban_cost": library_movie.ban_cost,
-        "previous_badge": library_movie.previous_badge,
     })
 
 @api_bp.route('/library/<int:movie_id>/badge', methods=['DELETE'])
@@ -1340,7 +1330,6 @@ def remove_movie_badge(movie_id):
     library_movie.ban_until = None
     library_movie.ban_applied_by = None
     library_movie.ban_cost = None
-    library_movie.previous_badge = None
     library_movie.bumped_at = db.func.now()
     db.session.commit()
 
@@ -1352,7 +1341,6 @@ def remove_movie_badge(movie_id):
         "ban_remaining_seconds": library_movie.ban_remaining_seconds,
         "ban_applied_by": library_movie.ban_applied_by,
         "ban_cost": library_movie.ban_cost,
-        "previous_badge": library_movie.previous_badge,
     })
 
 @api_bp.route('/library/badges/stats', methods=['GET'])
