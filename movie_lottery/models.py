@@ -42,20 +42,18 @@ class LibraryMovie(db.Model):
     added_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     bumped_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     badge = db.Column(db.String(20), nullable=True)  # Бейдж: favorite, ban, watchlist, top, watched, new
-    previous_badge = db.Column(db.String(20), nullable=True)
     points = db.Column(db.Integer, nullable=False, default=1)
     ban_until = db.Column(db.DateTime, nullable=True)
     ban_applied_by = db.Column(db.String(120), nullable=True)
     ban_cost = db.Column(db.Integer, nullable=True)
 
     def refresh_ban_status(self):
-        """Восстанавливает бейдж после истечения срока бана."""
+        """Переводит фильм из бана в watchlist после истечения срока."""
         if self.badge != 'ban' or not self.ban_until:
             return False
 
         if datetime.utcnow() >= self.ban_until:
-            self.badge = self.previous_badge
-            self.previous_badge = None
+            self.badge = 'watchlist'
             self.ban_until = None
             self.ban_applied_by = None
             self.ban_cost = None
