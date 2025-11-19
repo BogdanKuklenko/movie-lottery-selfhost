@@ -214,7 +214,7 @@ def _align_to_end_of_day(dt):
 
 def _calculate_ban_until(base_time, days):
     end_of_base_day = _align_to_end_of_day(base_time)
-    return end_of_base_day + timedelta(days=days - 1)
+    return end_of_base_day + timedelta(days=days)
 
 
 def _prepare_voter_filters(args):
