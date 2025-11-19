@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+from flask import current_app
+from sqlalchemy.exc import OperationalError, ProgrammingError
 from . import db
 
 class MovieIdentifier(db.Model):
@@ -42,18 +44,20 @@ class LibraryMovie(db.Model):
     added_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     bumped_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     badge = db.Column(db.String(20), nullable=True)  # Бейдж: favorite, ban, watchlist, top, watched, new
+    previous_badge = db.Column(db.String(20), nullable=True)
     points = db.Column(db.Integer, nullable=False, default=1)
     ban_until = db.Column(db.DateTime, nullable=True)
     ban_applied_by = db.Column(db.String(120), nullable=True)
     ban_cost = db.Column(db.Integer, nullable=True)
 
     def refresh_ban_status(self):
-        """Переводит фильм из бана в watchlist после истечения срока."""
+        """Восстанавливает бейдж после истечения срока бана."""
         if self.badge != 'ban' or not self.ban_until:
             return False
 
         if datetime.utcnow() >= self.ban_until:
-            self.badge = 'watchlist'
+            self.badge = self.previous_badge
+            self.previous_badge = None
             self.ban_until = None
             self.ban_applied_by = None
             self.ban_cost = None
@@ -80,11 +84,18 @@ class LibraryMovie(db.Model):
     def refresh_all_bans(cls):
         """Пакетно обновляет истёкшие баны."""
         now = datetime.utcnow()
-        expired = cls.query.filter(
-            cls.badge == 'ban',
-            cls.ban_until.isnot(None),
-            cls.ban_until <= now,
-        ).all()
+        try:
+            expired = cls.query.filter(
+                cls.badge == 'ban',
+                cls.ban_until.isnot(None),
+                cls.ban_until <= now,
+            ).all()
+        except (OperationalError, ProgrammingError) as exc:
+            current_app.logger.warning(
+                "Skipping ban refresh because column is missing. Run pending migrations. Error: %s",
+                exc,
+            )
+            return False
 
         changed = False
         for movie in expired:
