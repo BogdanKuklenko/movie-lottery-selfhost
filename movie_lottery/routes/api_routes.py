@@ -2,7 +2,7 @@ import random
 import re
 import secrets
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy import func
 from sqlalchemy.exc import OperationalError, ProgrammingError
@@ -925,8 +925,14 @@ def ban_poll_movie(poll_id):
     if balance_before < days:
         return jsonify({"error": "Недостаточно баллов для бана"}), 403
 
-    base_time = movie.ban_until if movie.is_banned and movie.ban_until else datetime.utcnow()
-    movie.ban_until = base_time + timedelta(days=days)
+    now_utc = datetime.utcnow()
+    base_time = (
+        movie.ban_until
+        if movie.is_banned and movie.ban_until and movie.ban_until > now_utc
+        else now_utc
+    )
+    end_of_base_day = datetime.combine(base_time.date(), time(23, 59, 59))
+    movie.ban_until = end_of_base_day + timedelta(days=days - 1)
 
     library_movie = None
     if movie.kinopoisk_id:
