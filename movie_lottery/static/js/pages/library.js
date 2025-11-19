@@ -909,7 +909,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         card.dataset.moviePoints = movieData.points != null ? String(movieData.points) : card.dataset.moviePoints;
         card.dataset.badge = movieData.badge || '';
-        card.dataset.previousBadge = movieData.previous_badge || '';
         card.dataset.banStatus = movieData.ban_status || 'none';
         card.dataset.banUntil = movieData.ban_until || '';
         card.dataset.banRemaining = (movieData.ban_remaining_seconds ?? '').toString();
@@ -998,7 +997,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             is_on_client: card.classList.contains('has-torrent-on-client'),
             torrent_hash: ds.torrentHash,
             badge: ds.badge || null,
-            previous_badge: ds.previousBadge || null,
             points: parseMoviePoints(ds.moviePoints),
             ban_status: ds.banStatus || 'none',
             ban_until: ds.banUntil || null,
@@ -1088,7 +1086,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     function updateBadgeOnCard(card, badgeType, payload = {}, options = {}) {
         const { skipStats = false } = options;
         card.dataset.badge = badgeType || '';
-        card.dataset.previousBadge = payload.previous_badge || '';
         if (badgeType === 'ban') {
             card.dataset.banStatus = payload.ban_status || 'active';
             card.dataset.banUntil = payload.ban_until || '';
@@ -1101,7 +1098,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             card.dataset.banRemaining = '';
             card.dataset.banAppliedBy = '';
             card.dataset.banCost = '';
-            card.dataset.previousBadge = '';
         }
 
         let badgeElement = card.querySelector('.movie-badge');
