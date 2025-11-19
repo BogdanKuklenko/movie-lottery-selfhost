@@ -251,6 +251,7 @@
 }
 
 .poll-movie-card {
+    position: relative;
     background: rgba(255, 255, 255, 0.05);
     border-radius: 12px;
     overflow: hidden;
@@ -273,6 +274,9 @@
 
 .poll-movie-poster {
     position: relative;
+    overflow: hidden;
+    border-radius: 12px 12px 0 0;
+    isolation: isolate;
 }
 
 .poll-movie-poster img {
@@ -285,14 +289,74 @@
     left: 10px;
     font-size: 11px;
     font-weight: 700;
-    color: rgba(255, 214, 120, 0.98);
-    text-shadow: 0 2px 7px rgba(0, 0, 0, 0.75), 0 0 14px rgba(0, 0, 0, 0.6), 0 0 2px rgba(255, 194, 104, 0.65);
-    background: linear-gradient(180deg, rgba(24, 18, 6, 0.6), rgba(10, 8, 4, 0.55));
-    padding: 4px 8px;
-    border-radius: 10px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 205, 122, 0.4);
+    color: rgba(255, 220, 170, 0.98);
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.65), 0 0 10px rgba(0, 0, 0, 0.5), 0 0 2px rgba(255, 194, 104, 0.5);
+    background: linear-gradient(180deg, rgba(26, 20, 8, 0.2), rgba(12, 10, 6, 0.18));
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 205, 122, 0.55);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.25), 0 2px 12px rgba(255, 191, 94, 0.35);
     letter-spacing: 0.04em;
     pointer-events: none;
+    backdrop-filter: blur(6px) saturate(1.08) brightness(1.05);
+    -webkit-backdrop-filter: blur(6px) saturate(1.08) brightness(1.05);
+    transform: translateZ(0);
+}
+
+.poll-movie-points-badge--max {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    background: linear-gradient(135deg, rgba(254, 243, 199, 0.82) 0%, rgba(252, 211, 77, 0.88) 32%, rgba(249, 115, 22, 0.82) 50%, rgba(254, 243, 199, 0.9) 100%);
+    background-size: 220% 220%;
+    color: #1f1300;
+    text-shadow: 0 1px 4px rgba(255, 255, 255, 0.45), 0 1px 7px rgba(0, 0, 0, 0.32);
+    box-shadow: 0 7px 16px rgba(255, 184, 51, 0.4), 0 0 0 1px rgba(255, 226, 164, 0.85), 0 0 18px rgba(255, 220, 160, 0.28);
+    animation: poll-max-badge-shimmer 8s ease-in-out infinite, poll-max-badge-pulse 4.2s ease-in-out infinite;
+}
+
+.poll-movie-points-badge--max.poll-movie-points-badge-muted {
+    color: #2b1903;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .poll-movie-points-badge--max {
+        animation: none;
+    }
+}
+
+@media (max-width: 640px) {
+    .poll-movie-points-badge {
+        padding: 2px 7px;
+        font-size: 10px;
+    }
+}
+
+@keyframes poll-max-badge-shimmer {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+@keyframes poll-max-badge-pulse {
+    0% {
+        box-shadow: 0 7px 16px rgba(255, 184, 51, 0.4), 0 0 0 1px rgba(255, 226, 164, 0.85);
+        transform: translateZ(0);
+    }
+    50% {
+        box-shadow: 0 10px 20px rgba(255, 196, 81, 0.5), 0 0 0 3px rgba(255, 218, 170, 0.32);
+        transform: translateZ(0) scale(1.015);
+    }
+    100% {
+        box-shadow: 0 7px 16px rgba(255, 184, 51, 0.4), 0 0 0 1px rgba(255, 226, 164, 0.85);
+        transform: translateZ(0);
+    }
 }
 
 .poll-movie-points-badge--max {
