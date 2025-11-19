@@ -552,7 +552,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             confirmBtn.addEventListener('click', async () => {
                 confirmBtn.disabled = true;
                 confirmBtn.textContent = 'Создание...';
-                let reopenedWithResult = false;
 
                 try {
                     // Получаем фильмы с выбранным бейджем
@@ -582,10 +581,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         throw new Error(createData.error || 'Не удалось создать опрос');
                     }
 
-                    // Показываем модальное окно с результатом
-                    closeModalIfOpen();
-                    reopenedWithResult = true;
-
+                    modal.renderCustomContent('');
                     showPollCreatedModal({
                         pollUrl: createData.poll_url,
                         resultsUrl: createData.results_url,
@@ -601,9 +597,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } finally {
                     confirmBtn.disabled = false;
                     confirmBtn.textContent = 'Создать опрос';
-                    if (!reopenedWithResult) {
-                        closeModalIfOpen();
-                    }
                 }
             });
         });
