@@ -140,6 +140,8 @@ def ensure_library_movie_columns():
         missing_columns.append('ban_applied_by')
     if 'ban_cost' not in existing_columns:
         missing_columns.append('ban_cost')
+    if 'ban_price' not in existing_columns:
+        missing_columns.append('ban_price')
 
     if not missing_columns:
         return False
@@ -201,6 +203,18 @@ def ensure_library_movie_columns():
                     ))
                 else:
                     connection.execute(text("ALTER TABLE library_movie ADD COLUMN ban_cost INTEGER"))
+
+            if 'ban_price' in missing_columns:
+                if dialect == 'postgresql':
+                    connection.execute(text(
+                        "ALTER TABLE library_movie "
+                        "ADD COLUMN IF NOT EXISTS ban_price INTEGER NOT NULL DEFAULT 1"
+                    ))
+                else:
+                    connection.execute(text("ALTER TABLE library_movie ADD COLUMN ban_price INTEGER DEFAULT 1"))
+                connection.execute(text(
+                    "UPDATE library_movie SET ban_price = COALESCE(ban_price, 1)"
+                ))
 
         logger = getattr(current_app, 'logger', None)
         message = (
