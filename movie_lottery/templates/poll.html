@@ -104,7 +104,7 @@
             <div class="ban-modal-body">
                 <p id="ban-modal-description" class="ban-modal-description"></p>
                 <label class="ban-modal-label" for="ban-months-input">
-                    На сколько месяцев исключить? <span class="ban-label-formula">(1 месяц = 1 балл)</span>
+                    На сколько месяцев исключить? <span id="ban-label-formula" class="ban-label-formula">(1 месяц = 1 балл)</span>
                 </label>
                 <div class="ban-input-row">
                     <div class="ban-stepper">
@@ -126,8 +126,9 @@
                             <span class="ban-step-icon" aria-hidden="true"></span>
                         </button>
                     </div>
-                    <span class="ban-cost-hint">Используйте кнопки −/+ или выберите готовый вариант ниже — баллы списываются с вашего баланса</span>
                 </div>
+                <span id="ban-total-cost" class="ban-total-cost"></span>
+                <span class="ban-cost-hint">Используйте кнопки −/+ или выберите готовый вариант ниже — баллы списываются с вашего баланса</span>
                 <div class="ban-presets" aria-label="Быстрый выбор длительности">
                     <button type="button" class="ban-preset-btn" data-ban-preset="1">1 месяц</button>
                     <button type="button" class="ban-preset-btn" data-ban-preset="3">3 месяца</button>

@@ -25,6 +25,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const banStepButtons = Array.from(document.querySelectorAll('[data-ban-step]'));
     const banModalDescription = document.getElementById('ban-modal-description');
     const banModalError = document.getElementById('ban-modal-error');
+    const banLabelFormula = document.getElementById('ban-label-formula');
+    const banTotalCost = document.getElementById('ban-total-cost');
     const pollWinnerBanner = document.getElementById('poll-winner-banner');
 
     const TEXTS = {
@@ -367,12 +369,39 @@ document.addEventListener('DOMContentLoaded', async () => {
         resetBanModal();
         const movieYear = movie?.year ? ` (${movie.year})` : '';
         banModalDescription.textContent = `Исключить «${movie?.name || 'Фильм'}»${movieYear} из опроса.`;
-        setBanMonthsValue(1);
+        
+        // Получаем цену за месяц бана (по умолчанию 1)
+        const costPerMonth = movie?.ban_cost_per_month ?? 1;
+        
+        // Устанавливаем начальное значение месяцев и обновляем отображение стоимости
+        const initialMonths = 1;
+        setBanMonthsValue(initialMonths);
+        updateBanCostDisplay(costPerMonth, initialMonths);
+        
         banModal.style.display = 'flex';
         if (!isBanModalOpen) {
             lockScroll();
             isBanModalOpen = true;
             pushModalHistory('ban');
+        }
+    }
+
+    function updateBanCostDisplay(costPerMonth, months = null) {
+        if (!banLabelFormula) return;
+        
+        // Обновляем текст "1 месяц = X балл(ов)"
+        const costText = costPerMonth === 1 
+            ? '(1 месяц = 1 балл)'
+            : `(1 месяц = ${costPerMonth} ${declOfNum(costPerMonth, ['балл', 'балла', 'баллов'])})`;
+        banLabelFormula.textContent = costText;
+        
+        // Обновляем общую стоимость, если указано количество месяцев
+        if (banTotalCost && months !== null) {
+            const totalCost = costPerMonth * months;
+            banTotalCost.textContent = `Итого: ${totalCost} ${declOfNum(totalCost, ['балл', 'балла', 'баллов'])}`;
+            banTotalCost.style.display = 'block';
+        } else if (banTotalCost) {
+            banTotalCost.style.display = 'none';
         }
     }
 
@@ -554,6 +583,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (banMonthsInput) {
             banMonthsInput.value = String(months);
+        }
+
+        // Обновляем отображение общей стоимости
+        if (banTargetMovie) {
+            const costPerMonth = banTargetMovie?.ban_cost_per_month ?? 1;
+            updateBanCostDisplay(costPerMonth, months);
         }
 
         setBanModalError('');
@@ -966,6 +1001,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             setBanMonthsValue(current + step);
         });
     });
+
+    // Обновляем стоимость при изменении значения в поле ввода
+    if (banMonthsInput) {
+        banMonthsInput.addEventListener('input', () => {
+            const months = parseBanMonths(banMonthsInput.value);
+            if (months && banTargetMovie) {
+                const costPerMonth = banTargetMovie?.ban_cost_per_month ?? 1;
+                updateBanCostDisplay(costPerMonth, months);
+            }
+        });
+    }
 
     if (customVoteBtn && customVoteModal && customVoteCancelBtn && customVoteInput) {
         customVoteBtn.addEventListener('click', () => {

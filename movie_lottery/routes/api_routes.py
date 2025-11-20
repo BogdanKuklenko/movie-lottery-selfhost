@@ -296,6 +296,17 @@ def _serialize_poll_movie(movie):
     if not movie:
         return None
 
+    # Получаем индивидуальную цену за месяц бана из библиотеки, если фильм там есть
+    ban_cost_per_month = None
+    if movie.kinopoisk_id:
+        library_movie = LibraryMovie.query.filter_by(kinopoisk_id=movie.kinopoisk_id).first()
+        if library_movie and library_movie.ban_cost_per_month is not None:
+            ban_cost_per_month = library_movie.ban_cost_per_month
+    elif movie.name and movie.year:
+        library_movie = LibraryMovie.query.filter_by(name=movie.name, year=movie.year).first()
+        if library_movie and library_movie.ban_cost_per_month is not None:
+            ban_cost_per_month = library_movie.ban_cost_per_month
+
     return {
         "id": movie.id,
         "kinopoisk_id": movie.kinopoisk_id,
@@ -311,6 +322,7 @@ def _serialize_poll_movie(movie):
         "ban_until": movie.ban_until.isoformat() if getattr(movie, 'ban_until', None) else None,
         "ban_status": getattr(movie, 'ban_status', 'none'),
         "ban_remaining_seconds": getattr(movie, 'ban_remaining_seconds', 0),
+        "ban_cost_per_month": ban_cost_per_month,
     }
 
 
