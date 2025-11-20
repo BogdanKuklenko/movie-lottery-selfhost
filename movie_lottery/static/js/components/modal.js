@@ -170,6 +170,19 @@ function createWinnerCardHTML(movieData, isLibrary) {
         </div>
     ` : '';
 
+    const parsedBanCostPerMonth = Number(movieData.ban_cost_per_month);
+    const banCostPerMonthValue = Number.isFinite(parsedBanCostPerMonth) ? parsedBanCostPerMonth : null;
+    const banCostPerMonthSectionHTML = isLibrary ? `
+        <div class="movie-ban-cost-section">
+            <h4>Цена за месяц исключения из опроса</h4>
+            <div class="movie-ban-cost-form">
+                <input type="number" id="movie-ban-cost-per-month-input" min="0" max="999" step="1" value="${banCostPerMonthValue !== null ? escapeHtml(String(banCostPerMonthValue)) : ''}" placeholder="По умолчанию: 1">
+                <button class="action-button save-ban-cost-per-month-btn" type="button">Сохранить</button>
+            </div>
+            <p class="movie-ban-cost-hint">Установите индивидуальную цену баллов за месяц исключения фильма из опроса. По умолчанию 1 балл за месяц. Если установлено 3 балла и клиент исключает на 5 месяцев, это будет стоить 15 баллов (3 × 5).</p>
+        </div>
+    ` : '';
+
     const banSectionHTML = isLibrary ? renderBanInfo(movieData) : '';
 
     return `
@@ -201,6 +214,7 @@ function createWinnerCardHTML(movieData, isLibrary) {
                     </div>` : '<p class="meta-info">Kinopoisk ID не указан, работа с magnet-ссылкой недоступна.</p>'}
 
                 ${pointsSectionHTML}
+                ${banCostPerMonthSectionHTML}
                 ${banSectionHTML}
                 ${badgeSectionHTML}
 
@@ -496,6 +510,58 @@ export class ModalManager {
                 if (event.key === 'Enter') {
                     event.preventDefault();
                     handleSavePoints();
+                }
+            });
+        }
+
+        const saveBanCostPerMonthBtn = this.body.querySelector('.save-ban-cost-per-month-btn');
+        const banCostPerMonthInput = this.body.querySelector('#movie-ban-cost-per-month-input');
+        if (saveBanCostPerMonthBtn && banCostPerMonthInput && actions.onSaveBanCostPerMonth) {
+            const originalLabel = saveBanCostPerMonthBtn.textContent;
+
+            const handleSaveBanCostPerMonth = async () => {
+                const value = banCostPerMonthInput.value.trim();
+                let parsed = null;
+                if (value !== '') {
+                    parsed = Number(value);
+                    if (!Number.isFinite(parsed)) {
+                        if (window.showToast) {
+                            window.showToast('Введите корректное число или оставьте пустым для значения по умолчанию.', 'error');
+                        }
+                        return;
+                    }
+                    parsed = Math.round(parsed);
+                    if (parsed < 0 || parsed > 999) {
+                        if (window.showToast) {
+                            window.showToast('Цена должна быть в диапазоне от 0 до 999.', 'error');
+                        }
+                        return;
+                    }
+                    if (parsed === 0) {
+                        parsed = null; // 0 означает сброс к значению по умолчанию
+                    }
+                }
+
+                saveBanCostPerMonthBtn.disabled = true;
+                saveBanCostPerMonthBtn.textContent = 'Сохранение...';
+
+                try {
+                    await actions.onSaveBanCostPerMonth(movieData.id, parsed);
+                } finally {
+                    saveBanCostPerMonthBtn.disabled = false;
+                    saveBanCostPerMonthBtn.textContent = originalLabel;
+                }
+            };
+
+            saveBanCostPerMonthBtn.addEventListener('click', (event) => {
+                event.preventDefault();
+                handleSaveBanCostPerMonth();
+            });
+
+            banCostPerMonthInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    handleSaveBanCostPerMonth();
                 }
             });
         }

@@ -48,6 +48,7 @@ class LibraryMovie(db.Model):
     ban_until = db.Column(db.DateTime, nullable=True)
     ban_applied_by = db.Column(db.String(120), nullable=True)
     ban_cost = db.Column(db.Integer, nullable=True)
+    ban_cost_per_month = db.Column(db.Integer, nullable=True)  # Индивидуальная цена за месяц бана (по умолчанию 1)
 
     def refresh_ban_status(self):
         """Переводит фильм из бана в watchlist после истечения срока."""

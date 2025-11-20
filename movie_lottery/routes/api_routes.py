@@ -88,6 +88,7 @@ def _serialize_library_movie(movie):
         'ban_remaining_seconds': movie.ban_remaining_seconds,
         'ban_applied_by': movie.ban_applied_by,
         'ban_cost': movie.ban_cost,
+        'ban_cost_per_month': movie.ban_cost_per_month,
     }
 
 
@@ -623,6 +624,37 @@ def update_library_movie_points(movie_id):
         "points": library_movie.points,
     })
 
+
+@api_bp.route('/library/<int:movie_id>/ban-cost-per-month', methods=['PUT'])
+def update_library_movie_ban_cost_per_month(movie_id):
+    """Обновление индивидуальной цены за месяц бана для фильма"""
+    data = _get_json_payload()
+    if data is None:
+        return jsonify({"success": False, "message": "Некорректный JSON-запрос."}), 400
+
+    raw_cost = data.get('ban_cost_per_month')
+    if raw_cost is None:
+        return jsonify({"success": False, "message": "Не указана цена за месяц бана."}), 400
+
+    try:
+        cost = int(raw_cost)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "message": "Цена за месяц бана должна быть целым числом."}), 400
+
+    if cost < 0 or cost > 999:
+        return jsonify({"success": False, "message": "Цена за месяц бана должна быть в диапазоне от 0 до 999."}), 400
+
+    library_movie = LibraryMovie.query.get_or_404(movie_id)
+    library_movie.ban_cost_per_month = cost if cost > 0 else None
+    library_movie.bumped_at = datetime.utcnow()
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": "Цена за месяц бана обновлена.",
+        "ban_cost_per_month": library_movie.ban_cost_per_month,
+    })
+
 # --- Маршруты для работы с торрентами ---
 
 @api_bp.route('/movie-magnet', methods=['POST'])
@@ -941,8 +973,19 @@ def ban_poll_movie(poll_id):
     profile = ensure_voter_profile(voter_token, device_label=device_label)
     balance_before = profile.total_points or 0
 
-    if balance_before < months:
-        return jsonify({"error": "Недостаточно баллов для бана"}), 403
+    # Получаем индивидуальную цену за месяц бана из библиотеки
+    library_movie = None
+    if movie.kinopoisk_id:
+        library_movie = LibraryMovie.query.filter_by(kinopoisk_id=movie.kinopoisk_id).first()
+    if not library_movie and movie.name and movie.year:
+        library_movie = LibraryMovie.query.filter_by(name=movie.name, year=movie.year).first()
+
+    # Используем индивидуальную цену за месяц, если она установлена, иначе 1 балл за месяц
+    cost_per_month = library_movie.ban_cost_per_month if library_movie and library_movie.ban_cost_per_month is not None else 1
+    total_cost = cost_per_month * months
+
+    if balance_before < total_cost:
+        return jsonify({"error": f"Недостаточно баллов для бана. Требуется {total_cost} баллов ({cost_per_month} × {months} месяцев)"}), 403
 
     now_utc = datetime.utcnow()
     base_time = (
@@ -952,24 +995,18 @@ def ban_poll_movie(poll_id):
     )
     movie.ban_until = _calculate_ban_until(base_time, months)
 
-    library_movie = None
-    if movie.kinopoisk_id:
-        library_movie = LibraryMovie.query.filter_by(kinopoisk_id=movie.kinopoisk_id).first()
-    if not library_movie and movie.name and movie.year:
-        library_movie = LibraryMovie.query.filter_by(name=movie.name, year=movie.year).first()
-
     library_ban_data = None
     if library_movie:
         library_movie.badge = 'ban'
         library_movie.ban_until = movie.ban_until
         library_movie.ban_applied_by = device_label or 'poll-ban'
-        library_movie.ban_cost = months
+        library_movie.ban_cost = total_cost
         library_movie.bumped_at = datetime.utcnow()
         library_ban_data = _serialize_library_movie(library_movie)
 
     new_balance = change_voter_points_balance(
         voter_token,
-        -months,
+        -total_cost,
         device_label=device_label,
     )
 

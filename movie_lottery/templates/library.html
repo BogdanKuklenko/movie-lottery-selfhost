@@ -170,6 +170,7 @@
                     data-ban-remaining="{{ movie.ban_remaining_seconds }}"
                     data-ban-applied-by="{{ movie.ban_applied_by or '' }}"
                     data-ban-cost="{{ movie.ban_cost if movie.ban_cost is not none else '' }}"
+                    data-ban-cost-per-month="{{ movie.ban_cost_per_month if movie.ban_cost_per_month is not none else '' }}"
                 >
                     <input type="checkbox" class="movie-checkbox" style="display: none;" data-movie-id="{{ movie.id }}">
                     <div class="torrent-status-indicator"></div>

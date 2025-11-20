@@ -127,6 +127,25 @@ export async function updateLibraryMoviePoints(movieId, points) {
 }
 
 /**
+ * Обновляет индивидуальную цену за месяц бана для фильма в библиотеке.
+ * @param {string|number} movieId - ID фильма в библиотеке.
+ * @param {number|null} banCostPerMonth - Новая цена за месяц бана (null для сброса к значению по умолчанию).
+ * @returns {Promise<object>} - Результат операции.
+ */
+export async function updateLibraryMovieBanCostPerMonth(movieId, banCostPerMonth) {
+    const response = await fetch(`/api/library/${movieId}/ban-cost-per-month`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ban_cost_per_month: banCostPerMonth })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(data.message || data.error || 'Не удалось обновить цену за месяц бана.');
+    }
+    return data;
+}
+
+/**
  * Сохраняет или удаляет magnet-ссылку для фильма.
  * @param {string|number} kinopoiskId - ID фильма на Кинопоиске.
  * @param {string} magnetLink - Magnet-ссылка. Пустая строка для удаления.

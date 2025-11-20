@@ -907,6 +907,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         card.dataset.banRemaining = (movieData.ban_remaining_seconds ?? '').toString();
         card.dataset.banAppliedBy = movieData.ban_applied_by || '';
         card.dataset.banCost = movieData.ban_cost != null ? movieData.ban_cost.toString() : '';
+        card.dataset.banCostPerMonth = movieData.ban_cost_per_month != null ? movieData.ban_cost_per_month.toString() : '';
 
         if (Object.prototype.hasOwnProperty.call(movieData, 'has_magnet')) {
             card.dataset.hasMagnet = movieData.has_magnet ? 'true' : 'false';
@@ -996,6 +997,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ban_remaining_seconds: Number.parseInt(ds.banRemaining || '0', 10) || 0,
             ban_applied_by: ds.banAppliedBy || '',
             ban_cost: ds.banCost ? Number.parseInt(ds.banCost, 10) : null,
+            ban_cost_per_month: ds.banCostPerMonth ? Number.parseInt(ds.banCostPerMonth, 10) : null,
         };
     };
 
@@ -1085,12 +1087,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             card.dataset.banRemaining = (payload.ban_remaining_seconds ?? '').toString();
             card.dataset.banAppliedBy = payload.ban_applied_by || '';
             card.dataset.banCost = payload.ban_cost != null ? payload.ban_cost.toString() : '';
+            card.dataset.banCostPerMonth = payload.ban_cost_per_month != null ? payload.ban_cost_per_month.toString() : '';
         } else {
             card.dataset.banStatus = 'none';
             card.dataset.banUntil = '';
             card.dataset.banRemaining = '';
             card.dataset.banAppliedBy = '';
             card.dataset.banCost = '';
+            // ban_cost_per_month не сбрасываем, так как это настройка фильма, а не бана
         }
 
         let badgeElement = card.querySelector('.movie-badge');
@@ -1241,6 +1245,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 } catch (error) {
                     notify(error.message || 'Не удалось обновить баллы', 'error');
+                }
+            },
+            onSaveBanCostPerMonth: async (movieId, banCostPerMonth) => {
+                try {
+                    const result = await movieApi.updateLibraryMovieBanCostPerMonth(movieId, banCostPerMonth);
+                    if (result.success) {
+                        if (result.ban_cost_per_month !== null && result.ban_cost_per_month !== undefined) {
+                            card.dataset.banCostPerMonth = String(result.ban_cost_per_month);
+                        } else {
+                            delete card.dataset.banCostPerMonth;
+                        }
+                        notify(result.message || 'Цена за месяц бана обновлена', 'success');
+                        handleOpenModal(card);
+                    } else {
+                        notify(result.message || 'Не удалось обновить цену за месяц бана', 'error');
+                    }
+                } catch (error) {
+                    notify(error.message || 'Не удалось обновить цену за месяц бана', 'error');
                 }
             },
             onDownload: async () => {
