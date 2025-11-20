@@ -378,6 +378,51 @@ def test_poll_ban_updates_library_movie(app):
     assert updated_library_movie.ban_until is not None
 
 
+def test_poll_ban_respects_library_price(app):
+    client = app.test_client()
+
+    library_movie = LibraryMovie(
+        kinopoisk_id=654,
+        name='Priced Movie',
+        year='2022',
+        badge='watchlist',
+        ban_price=4,
+    )
+    db.session.add(library_movie)
+    db.session.commit()
+
+    create_response = _create_poll_via_api(client, [
+        _build_movie('Priced Movie', kinopoisk_id=654, year='2022'),
+        _build_movie('Other Movie 2'),
+    ])
+
+    poll_id = create_response.get_json()['poll_id']
+    poll = Poll.query.get(poll_id)
+    target_movie = poll.movies[0]
+
+    voter_token = 'price-check'
+    client.set_cookie('voter_token', voter_token)
+    db.session.add(PollVoterProfile(token=voter_token, total_points=20))
+    db.session.commit()
+
+    response = client.post(
+        f'/api/polls/{poll_id}/ban',
+        json={'movie_id': target_movie.id, 'months': 2},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+
+    assert payload['ban_price'] == 4
+    assert payload['ban_cost'] == 8
+    assert payload['points_balance'] == 12
+
+    db.session.expire_all()
+    updated_library_movie = LibraryMovie.query.filter_by(kinopoisk_id=654).first()
+    assert updated_library_movie.ban_price == 4
+    assert updated_library_movie.ban_cost == 8
+
+
 def test_library_ban_resets_after_expiry(app):
     client = app.test_client()
 

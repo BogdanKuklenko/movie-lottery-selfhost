@@ -25,6 +25,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const banStepButtons = Array.from(document.querySelectorAll('[data-ban-step]'));
     const banModalDescription = document.getElementById('ban-modal-description');
     const banModalError = document.getElementById('ban-modal-error');
+    const banModalSummary = document.getElementById('ban-modal-summary');
+    const banModalBalance = document.getElementById('ban-modal-balance');
     const pollWinnerBanner = document.getElementById('poll-winner-banner');
 
     const TEXTS = {
@@ -115,6 +117,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             return 1;
         }
         return Math.min(999, Math.max(0, parsed));
+    };
+
+    const getBanPrice = (movie) => {
+        const parsed = Number.parseInt(movie?.ban_price ?? '1', 10);
+        if (Number.isNaN(parsed)) {
+            return 1;
+        }
+        return Math.max(0, parsed);
     };
 
     const isMovieBanned = (movie) => {
@@ -557,6 +567,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         setBanModalError('');
+        updateBanCostPreview();
         return months;
     }
 
@@ -571,6 +582,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         return isValid ? months : null;
     }
 
+    function updateBanCostPreview() {
+        if (!banModalSummary && !banModalBalance) return;
+        const months = parseBanMonths(banMonthsInput?.value ?? '1') || 1;
+        const price = getBanPrice(banTargetMovie);
+        const total = price * months;
+
+        if (banModalSummary) {
+            const monthForms = ['месяц', 'месяца', 'месяцев'];
+            const idx = months % 100 > 4 && months % 100 < 20 ? 2 : [2, 0, 1, 1, 1, 2][Math.min(months % 10, 5)];
+            const word = monthForms[idx];
+            banModalSummary.textContent = `Стоимость: ${months} ${word} × ${price} = ${total} баллов.`;
+        }
+
+        if (banModalBalance) {
+            const balanceText = Number.isFinite(pointsBalance)
+                ? `Баланс: ${pointsBalance} баллов`
+                : 'Баланс: недоступно';
+            const insufficient = Number.isFinite(pointsBalance) && pointsBalance < total;
+            banModalBalance.textContent = insufficient
+                ? `${balanceText} (не хватает ${total - pointsBalance} баллов)`
+                : balanceText;
+            banModalBalance.classList.toggle('insufficient-balance', insufficient);
+        }
+    }
+
     function applyBanResult(movieId, payload = {}) {
         moviesList = moviesList.map((movie) => {
             if (movie.id !== movieId) return movie;
@@ -579,6 +615,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ban_until: payload.ban_until || movie.ban_until,
                 ban_status: payload.ban_status || 'active',
                 ban_remaining_seconds: payload.ban_remaining_seconds ?? movie.ban_remaining_seconds,
+                ban_price: payload.ban_price ?? movie.ban_price,
             };
         });
     }
@@ -635,13 +672,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ban_until: result.ban_until,
                 ban_status: result.ban_status,
                 ban_remaining_seconds: result.ban_remaining_seconds,
+                ban_price: result.ban_price,
             };
             applyBanResult(bannedMovie.id, banPayload);
             const updatedBannedMovie = { ...bannedMovie, ...banPayload };
             markMovieCardAsBanned(updatedBannedMovie);
 
-            const banMessage = `«${updatedBannedMovie.name}» исключён на ${months} ${declOfNum(months, ['месяц', 'месяца', 'месяцев'])}.`;
+            const totalCost = Number.isFinite(Number(result.ban_cost)) ? Number(result.ban_cost) : months * getBanPrice(updatedBannedMovie);
+            const banMessage = `«${updatedBannedMovie.name}» исключён на ${months} ${declOfNum(months, ['месяц', 'месяца', 'месяцев'])}. Стоимость: ${formatPoints(totalCost)}.`;
             showToast(banMessage, 'success');
+            handlePointsAfterBan(result);
 
             try {
                 await fetchPollData({ skipVoteHandling: true, showErrors: false });
@@ -796,6 +836,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         showToast(T.toastPointsEarned(awarded), 'success', { duration: 4000 });
         playPointsProgress(awarded);
+    }
+
+    function handlePointsAfterBan(result) {
+        const newBalance = Number(result.points_balance);
+        const spent = Number(result.ban_cost);
+
+        if (Number.isFinite(newBalance)) {
+            updatePointsBalance(newBalance);
+        }
+
+        if (Number.isFinite(spent) && spent > 0) {
+            showToast(`−${formatPoints(spent)} списано за бан`, 'info');
+        }
     }
 
     function playPointsProgress(points) {
