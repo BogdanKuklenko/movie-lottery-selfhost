@@ -45,7 +45,6 @@ class LibraryMovie(db.Model):
     bumped_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     badge = db.Column(db.String(20), nullable=True)  # Бейдж: favorite, ban, watchlist, top, watched, new
     points = db.Column(db.Integer, nullable=False, default=1)
-    ban_price = db.Column(db.Integer, nullable=False, default=1)
     ban_until = db.Column(db.DateTime, nullable=True)
     ban_applied_by = db.Column(db.String(120), nullable=True)
     ban_cost = db.Column(db.Integer, nullable=True)
@@ -208,7 +207,6 @@ class PollMovie(db.Model):
     genres = db.Column(db.String(200), nullable=True)
     countries = db.Column(db.String(200), nullable=True)
     points = db.Column(db.Integer, nullable=False, default=1)
-    ban_price = db.Column(db.Integer, nullable=False, default=1)
     ban_until = db.Column(db.DateTime, nullable=True)
 
     @property

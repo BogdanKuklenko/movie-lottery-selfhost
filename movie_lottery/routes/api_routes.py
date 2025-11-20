@@ -83,7 +83,6 @@ def _serialize_library_movie(movie):
         'countries': movie.countries,
         'badge': movie.badge,
         'points': movie.points if movie.points is not None else 1,
-        'ban_price': movie.ban_price if movie.ban_price is not None else 1,
         'ban_until': movie.ban_until.isoformat() if movie.ban_until else None,
         'ban_status': movie.ban_status,
         'ban_remaining_seconds': movie.ban_remaining_seconds,
@@ -308,7 +307,6 @@ def _serialize_poll_movie(movie):
         "genres": movie.genres,
         "countries": movie.countries,
         "points": movie.points if movie.points is not None else 1,
-        "ban_price": movie.ban_price if getattr(movie, 'ban_price', None) is not None else 1,
         "ban_until": movie.ban_until.isoformat() if getattr(movie, 'ban_until', None) else None,
         "ban_status": getattr(movie, 'ban_status', 'none'),
         "ban_remaining_seconds": getattr(movie, 'ban_remaining_seconds', 0),
@@ -338,25 +336,6 @@ def _is_movie_banned_for_poll(movie_data):
     return False
 
 
-def _find_library_movie(movie_data):
-    if not movie_data:
-        return None
-
-    library_movie = None
-    movie_id = movie_data.get('id')
-    if movie_id:
-        library_movie = LibraryMovie.query.get(movie_id)
-    elif movie_data.get('kinopoisk_id'):
-        library_movie = LibraryMovie.query.filter_by(kinopoisk_id=movie_data.get('kinopoisk_id')).first()
-    elif movie_data.get('name') and movie_data.get('year'):
-        library_movie = LibraryMovie.query.filter_by(
-            name=movie_data.get('name'),
-            year=movie_data.get('year'),
-        ).first()
-
-    return library_movie
-
-
 def _get_active_poll_movies(poll):
     return [movie for movie in poll.movies if not getattr(movie, 'is_banned', False)]
 
@@ -373,37 +352,6 @@ def _normalize_poll_movie_points(raw_value, default=1):
         points = normalized_default
 
     return max(0, min(999, points))
-
-
-def _normalize_ban_price(raw_value, fallback=1):
-    try:
-        normalized = int(raw_value)
-    except (TypeError, ValueError):
-        normalized = fallback
-
-    if normalized is None:
-        normalized = fallback
-
-    return max(0, normalized)
-
-
-def _get_ban_price_for_poll_movie(movie):
-    fallback_price = getattr(movie, 'ban_price', None)
-    movie_payload = {
-        'kinopoisk_id': getattr(movie, 'kinopoisk_id', None),
-        'name': getattr(movie, 'name', None),
-        'year': getattr(movie, 'year', None),
-    }
-    library_movie = _find_library_movie(movie_payload)
-    if library_movie:
-        fallback_price = library_movie.ban_price if library_movie.ban_price is not None else fallback_price
-
-    normalized_price = _normalize_ban_price(fallback_price, fallback=1)
-
-    if library_movie and library_movie.ban_price != normalized_price:
-        library_movie.ban_price = normalized_price
-
-    return normalized_price, library_movie
 
 # --- Routes for movies and lotteries ---
 
@@ -747,12 +695,6 @@ def create_poll():
     db.session.add(new_poll)
 
     for movie_data in movies_json:
-        library_movie = _find_library_movie(movie_data)
-        ban_price = _normalize_ban_price(
-            library_movie.ban_price if library_movie else movie_data.get('ban_price'),
-            fallback=1,
-        )
-
         new_movie = PollMovie(
             kinopoisk_id=movie_data.get('kinopoisk_id'),
             name=movie_data['name'],
@@ -764,7 +706,6 @@ def create_poll():
             genres=movie_data.get('genres'),
             countries=movie_data.get('countries'),
             points=_normalize_poll_movie_points(movie_data.get('points')),
-            ban_price=ban_price,
             poll=new_poll
         )
         db.session.add(new_movie)
@@ -1000,10 +941,7 @@ def ban_poll_movie(poll_id):
     profile = ensure_voter_profile(voter_token, device_label=device_label)
     balance_before = profile.total_points or 0
 
-    ban_price, library_movie = _get_ban_price_for_poll_movie(movie)
-    cost = ban_price * months
-
-    if balance_before < cost:
+    if balance_before < months:
         return jsonify({"error": "Недостаточно баллов для бана"}), 403
 
     now_utc = datetime.utcnow()
@@ -1013,20 +951,25 @@ def ban_poll_movie(poll_id):
         else now_utc
     )
     movie.ban_until = _calculate_ban_until(base_time, months)
-    movie.ban_price = ban_price
+
+    library_movie = None
+    if movie.kinopoisk_id:
+        library_movie = LibraryMovie.query.filter_by(kinopoisk_id=movie.kinopoisk_id).first()
+    if not library_movie and movie.name and movie.year:
+        library_movie = LibraryMovie.query.filter_by(name=movie.name, year=movie.year).first()
 
     library_ban_data = None
     if library_movie:
         library_movie.badge = 'ban'
         library_movie.ban_until = movie.ban_until
         library_movie.ban_applied_by = device_label or 'poll-ban'
-        library_movie.ban_cost = cost
+        library_movie.ban_cost = months
         library_movie.bumped_at = db.func.now()
         library_ban_data = _serialize_library_movie(library_movie)
 
     new_balance = change_voter_points_balance(
         voter_token,
-        -cost,
+        -months,
         device_label=device_label,
     )
 
@@ -1046,8 +989,6 @@ def ban_poll_movie(poll_id):
         "ban_until": movie.ban_until.isoformat() if movie.ban_until else None,
         "ban_status": movie.ban_status,
         "ban_remaining_seconds": movie.ban_remaining_seconds,
-        "ban_price": ban_price,
-        "ban_cost": cost,
         "points_balance": new_balance,
         "closed_by_ban": closed_by_ban,
         "forced_winner": _serialize_poll_movie(forced_winner) if forced_winner else None,
@@ -1335,7 +1276,6 @@ def set_movie_badge(movie_id):
     ban_until = None
     ban_applied_by = None
     ban_cost = None
-    ban_price = _normalize_ban_price(library_movie.ban_price, fallback=1)
 
     if badge_type == 'ban':
         ban_until_raw = payload.get('ban_until')
@@ -1366,20 +1306,16 @@ def set_movie_badge(movie_id):
             ban_until = _calculate_ban_until(base_time, months)
 
         ban_applied_by = (payload.get('ban_applied_by') or '').strip() or None
-        raw_price = payload.get('ban_price')
-        if raw_price is not None:
-            ban_price = _normalize_ban_price(raw_price, fallback=ban_price)
-
-        if ban_price < 0:
-            return jsonify({"success": False, "message": "Цена бана должна быть неотрицательной"}), 400
-
-        ban_cost = ban_price * months if months is not None else None
+        raw_cost = payload.get('ban_cost')
+        try:
+            ban_cost = int(raw_cost) if raw_cost is not None else None
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "message": "Стоимость бана должна быть числом"}), 400
 
     library_movie.badge = badge_type
     library_movie.ban_until = ban_until
     library_movie.ban_applied_by = ban_applied_by
     library_movie.ban_cost = ban_cost
-    library_movie.ban_price = ban_price
     library_movie.bumped_at = db.func.now()
     db.session.commit()
 
@@ -1391,7 +1327,6 @@ def set_movie_badge(movie_id):
         "ban_status": library_movie.ban_status,
         "ban_remaining_seconds": library_movie.ban_remaining_seconds,
         "ban_applied_by": library_movie.ban_applied_by,
-        "ban_price": library_movie.ban_price,
         "ban_cost": library_movie.ban_cost,
     })
 
@@ -1413,7 +1348,6 @@ def remove_movie_badge(movie_id):
         "ban_status": library_movie.ban_status,
         "ban_remaining_seconds": library_movie.ban_remaining_seconds,
         "ban_applied_by": library_movie.ban_applied_by,
-        "ban_price": library_movie.ban_price,
         "ban_cost": library_movie.ban_cost,
     })
 

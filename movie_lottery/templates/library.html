@@ -170,7 +170,6 @@
                     data-ban-remaining="{{ movie.ban_remaining_seconds }}"
                     data-ban-applied-by="{{ movie.ban_applied_by or '' }}"
                     data-ban-cost="{{ movie.ban_cost if movie.ban_cost is not none else '' }}"
-                    data-ban-price="{{ movie.ban_price if movie.ban_price is not none else 1 }}"
                 >
                     <input type="checkbox" class="movie-checkbox" style="display: none;" data-movie-id="{{ movie.id }}">
                     <div class="torrent-status-indicator"></div>
@@ -269,13 +268,6 @@
                     <span class="badge-icon">🔥</span>
                     <span class="badge-label">Новинка</span>
                 </div>
-            </div>
-            <div class="badge-ban-settings">
-                <label for="badge-ban-duration">Длительность бана (мес.)</label>
-                <input id="badge-ban-duration" type="number" min="1" step="1" value="1">
-                <label for="badge-ban-price">Цена бана (баллы/мес)</label>
-                <input id="badge-ban-price" type="number" min="0" step="1" value="1">
-                <p id="badge-ban-summary" class="badge-ban-summary"></p>
             </div>
             <div class="badge-selector-actions">
                 <button class="remove-badge-btn">Убрать бейдж</button>
