@@ -59,7 +59,7 @@ class LibraryMovie(db.Model):
             self.ban_until = None
             self.ban_applied_by = None
             self.ban_cost = None
-            self.bumped_at = db.func.now()
+            self.bumped_at = datetime.utcnow()
             return True
         return False
 

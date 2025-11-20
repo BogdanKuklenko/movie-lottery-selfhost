@@ -569,7 +569,7 @@ def add_library_movie():
         for key, value in movie_data.items():
             if hasattr(existing_movie, key) and value is not None:
                 setattr(existing_movie, key, value)
-        existing_movie.bumped_at = db.func.now()
+        existing_movie.bumped_at = datetime.utcnow()
         message = "Информация о фильме в библиотеке обновлена."
     else:
         new_movie = LibraryMovie(**movie_data)
@@ -614,7 +614,7 @@ def update_library_movie_points(movie_id):
 
     library_movie = LibraryMovie.query.get_or_404(movie_id)
     library_movie.points = points
-    library_movie.bumped_at = db.func.now()
+    library_movie.bumped_at = datetime.utcnow()
     db.session.commit()
 
     return jsonify({
@@ -964,7 +964,7 @@ def ban_poll_movie(poll_id):
         library_movie.ban_until = movie.ban_until
         library_movie.ban_applied_by = device_label or 'poll-ban'
         library_movie.ban_cost = months
-        library_movie.bumped_at = db.func.now()
+        library_movie.bumped_at = datetime.utcnow()
         library_ban_data = _serialize_library_movie(library_movie)
 
     new_balance = change_voter_points_balance(
@@ -1316,7 +1316,7 @@ def set_movie_badge(movie_id):
     library_movie.ban_until = ban_until
     library_movie.ban_applied_by = ban_applied_by
     library_movie.ban_cost = ban_cost
-    library_movie.bumped_at = db.func.now()
+    library_movie.bumped_at = datetime.utcnow()
     db.session.commit()
 
     return jsonify({
@@ -1338,7 +1338,7 @@ def remove_movie_badge(movie_id):
     library_movie.ban_until = None
     library_movie.ban_applied_by = None
     library_movie.ban_cost = None
-    library_movie.bumped_at = db.func.now()
+    library_movie.bumped_at = datetime.utcnow()
     db.session.commit()
 
     return jsonify({
