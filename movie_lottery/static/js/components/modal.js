@@ -171,12 +171,12 @@ function createWinnerCardHTML(movieData, isLibrary) {
     ` : '';
 
     const parsedBanCostPerMonth = Number(movieData.ban_cost_per_month);
-    const banCostPerMonthValue = Number.isFinite(parsedBanCostPerMonth) ? parsedBanCostPerMonth : null;
+    const banCostPerMonthValue = Number.isFinite(parsedBanCostPerMonth) ? parsedBanCostPerMonth : 1;
     const banCostPerMonthSectionHTML = isLibrary ? `
         <div class="movie-points-section">
             <h4>Цена за месяц исключения из опроса</h4>
             <div class="movie-points-form">
-                <input type="number" id="movie-ban-cost-per-month-input" min="0" max="999" step="1" value="${banCostPerMonthValue !== null ? escapeHtml(String(banCostPerMonthValue)) : ''}" placeholder="По умолчанию: 1">
+                <input type="number" id="movie-ban-cost-per-month-input" min="0" max="999" step="1" value="${escapeHtml(String(banCostPerMonthValue))}">
                 <button class="action-button save-ban-cost-per-month-btn" type="button">Сохранить</button>
             </div>
             <p class="movie-points-hint">По умолчанию 1 балл за месяц. Вы можете указать своё значение.</p>
@@ -526,20 +526,24 @@ export class ModalManager {
                     parsed = Number(value);
                     if (!Number.isFinite(parsed)) {
                         if (window.showToast) {
-                            window.showToast('Введите корректное число или оставьте пустым для значения по умолчанию.', 'error');
+                            window.showToast('Введите корректное число.', 'error');
                         }
                         return;
                     }
                     parsed = Math.round(parsed);
-                    if (parsed < 0 || parsed > 999) {
+                    if (parsed < 1 || parsed > 999) {
                         if (window.showToast) {
-                            window.showToast('Цена должна быть в диапазоне от 0 до 999.', 'error');
+                            window.showToast('Цена должна быть в диапазоне от 1 до 999.', 'error');
                         }
                         return;
                     }
-                    if (parsed === 0) {
-                        parsed = null; // 0 означает сброс к значению по умолчанию
+                    // Если пользователь ввел 1 (значение по умолчанию), сохраняем как null
+                    if (parsed === 1) {
+                        parsed = null;
                     }
+                } else {
+                    // Если поле пустое, используем значение по умолчанию (1)
+                    parsed = null;
                 }
 
                 saveBanCostPerMonthBtn.disabled = true;
