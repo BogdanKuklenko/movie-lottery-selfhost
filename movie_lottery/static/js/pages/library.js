@@ -804,15 +804,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Если не было длинного нажатия - позволяем обычному клику сработать
             };
 
-            // Mouseleave - отменяем превью
+            // Mouseleave - отменяем превью только если еще не было длинного нажатия
             img._posterMouseLeave = () => {
                 if (longPressTimer) {
                     clearTimeout(longPressTimer);
                     longPressTimer = null;
                 }
-                if (isLongPress) {
-                    closePosterPreview();
-                }
+                // Не закрываем превью, если оно уже открыто (isLongPress = true)
+                // Превью будет закрыто только при mouseup
             };
 
             img.addEventListener('mousedown', img._posterMouseDown);
@@ -907,7 +906,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         card.dataset.banRemaining = (movieData.ban_remaining_seconds ?? '').toString();
         card.dataset.banAppliedBy = movieData.ban_applied_by || '';
         card.dataset.banCost = movieData.ban_cost != null ? movieData.ban_cost.toString() : '';
-        card.dataset.banCostPerMonth = movieData.ban_cost_per_month != null ? movieData.ban_cost_per_month.toString() : '';
+        // Если ban_cost_per_month null или undefined, не устанавливаем data-атрибут (будет использоваться значение по умолчанию 1)
+        if (movieData.ban_cost_per_month != null && movieData.ban_cost_per_month !== undefined) {
+            card.dataset.banCostPerMonth = movieData.ban_cost_per_month.toString();
+        } else {
+            delete card.dataset.banCostPerMonth;
+        }
 
         if (Object.prototype.hasOwnProperty.call(movieData, 'has_magnet')) {
             card.dataset.hasMagnet = movieData.has_magnet ? 'true' : 'false';

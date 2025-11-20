@@ -170,8 +170,15 @@ function createWinnerCardHTML(movieData, isLibrary) {
         </div>
     ` : '';
 
-    const parsedBanCostPerMonth = Number(movieData.ban_cost_per_month);
-    const banCostPerMonthValue = Number.isFinite(parsedBanCostPerMonth) ? parsedBanCostPerMonth : 1;
+    const parsedBanCostPerMonth = movieData.ban_cost_per_month;
+    // Если значение null, undefined, 0 или не является числом, используем 1 по умолчанию
+    let banCostPerMonthValue = 1;
+    if (parsedBanCostPerMonth != null && parsedBanCostPerMonth !== undefined) {
+        const numValue = Number(parsedBanCostPerMonth);
+        if (Number.isFinite(numValue) && numValue > 0) {
+            banCostPerMonthValue = numValue;
+        }
+    }
     const banCostPerMonthSectionHTML = isLibrary ? `
         <div class="movie-points-section">
             <h4>Цена за месяц исключения из опроса</h4>

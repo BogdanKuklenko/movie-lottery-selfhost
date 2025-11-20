@@ -645,19 +645,29 @@ def update_library_movie_ban_cost_per_month(movie_id):
         return jsonify({"success": False, "message": "Некорректный JSON-запрос."}), 400
 
     raw_cost = data.get('ban_cost_per_month')
+    
+    # Если значение None или null, устанавливаем None (используется значение по умолчанию 1)
     if raw_cost is None:
-        return jsonify({"success": False, "message": "Не указана цена за месяц бана."}), 400
+        library_movie = LibraryMovie.query.get_or_404(movie_id)
+        library_movie.ban_cost_per_month = None
+        library_movie.bumped_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify({
+            "success": True,
+            "message": "Цена за месяц бана сброшена к значению по умолчанию.",
+            "ban_cost_per_month": None,
+        })
 
     try:
         cost = int(raw_cost)
     except (TypeError, ValueError):
         return jsonify({"success": False, "message": "Цена за месяц бана должна быть целым числом."}), 400
 
-    if cost < 0 or cost > 999:
-        return jsonify({"success": False, "message": "Цена за месяц бана должна быть в диапазоне от 0 до 999."}), 400
+    if cost < 1 or cost > 999:
+        return jsonify({"success": False, "message": "Цена за месяц бана должна быть в диапазоне от 1 до 999."}), 400
 
     library_movie = LibraryMovie.query.get_or_404(movie_id)
-    library_movie.ban_cost_per_month = cost if cost > 0 else None
+    library_movie.ban_cost_per_month = cost
     library_movie.bumped_at = datetime.utcnow()
     db.session.commit()
 
