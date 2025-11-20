@@ -173,13 +173,13 @@ function createWinnerCardHTML(movieData, isLibrary) {
     const parsedBanCostPerMonth = Number(movieData.ban_cost_per_month);
     const banCostPerMonthValue = Number.isFinite(parsedBanCostPerMonth) ? parsedBanCostPerMonth : null;
     const banCostPerMonthSectionHTML = isLibrary ? `
-        <div class="movie-ban-cost-section">
+        <div class="movie-points-section">
             <h4>Цена за месяц исключения из опроса</h4>
-            <div class="movie-ban-cost-form">
+            <div class="movie-points-form">
                 <input type="number" id="movie-ban-cost-per-month-input" min="0" max="999" step="1" value="${banCostPerMonthValue !== null ? escapeHtml(String(banCostPerMonthValue)) : ''}" placeholder="По умолчанию: 1">
                 <button class="action-button save-ban-cost-per-month-btn" type="button">Сохранить</button>
             </div>
-            <p class="movie-ban-cost-hint">Установите индивидуальную цену баллов за месяц исключения фильма из опроса. По умолчанию 1 балл за месяц. Если установлено 3 балла и клиент исключает на 5 месяцев, это будет стоить 15 баллов (3 × 5).</p>
+            <p class="movie-points-hint">По умолчанию 1 балл за месяц. Вы можете указать своё значение.</p>
         </div>
     ` : '';
 

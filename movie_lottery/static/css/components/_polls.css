@@ -184,6 +184,17 @@
     font-size: 24px;
     font-weight: 600;
     margin: 0;
+    transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.points-balance-value.decreasing {
+    color: #fca5a5;
+    transform: scale(1.1);
+}
+
+.points-balance-value.increasing {
+    color: #86efac;
+    transform: scale(1.1);
 }
 
 .points-state-badge {
@@ -219,6 +230,7 @@
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.18);
     overflow: hidden;
+    position: relative;
 }
 
 .points-progress-bar {
@@ -227,6 +239,16 @@
     height: 100%;
     background: linear-gradient(90deg, rgba(255, 196, 0, 0.85), rgba(255, 87, 34, 0.85));
     transition: width 1s ease;
+}
+
+.points-progress-bar-earned {
+    background: linear-gradient(90deg, rgba(255, 196, 0, 0.85), rgba(255, 87, 34, 0.85));
+}
+
+.points-progress-bar-deducted {
+    background: linear-gradient(90deg, rgba(239, 68, 68, 0.85), rgba(220, 38, 38, 0.85));
+    margin-left: auto;
+    transform-origin: right;
 }
 
 .points-progress[hidden] {

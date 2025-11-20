@@ -38,6 +38,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             pointsBadgeError: '—',
             pointsProgressDefault: 'Начисляем баллы…',
             pointsProgressEarned: (points) => `+${points} за голос`,
+            pointsProgressDeducted: (points) => `−${points} за исключение`,
             toastPointsEarned: (points) => `+${points} баллов за голос`,
             toastPointsDeducted: (points) => `−${points} баллов списано`,
             toastPointsError: 'Не удалось обновить баланс баллов',
@@ -675,6 +676,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             const updatedBannedMovie = { ...bannedMovie, ...banPayload };
             markMovieCardAsBanned(updatedBannedMovie);
 
+            // Обрабатываем списание баллов с анимацией
+            if (result.points_balance !== undefined) {
+                handlePointsAfterBan(result);
+            }
+
             const banMessage = `«${updatedBannedMovie.name}» исключён на ${months} ${declOfNum(months, ['месяц', 'месяца', 'месяцев'])}.`;
             showToast(banMessage, 'success');
 
@@ -744,7 +750,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    function updatePointsBalance(balance, totalEarned) {
+    function updatePointsBalance(balance, totalEarned, animate = false) {
         if (!pointsBalanceCard || !pointsBalanceValue || !pointsBalanceStatus || !pointsStateBadge) {
             return;
         }
@@ -754,11 +760,38 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
+        const oldBalance = pointsBalance;
+        const isDecreasing = oldBalance !== null && Number.isFinite(oldBalance) && balance < oldBalance;
+        const isIncreasing = oldBalance !== null && Number.isFinite(oldBalance) && balance > oldBalance;
+
         pointsBalance = balance;
         initializePointsEarnedTotal(totalEarned);
         pointsBalanceCard.classList.remove('points-balance-card-error');
         hidePointsBadge();
-        pointsBalanceValue.textContent = balance;
+
+        if (animate && pointsBalanceValue) {
+            // Добавляем класс для анимации
+            if (isDecreasing) {
+                pointsBalanceValue.classList.remove('increasing');
+                pointsBalanceValue.classList.add('decreasing');
+            } else if (isIncreasing) {
+                pointsBalanceValue.classList.remove('decreasing');
+                pointsBalanceValue.classList.add('increasing');
+            }
+
+            // Обновляем значение
+            pointsBalanceValue.textContent = balance;
+
+            // Убираем класс анимации через некоторое время
+            setTimeout(() => {
+                if (pointsBalanceValue) {
+                    pointsBalanceValue.classList.remove('decreasing', 'increasing');
+                }
+            }, 600);
+        } else {
+            pointsBalanceValue.textContent = balance;
+        }
+
         updatePointsStatus();
         updateCustomVoteButtonState();
     }
@@ -840,6 +873,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         pointsProgress.hidden = false;
         pointsProgressBar.style.width = '0%';
+        pointsProgressBar.classList.remove('points-progress-bar-deducted');
+        pointsProgressBar.classList.add('points-progress-bar-earned');
         pointsProgressLabel.textContent = T.pointsProgressEarned(points);
         requestAnimationFrame(() => {
             pointsProgressBar.style.width = '100%';
@@ -848,7 +883,55 @@ document.addEventListener('DOMContentLoaded', async () => {
             pointsProgress.hidden = true;
             pointsProgressBar.style.width = '0%';
             pointsProgressLabel.textContent = T.pointsProgressDefault;
+            pointsProgressBar.classList.remove('points-progress-bar-earned', 'points-progress-bar-deducted');
         }, 1600);
+    }
+
+    function playPointsDeduction(points) {
+        if (!pointsProgress || !pointsProgressBar) return;
+        if (progressTimeoutId) {
+            clearTimeout(progressTimeoutId);
+        }
+        pointsProgress.hidden = false;
+        pointsProgressBar.style.width = '100%';
+        pointsProgressBar.classList.remove('points-progress-bar-earned');
+        pointsProgressBar.classList.add('points-progress-bar-deducted');
+        pointsProgressLabel.textContent = T.pointsProgressDeducted(points);
+        requestAnimationFrame(() => {
+            pointsProgressBar.style.width = '0%';
+        });
+        progressTimeoutId = setTimeout(() => {
+            pointsProgress.hidden = true;
+            pointsProgressBar.style.width = '0%';
+            pointsProgressLabel.textContent = T.pointsProgressDefault;
+            pointsProgressBar.classList.remove('points-progress-bar-earned', 'points-progress-bar-deducted');
+        }, 1600);
+    }
+
+    function handlePointsAfterBan(result) {
+        const deducted = Number(result.points_balance);
+        const oldBalance = pointsBalance;
+
+        if (!Number.isFinite(deducted)) {
+            showToast(T.toastPointsError, 'error');
+            markPointsAsUnavailable();
+            return;
+        }
+
+        // Вычисляем количество списанных баллов
+        const deductedAmount = oldBalance !== null && Number.isFinite(oldBalance) 
+            ? Math.max(0, oldBalance - deducted)
+            : 0;
+
+        // Обновляем баланс с анимацией
+        updatePointsBalance(deducted, pointsEarnedTotal, true);
+
+        if (deductedAmount > 0) {
+            showToast(T.toastPointsDeducted(deductedAmount), 'info', { duration: 4000 });
+            playPointsDeduction(deductedAmount);
+        }
+
+        updateCustomVoteButtonState();
     }
 
     function formatPoints(value) {
