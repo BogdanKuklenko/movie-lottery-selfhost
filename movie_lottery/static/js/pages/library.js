@@ -207,7 +207,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     genres: card.dataset.movieGenres || null,
                     countries: card.dataset.movieCountries || null,
                     points: parseMoviePoints(card.dataset.moviePoints),
-                    ban_price: card.dataset.banPrice ? Number.parseInt(card.dataset.banPrice, 10) : 1,
                 });
             }
         });
@@ -908,7 +907,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         card.dataset.banRemaining = (movieData.ban_remaining_seconds ?? '').toString();
         card.dataset.banAppliedBy = movieData.ban_applied_by || '';
         card.dataset.banCost = movieData.ban_cost != null ? movieData.ban_cost.toString() : '';
-        card.dataset.banPrice = movieData.ban_price != null ? movieData.ban_price.toString() : card.dataset.banPrice || '1';
 
         if (Object.prototype.hasOwnProperty.call(movieData, 'has_magnet')) {
             card.dataset.hasMagnet = movieData.has_magnet ? 'true' : 'false';
@@ -998,7 +996,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             ban_remaining_seconds: Number.parseInt(ds.banRemaining || '0', 10) || 0,
             ban_applied_by: ds.banAppliedBy || '',
             ban_cost: ds.banCost ? Number.parseInt(ds.banCost, 10) : null,
-            ban_price: ds.banPrice ? Number.parseInt(ds.banPrice, 10) : 1,
         };
     };
 
@@ -1007,9 +1004,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const badgeOptions = badgeModal.querySelectorAll('.badge-option');
     const removeBadgeBtn = badgeModal.querySelector('.remove-badge-btn');
     const cancelBadgeBtn = badgeModal.querySelector('.cancel-badge-btn');
-    const badgeBanDurationInput = badgeModal.querySelector('#badge-ban-duration');
-    const badgeBanPriceInput = badgeModal.querySelector('#badge-ban-price');
-    const badgeBanSummary = badgeModal.querySelector('#badge-ban-summary');
     let currentBadgeCard = null;
 
     const badgeIcons = {
@@ -1024,13 +1018,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     function openBadgeSelector(card) {
         currentBadgeCard = card;
         const currentBadge = card.dataset.badge;
-        if (badgeBanDurationInput) {
-            badgeBanDurationInput.value = '1';
-        }
-        if (badgeBanPriceInput) {
-            badgeBanPriceInput.value = card.dataset.banPrice || '1';
-        }
-        updateBadgeBanSummary();
 
         // Снимаем выделение со всех опций
         badgeOptions.forEach(opt => opt.classList.remove('selected'));
@@ -1043,26 +1030,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         badgeModal.classList.add('active');
     }
-
-    const buildBanPayloadFromModal = () => {
-        const months = Math.max(1, Number.parseInt(badgeBanDurationInput?.value ?? '1', 10) || 1);
-        const price = Math.max(0, Number.parseInt(badgeBanPriceInput?.value ?? '1', 10) || 1);
-        return { ban_duration_months: months, ban_price: price, ban_cost: months * price };
-    };
-
-    function updateBadgeBanSummary() {
-        if (!badgeBanSummary) return;
-        const payload = buildBanPayloadFromModal();
-        const monthsLabel = ['месяц', 'месяца', 'месяцев'];
-        const idx = payload.ban_duration_months % 100 > 4 && payload.ban_duration_months % 100 < 20
-            ? 2
-            : [2, 0, 1, 1, 1, 2][Math.min(payload.ban_duration_months % 10, 5)];
-        const word = monthsLabel[idx];
-        badgeBanSummary.textContent = `Итого: ${payload.ban_duration_months} ${word} × ${payload.ban_price} = ${payload.ban_cost} баллов.`;
-    }
-
-    badgeBanDurationInput?.addEventListener('input', updateBadgeBanSummary);
-    badgeBanPriceInput?.addEventListener('input', updateBadgeBanSummary);
 
     function closeBadgeSelector() {
         badgeModal.classList.remove('active');
@@ -1118,16 +1085,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             card.dataset.banRemaining = (payload.ban_remaining_seconds ?? '').toString();
             card.dataset.banAppliedBy = payload.ban_applied_by || '';
             card.dataset.banCost = payload.ban_cost != null ? payload.ban_cost.toString() : '';
-            card.dataset.banPrice = payload.ban_price != null
-                ? payload.ban_price.toString()
-                : card.dataset.banPrice || '1';
         } else {
             card.dataset.banStatus = 'none';
             card.dataset.banUntil = '';
             card.dataset.banRemaining = '';
             card.dataset.banAppliedBy = '';
             card.dataset.banCost = '';
-            card.dataset.banPrice = card.dataset.banPrice || '1';
         }
 
         let badgeElement = card.querySelector('.movie-badge');
@@ -1162,8 +1125,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const movieId = currentBadgeCard.dataset.movieId;
 
             try {
-                const payload = badgeType === 'ban' ? buildBanPayloadFromModal() : {};
-                const result = await setBadge(movieId, badgeType, payload);
+                const result = await setBadge(movieId, badgeType);
                 updateBadgeOnCard(currentBadgeCard, badgeType, result);
                 showToast('Бейдж установлен', 'success');
                 closeBadgeSelector();
@@ -1247,9 +1209,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     notify(data.message, data.success ? 'success' : 'error');
                 });
             },
-            onSetBadge: async (movieId, badgeType, extraPayload = {}) => {
+            onSetBadge: async (movieId, badgeType) => {
                 try {
-                    const result = await setBadge(movieId, badgeType, extraPayload);
+                    const result = await setBadge(movieId, badgeType);
                     updateBadgeOnCard(card, badgeType, result);
                     notify('Бейдж установлен', 'success');
                     handleOpenModal(card);

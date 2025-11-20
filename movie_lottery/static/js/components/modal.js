@@ -60,19 +60,14 @@ function renderBanInfo(movieData) {
 
     const untilText = movieData.ban_until ? `до ${formatDateTime(movieData.ban_until)}` : 'активен';
     const remaining = formatBanDuration(movieData.ban_remaining_seconds || 0);
-    const appliedBy = movieData.ban_applied_by
-        ? `<div class="ban-meta">Назначил: ${escapeHtml(movieData.ban_applied_by)}</div>`
-        : '';
-    const priceValue = Number.parseInt(movieData.ban_price, 10);
-    const price = Number.isFinite(priceValue) ? `<div class="ban-meta">Ставка: ${priceValue} балл/мес</div>` : '';
+    const appliedBy = movieData.ban_applied_by ? `<div class="ban-meta">Назначил: ${escapeHtml(movieData.ban_applied_by)}</div>` : '';
     const costValue = Number.parseInt(movieData.ban_cost, 10);
-    const cost = Number.isFinite(costValue) ? `<div class="ban-meta">Списано: ${costValue} баллов</div>` : '';
+    const cost = Number.isFinite(costValue) ? `<div class="ban-meta">Стоимость: ${costValue}</div>` : '';
 
     return `
         <div class="ban-info">
             <div class="ban-header">⛔ Бан ${untilText} (${remaining})</div>
             ${appliedBy}
-            ${price}
             ${cost}
         </div>
     `;
@@ -164,25 +159,6 @@ function createWinnerCardHTML(movieData, isLibrary) {
         </div>
     ` : '';
 
-    const banPriceValue = Number.isFinite(Number(movieData.ban_price)) ? Number(movieData.ban_price) : 1;
-    const banSettingsHTML = isLibrary ? `
-        <div class="ban-settings-section">
-            <h4>Настройка бана</h4>
-            <div class="ban-settings-grid">
-                <label class="ban-settings-field">
-                    Длительность, мес.
-                    <input type="number" class="ban-duration-input" min="1" step="1" value="1">
-                </label>
-                <label class="ban-settings-field">
-                    Цена за месяц (баллы)
-                    <input type="number" class="ban-price-input" min="0" step="1" value="${escapeHtml(String(banPriceValue))}">
-                </label>
-            </div>
-            <p class="ban-settings-summary"></p>
-            <button class="action-button apply-ban-badge-btn" type="button">Применить бан</button>
-        </div>
-    ` : '';
-
     const pointsSectionHTML = isLibrary ? `
         <div class="movie-points-section">
             <h4>Баллы для фильма</h4>
@@ -225,7 +201,6 @@ function createWinnerCardHTML(movieData, isLibrary) {
                     </div>` : '<p class="meta-info">Kinopoisk ID не указан, работа с magnet-ссылкой недоступна.</p>'}
 
                 ${pointsSectionHTML}
-                ${banSettingsHTML}
                 ${banSectionHTML}
                 ${badgeSectionHTML}
 
@@ -477,45 +452,11 @@ export class ModalManager {
         }
 
         // Управление бейджами (только для библиотеки)
-        const banDurationInput = this.body.querySelector('.ban-duration-input');
-        const banPriceInput = this.body.querySelector('.ban-price-input');
-        const banSummaryNode = this.body.querySelector('.ban-settings-summary');
-        const applyBanBadgeBtn = this.body.querySelector('.apply-ban-badge-btn');
-
-        const getBanPayload = () => {
-            const months = Math.max(1, Number.parseInt(banDurationInput?.value ?? '1', 10) || 1);
-            const price = Math.max(0, Number.parseInt(banPriceInput?.value ?? '1', 10) || 1);
-            return { ban_duration_months: months, ban_price: price, ban_cost: months * price };
-        };
-
-        const updateBanSummary = () => {
-            if (!banSummaryNode) return;
-            const { ban_duration_months: months, ban_price: price, ban_cost: cost } = getBanPayload();
-            const monthsLabel = ['месяц', 'месяца', 'месяцев'];
-            const idx = months % 100 > 4 && months % 100 < 20 ? 2 : [2, 0, 1, 1, 1, 2][Math.min(months % 10, 5)];
-            const monthsWord = monthsLabel[idx];
-            banSummaryNode.textContent = `Итого: ${months} ${monthsWord} × ${price} = ${cost} баллов.`;
-        };
-
-        updateBanSummary();
-        banDurationInput?.addEventListener('input', updateBanSummary);
-        banPriceInput?.addEventListener('input', updateBanSummary);
-
-        if (applyBanBadgeBtn && actions.onSetBadge) {
-            applyBanBadgeBtn.addEventListener('click', async () => {
-                await actions.onSetBadge(movieData.id, 'ban', getBanPayload());
-            });
-        }
-
         const badgeOptions = this.body.querySelectorAll('.badge-option-inline');
         if (badgeOptions.length > 0 && actions.onSetBadge) {
             badgeOptions.forEach(option => {
                 option.addEventListener('click', async () => {
                     const badgeType = option.dataset.badge;
-                    if (badgeType === 'ban') {
-                        await actions.onSetBadge(movieData.id, badgeType, getBanPayload());
-                        return;
-                    }
                     await actions.onSetBadge(movieData.id, badgeType);
                 });
             });
