@@ -822,7 +822,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Глобальные обработчики для закрытия превью
     document.addEventListener('mouseup', (e) => {
-        if (isLongPress && !e.target.closest('.poster-preview-overlay')) {
+        if (isLongPress && e.button === 0) {
+            e.preventDefault();
             closePosterPreview();
         }
     });
