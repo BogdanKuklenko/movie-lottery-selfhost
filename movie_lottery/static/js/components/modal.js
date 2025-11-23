@@ -259,17 +259,28 @@ export class ModalManager {
     }
 
     open() {
-        if (!modalStack.includes(this)) {
+        const wasOpen = this.modal.style.display === 'flex';
+        const existingIndex = modalStack.indexOf(this);
+
+        if (existingIndex === -1) {
+            modalStack.push(this);
+        } else if (existingIndex !== modalStack.length - 1) {
+            modalStack.splice(existingIndex, 1);
             modalStack.push(this);
         }
+
         this.modal.style.display = 'flex';
-        if (modalStack.length === 1) {
+
+        if (!wasOpen && modalStack.length === 1) {
             lockScroll();
         }
+
         this.body.innerHTML = '<div class="loader"></div>';
 
-        window.addEventListener('popstate', this.handlePopState);
-        history.pushState({ modal: true }, '', window.location.href);
+        if (!wasOpen) {
+            window.addEventListener('popstate', this.handlePopState);
+            history.pushState({ modal: true }, '', window.location.href);
+        }
     }
 
     close(options = {}) {
