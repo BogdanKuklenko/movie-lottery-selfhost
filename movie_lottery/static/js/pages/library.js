@@ -581,7 +581,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         throw new Error(createData.error || 'Не удалось создать опрос');
                     }
 
-                    modal.renderCustomContent('');
+                    closeModalIfOpen();
                     showPollCreatedModal({
                         pollUrl: createData.poll_url,
                         resultsUrl: createData.results_url,
