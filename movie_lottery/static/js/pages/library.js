@@ -767,6 +767,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             img.removeEventListener('mousedown', img._posterMouseDown);
             img.removeEventListener('mouseup', img._posterMouseUp);
             img.removeEventListener('mouseleave', img._posterMouseLeave);
+            img.removeEventListener('dragstart', img._posterDragStart);
+
+            // Блокируем перетаскивание постера
+            img.setAttribute('draggable', 'false');
+            img._posterDragStart = (e) => e.preventDefault();
 
             // Mousedown - начинаем отсчет для длинного нажатия
             img._posterMouseDown = (e) => {
@@ -817,6 +822,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             img.addEventListener('mousedown', img._posterMouseDown);
             img.addEventListener('mouseup', img._posterMouseUp);
             img.addEventListener('mouseleave', img._posterMouseLeave);
+            img.addEventListener('dragstart', img._posterDragStart);
         });
     }
 
