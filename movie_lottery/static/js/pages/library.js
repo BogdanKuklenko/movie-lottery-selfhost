@@ -318,7 +318,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Сортируем по дате создания (новые первые)
         allPolls.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-        let pollsHtml = '<h2>Мои опросы</h2><div class="my-polls-list">';
+        let pollsHtml = '<h2>Мои опросы</h2>';
         
         allPolls.forEach(poll => {
             const createdDate = new Date(poll.created_at).toLocaleString('ru-RU');
@@ -378,14 +378,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             `;
         });
 
-        pollsHtml += '</div>';
-
         modal.open();
         modal.renderCustomContent(pollsHtml);
 
         const modalBody = modal.body;
         if (modalBody) {
-            modalBody.querySelectorAll('.my-polls-list a').forEach(link => {
+            modalBody.querySelectorAll('.poll-result-item a').forEach(link => {
                 link.addEventListener('click', closeModalIfOpen);
             });
         }

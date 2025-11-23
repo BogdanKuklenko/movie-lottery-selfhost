@@ -956,18 +956,16 @@
 }
 
 /* --- Модальное окно "Мои опросы" --- */
-.my-polls-list {
-    max-height: 600px;
-    overflow-y: auto;
-    margin-top: 20px;
-}
-
 .poll-result-item {
     background: rgba(255, 255, 255, 0.05);
     border-radius: 12px;
     padding: 20px;
     margin-bottom: 20px;
     border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.poll-result-item:first-of-type {
+    margin-top: 20px;
 }
 
 .poll-result-header h3 {
