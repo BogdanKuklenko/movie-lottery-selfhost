@@ -264,7 +264,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             </a>
             <p class="poll-info">Результаты появятся в "Мои опросы" после первого голоса</p>
         `;
-        modal.open();
+        const isModalOpen = modalElement.style.display === 'flex';
+
+        if (!isModalOpen) {
+            modal.open();
+        }
+
         modal.renderCustomContent(modalContent);
 
         const modalBody = modal.body;
