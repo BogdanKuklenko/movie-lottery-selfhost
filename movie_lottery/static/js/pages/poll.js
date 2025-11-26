@@ -1398,7 +1398,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         setUserOnboardingError('');
         setUserOnboardingLoading(true);
-        renderUserOnboardingSuggestions([]);
 
         try {
             const response = await fetch(buildPollApiUrl('/api/polls/auth/register'), {
@@ -1410,9 +1409,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const payload = await response.json().catch(() => ({}));
             if (!response.ok) {
-                if (response.status === 409) {
-                    renderUserOnboardingSuggestions(payload?.suggestions || []);
-                }
                 throw new Error(payload?.error || 'Не удалось сохранить ID.');
             }
 
