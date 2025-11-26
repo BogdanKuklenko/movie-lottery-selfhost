@@ -67,11 +67,13 @@ def create_app():
             ensure_poll_movie_points_column,
             ensure_poll_movie_ban_column,
             ensure_poll_forced_winner_column,
+            ensure_poll_voter_user_id_column,
             ensure_poll_tables,
             ensure_vote_points_column,
         )
 
         ensure_poll_tables()
+        ensure_poll_voter_user_id_column()
         ensure_vote_points_column()
         ensure_poll_movie_points_column()
         ensure_poll_movie_ban_column()

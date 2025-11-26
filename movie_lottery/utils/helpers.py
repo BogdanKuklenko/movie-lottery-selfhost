@@ -1,4 +1,5 @@
 import random
+import secrets
 import string
 from datetime import datetime
 from urllib.parse import urljoin, quote_plus
@@ -24,16 +25,17 @@ class _FallbackVoterProfile:
     """In-memory profile used when the points tables are unavailable."""
 
     __slots__ = (
-        'token', 'device_label', 'total_points', 'created_at', 'updated_at', '_is_fallback'
+        'token', 'device_label', 'total_points', 'created_at', 'updated_at', 'user_id', '_is_fallback'
     )
 
-    def __init__(self, token, device_label=None):
+    def __init__(self, token, device_label=None, user_id=None):
         now = datetime.utcnow()
         self.token = token
         self.device_label = device_label
         self.total_points = 0
         self.created_at = now
         self.updated_at = now
+        self.user_id = user_id
         self._is_fallback = True
 
 def _is_unique(model, identifier):
@@ -47,7 +49,7 @@ def _is_unique(model, identifier):
         return True
 
 
-def _handle_missing_voter_table(error, voter_token, device_label=None):
+def _handle_missing_voter_table(error, voter_token, device_label=None, user_id=None):
     """Rollback the session, log the issue and return a fallback profile."""
     db.session.rollback()
     logger = getattr(current_app, 'logger', None)
@@ -59,7 +61,7 @@ def _handle_missing_voter_table(error, voter_token, device_label=None):
         logger.warning('%s Ошибка: %s', message, error)
     else:
         print(f"{message} Ошибка: {error}")
-    return _FallbackVoterProfile(voter_token, device_label)
+    return _FallbackVoterProfile(voter_token, device_label, user_id)
 
 
 def generate_unique_id(length=6):
@@ -112,6 +114,54 @@ def ensure_vote_points_column():
             logger.warning('%s Ошибка: %s', message, exc)
         else:
             print(f"{message} Ошибка: {exc}")
+
+
+def ensure_poll_voter_user_id_column():
+    """Добавляет колонку user_id в poll_voter_profile, если её нет."""
+    engine = db.engine
+
+    try:
+        inspector = inspect(engine)
+    except Exception:
+        return False
+
+    table_name = 'poll_voter_profile'
+    if table_name not in inspector.get_table_names():
+        return False
+
+    existing_columns = {col['name'] for col in inspector.get_columns(table_name)}
+    if 'user_id' in existing_columns:
+        return False
+
+    dialect = engine.dialect.name
+
+    try:
+        with engine.begin() as connection:
+            if dialect == 'postgresql':
+                connection.execute(text(
+                    "ALTER TABLE poll_voter_profile "
+                    "ADD COLUMN IF NOT EXISTS user_id VARCHAR(128) UNIQUE"
+                ))
+            else:
+                connection.execute(text(
+                    "ALTER TABLE poll_voter_profile ADD COLUMN user_id VARCHAR(128) UNIQUE"
+                ))
+
+        logger = getattr(current_app, 'logger', None)
+        message = 'Автоматически добавлена колонка user_id в poll_voter_profile.'
+        if logger:
+            logger.info(message)
+        else:
+            print(message)
+        return True
+    except Exception as exc:
+        logger = getattr(current_app, 'logger', None)
+        message = 'Не удалось автоматически обновить таблицу poll_voter_profile (user_id).'
+        if logger:
+            logger.warning('%s Ошибка: %s', message, exc)
+        else:
+            print(f"{message} Ошибка: {exc}")
+        return False
 
 
 def ensure_library_movie_columns():
@@ -553,7 +603,7 @@ def cleanup_expired_polls():
         return 0
 
 
-def ensure_voter_profile(voter_token, device_label=None):
+def ensure_voter_profile(voter_token, device_label=None, user_id=None):
     """Создать или обновить профиль голосующего."""
     if not voter_token:
         raise ValueError('voter_token is required to manage poll points')
@@ -562,18 +612,32 @@ def ensure_voter_profile(voter_token, device_label=None):
     if normalized_label:
         normalized_label = normalized_label[:255]
 
+    normalized_user_id = (user_id or '').strip() or None
+    if normalized_user_id:
+        normalized_user_id = normalized_user_id[:128]
+
     now = datetime.utcnow()
     try:
         profile = PollVoterProfile.query.get(voter_token)
     except (ProgrammingError, OperationalError) as exc:
-        return _handle_missing_voter_table(exc, voter_token, normalized_label)
+        return _handle_missing_voter_table(exc, voter_token, normalized_label, normalized_user_id)
+
     if profile:
+        changed = False
         if normalized_label and profile.device_label != normalized_label:
             profile.device_label = normalized_label
+            changed = True
+        if normalized_user_id and not profile.user_id:
+            existing_with_user = PollVoterProfile.query.filter_by(user_id=normalized_user_id).first()
+            if not existing_with_user:
+                profile.user_id = normalized_user_id
+                changed = True
+        if changed:
             profile.updated_at = now
     else:
         profile = PollVoterProfile(
             token=voter_token,
+            user_id=normalized_user_id,
             device_label=normalized_label,
             total_points=0,
             created_at=now,
@@ -582,14 +646,80 @@ def ensure_voter_profile(voter_token, device_label=None):
         try:
             db.session.add(profile)
         except (ProgrammingError, OperationalError) as exc:
-            return _handle_missing_voter_table(exc, voter_token, normalized_label)
+            return _handle_missing_voter_table(exc, voter_token, normalized_label, normalized_user_id)
 
     try:
         db.session.flush()
     except (ProgrammingError, OperationalError) as exc:
-        return _handle_missing_voter_table(exc, voter_token, normalized_label)
+        return _handle_missing_voter_table(exc, voter_token, normalized_label, normalized_user_id)
 
     return profile
+
+
+def ensure_voter_profile_for_user(user_id, device_label=None):
+    """Получить или создать профиль голосующего по user_id."""
+    if not user_id or not str(user_id).strip():
+        raise ValueError('user_id is required to manage poll points')
+
+    normalized_label = (device_label or '').strip() or None
+    if normalized_label:
+        normalized_label = normalized_label[:255]
+
+    normalized_user_id = str(user_id).strip()[:128]
+    now = datetime.utcnow()
+
+    try:
+        profile = PollVoterProfile.query.filter_by(user_id=normalized_user_id).first()
+    except (ProgrammingError, OperationalError) as exc:
+        return _handle_missing_voter_table(exc, secrets.token_hex(16), normalized_label, normalized_user_id)
+
+    if profile:
+        if normalized_label and profile.device_label != normalized_label:
+            profile.device_label = normalized_label
+            profile.updated_at = now
+    else:
+        profile = PollVoterProfile(
+            token=secrets.token_hex(16),
+            user_id=normalized_user_id,
+            device_label=normalized_label,
+            total_points=0,
+            created_at=now,
+            updated_at=now,
+        )
+        try:
+            db.session.add(profile)
+        except (ProgrammingError, OperationalError) as exc:
+            return _handle_missing_voter_table(exc, profile.token, normalized_label, normalized_user_id)
+
+    try:
+        db.session.flush()
+    except (ProgrammingError, OperationalError) as exc:
+        return _handle_missing_voter_table(exc, profile.token, normalized_label, normalized_user_id)
+
+    return profile
+
+
+def rotate_voter_token(profile):
+    """Перевыпустить токен голосующего, обновив связанные голоса."""
+    if not profile:
+        return None
+
+    old_token = profile.token
+    new_token = secrets.token_hex(16)
+    profile.token = new_token
+    profile.updated_at = datetime.utcnow()
+
+    if getattr(profile, '_is_fallback', False):
+        return new_token
+
+    try:
+        Vote.query.filter_by(voter_token=old_token).update({'voter_token': new_token})
+        db.session.flush()
+    except (ProgrammingError, OperationalError) as exc:
+        fallback = _handle_missing_voter_table(exc, new_token, getattr(profile, 'device_label', None), getattr(profile, 'user_id', None))
+        return getattr(fallback, 'token', new_token)
+
+    return new_token
 
 
 def change_voter_points_balance(voter_token, delta, device_label=None, commit=False):
