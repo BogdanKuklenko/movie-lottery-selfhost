@@ -831,6 +831,7 @@ def test_voter_stats_filters_by_user_id(app):
     assert payload['total'] == 1
     assert payload['items'][0]['voter_token'] == 'token-a'
     assert payload['items'][0]['user_id'] == 'alice'
+    assert payload['items'][0]['points_accrued_total'] == 0
 
 
 def test_vote_in_poll_awards_movie_points(app):
@@ -916,11 +917,55 @@ def test_patch_total_points_updates_profile(app):
     payload = response.get_json()
     assert payload['total_points'] == 42
     assert payload['updated_at'] is not None
+    assert payload['points_accrued_total'] == 0
 
     refreshed = PollVoterProfile.query.get(token)
     assert refreshed.total_points == 42
     assert refreshed.updated_at is not None
 
+
+def test_patch_points_accrued_total_updates_profile(app):
+    client = app.test_client()
+    token = 'accrued-token-1'
+    profile = PollVoterProfile(token=token, total_points=5, points_accrued_total=10)
+    db.session.add(profile)
+    db.session.commit()
+
+    response = client.patch(
+        f'/api/polls/voter-stats/{token}/points-accrued',
+        json={'points_accrued_total': 123},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['points_accrued_total'] == 123
+    assert payload['total_points'] == 5
+    assert payload['updated_at'] is not None
+
+    refreshed = PollVoterProfile.query.get(token)
+    assert refreshed.points_accrued_total == 123
+    assert refreshed.total_points == 5
+    assert refreshed.updated_at is not None
+
+
+def test_patch_points_accrued_total_validates_payload(app):
+    client = app.test_client()
+    token = 'accrued-token-2'
+    profile = PollVoterProfile(token=token, points_accrued_total=7)
+    db.session.add(profile)
+    db.session.commit()
+
+    response = client.patch(
+        f'/api/polls/voter-stats/{token}/points-accrued',
+        json={'points_accrued_total': 'oops'},
+    )
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert 'целым' in payload['error']
+
+    refreshed = PollVoterProfile.query.get(token)
+    assert refreshed.points_accrued_total == 7
 
 def test_patch_total_points_validates_payload(app):
     client = app.test_client()

@@ -96,7 +96,7 @@
 
         <section class="admin-card">
             <div id="admin-messages" class="admin-messages" role="status"></div>
-            <p class="admin-hint table-hint">Редактируйте метки устройств и общее количество баллов прямо в таблице: нажмите «Редактировать», внесите изменения и сохраните их без перезагрузки страницы.</p>
+            <p class="admin-hint table-hint">Редактируйте метки устройств, баланс баллов и накопленные за всё время баллы прямо в таблице: нажмите «Редактировать», внесите изменения и сохраните их без перезагрузки страницы.</p>
             <div class="table-wrapper">
                 <table class="admin-table" id="stats-table">
                     <thead>
@@ -104,7 +104,8 @@
                             <th data-sort="token">Токен</th>
                             <th data-sort="user_id">User ID</th>
                             <th data-sort="device_label">Устройство</th>
-                            <th data-sort="total_points">Баллы (всего)</th>
+                            <th data-sort="total_points">Баллы (баланс)</th>
+                            <th data-sort="points_accrued_total">Баллы (накоплено)</th>
                             <th data-sort="updated_at">Обновлён</th>
                             <th>Голоса (фильтр)</th>
                             <th>Детали</th>
@@ -112,7 +113,7 @@
                     </thead>
                     <tbody id="stats-table-body">
                         <tr>
-                            <td colspan="7">Данные загружаются…</td>
+                            <td colspan="8">Данные загружаются…</td>
                         </tr>
                     </tbody>
                 </table>
