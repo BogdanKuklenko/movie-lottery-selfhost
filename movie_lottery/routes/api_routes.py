@@ -1076,12 +1076,20 @@ def get_poll(poll_id):
     db.session.commit()
 
     history_tokens = []
-    for token in (requested_voter_token, request.cookies.get(VOTER_TOKEN_COOKIE), voter_token):
+
+    def _add_history_token(token):
         if token and token not in history_tokens:
             history_tokens.append(token)
 
+    for token in (
+        requested_voter_token,
+        request.cookies.get(VOTER_TOKEN_COOKIE),
+        voter_token,
+        getattr(profile, 'token', None),
+    ):
+        _add_history_token(token)
+
     preferred_token = requested_voter_token or request.cookies.get(VOTER_TOKEN_COOKIE) or voter_token
-    identity_filters_used = False
 
     def _resolve_points_from_history(aggregated):
         if aggregated is None:
@@ -1104,69 +1112,34 @@ def get_poll(poll_id):
         if user_id:
             filters.append(PollVoterProfile.user_id == user_id)
 
-        nonlocal identity_filters_used
-        identity_filters_used = bool(filters)
-
         if not filters:
             return []
 
         try:
-            query = (
+            rows = (
                 db.session.query(PollVoterProfile.token)
-                .join(Vote, Vote.voter_token == PollVoterProfile.token)
-                .filter(Vote.points_awarded > 0, or_(*filters))
-                .group_by(PollVoterProfile.token)
-                .order_by(func.max(Vote.voted_at).desc())
+                .filter(or_(*filters))
+                .all()
             )
-
-            if history_tokens:
-                query = query.filter(~PollVoterProfile.token.in_(history_tokens))
-
-            return [row[0] for row in query.limit(5).all()]
+            return [row[0] for row in rows]
         except (ProgrammingError, OperationalError) as exc:
             db.session.rollback()
             logger = getattr(current_app, 'logger', None)
             if logger:
-                logger.warning('Не удалось получить историю токенов с начислениями: %s', exc)
+                logger.warning('Не удалось получить связанные токены голосующего: %s', exc)
             return []
 
-    def _extend_history_with_unfiltered_recent_tokens():
-        try:
-            query = (
-                db.session.query(Vote.voter_token)
-                .filter(Vote.points_awarded > 0)
-                .order_by(Vote.voted_at.desc(), Vote.id.desc())
-            )
+    recent_tokens = _extend_history_with_recent_tokens()
+    for token in recent_tokens:
+        _add_history_token(token)
 
-            if history_tokens:
-                query = query.filter(~Vote.voter_token.in_(history_tokens))
+    if not history_tokens:
+        aggregated_points = {}
+    else:
+        aggregated_points = aggregate_positive_vote_points_by_tokens(history_tokens)
 
-            return [row[0] for row in query.limit(5).all()]
-        except (ProgrammingError, OperationalError) as exc:
-            db.session.rollback()
-            logger = getattr(current_app, 'logger', None)
-            if logger:
-                logger.warning('Не удалось получить историю токенов без фильтров: %s', exc)
-            return []
-
-    aggregated_points = aggregate_positive_vote_points_by_tokens(history_tokens)
     preferred_token = requested_voter_token or request.cookies.get(VOTER_TOKEN_COOKIE) or voter_token
     points_earned_total = _resolve_points_from_history(aggregated_points)
-
-    if voter_token and (aggregated_points is None or points_earned_total in (None, 0)):
-        recent_tokens = _extend_history_with_recent_tokens()
-        allow_unfiltered_history_lookup = not identity_filters_used and (
-            not history_tokens
-            or (len(history_tokens) == 1 and points_earned_total in (None, 0))
-        )
-
-        if not recent_tokens and allow_unfiltered_history_lookup:
-            recent_tokens = _extend_history_with_unfiltered_recent_tokens()
-
-        if recent_tokens:
-            history_tokens.extend(recent_tokens)
-            aggregated_points = aggregate_positive_vote_points_by_tokens(history_tokens)
-            points_earned_total = _resolve_points_from_history(aggregated_points)
 
     if aggregated_points is None:
         points_earned_total = points_balance
