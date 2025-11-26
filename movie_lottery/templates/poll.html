@@ -92,6 +92,35 @@
         </section>
     </div>
 
+    <div id="user-onboarding-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content user-switch-content">
+            <h2>Введите ID для участия</h2>
+            <p class="user-switch-description">Мы сохраняем ваш уникальный ID, чтобы начислять баллы и учитывать голос.</p>
+
+            <label class="user-switch-label" for="user-onboarding-input">ID пользователя</label>
+            <input
+                id="user-onboarding-input"
+                class="user-switch-input"
+                type="text"
+                inputmode="text"
+                autocomplete="off"
+                maxlength="128"
+                placeholder="Например, Анна или user#42"
+            >
+
+            <div id="user-onboarding-suggestions" class="user-switch-suggestions" hidden>
+                <p class="user-switch-hint">Свободные варианты:</p>
+                <div id="user-onboarding-suggestions-list" class="user-switch-suggestions-list"></div>
+            </div>
+
+            <p id="user-onboarding-error" class="user-switch-error" hidden></p>
+
+            <div class="modal-buttons user-switch-actions">
+                <button id="user-onboarding-submit" class="cta-button" type="button">Сохранить ID</button>
+            </div>
+        </div>
+    </div>
+
     <div id="user-switch-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content user-switch-content">
             <h2>Сменить пользователя</h2>

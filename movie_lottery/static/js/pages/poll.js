@@ -29,6 +29,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const banTotalCost = document.getElementById('ban-total-cost');
     const pollWinnerBanner = document.getElementById('poll-winner-banner');
     const logoutButton = document.getElementById('logout-button');
+    const userOnboardingModal = document.getElementById('user-onboarding-modal');
+    const userOnboardingInput = document.getElementById('user-onboarding-input');
+    const userOnboardingError = document.getElementById('user-onboarding-error');
+    const userOnboardingSubmit = document.getElementById('user-onboarding-submit');
+    const userOnboardingSuggestions = document.getElementById('user-onboarding-suggestions');
+    const userOnboardingSuggestionsList = document.getElementById('user-onboarding-suggestions-list');
     const userSwitchModal = document.getElementById('user-switch-modal');
     const userSwitchInput = document.getElementById('user-switch-input');
     const userSwitchError = document.getElementById('user-switch-error');
@@ -56,6 +62,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const locale = 'ru';
     const T = TEXTS[locale];
+
+    const VOTER_TOKEN_COOKIE = 'voter_token';
+    const VOTER_USER_ID_COOKIE = 'voter_user_id';
+
+    const getCookieValue = (cookieName) => {
+        if (typeof document === 'undefined' || !cookieName) return '';
+        return document.cookie
+            .split(';')
+            .map((entry) => entry.trim())
+            .find((entry) => entry.startsWith(`${cookieName}=`))
+            ?.split('=')[1] || '';
+    };
 
     const pointsBalanceCard = document.getElementById('points-widget');
     const pointsBalanceLabel = document.getElementById('points-balance-label');
@@ -87,6 +105,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const customVoteDescription = document.getElementById('custom-vote-description');
     const pollConfigNode = document.getElementById('poll-config');
 
+    const hadInitialVoterToken = Boolean(getCookieValue(VOTER_TOKEN_COOKIE));
+
     let selectedMovie = null;
     let progressTimeoutId = null;
     let hasVoted = false;
@@ -103,8 +123,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     let pointsEarnedTotal = null;
     let voterToken = null;
     let isLogoutInProgress = false;
+    let isUserOnboardingModalOpen = false;
+    let isUserOnboardingSubmitting = false;
+    let shouldRequestUserId = !hadInitialVoterToken;
     let isUserSwitchModalOpen = false;
-    let lastKnownUserId = null;
+    let lastKnownUserId = normalizeUserId(getCookieValue(VOTER_USER_ID_COOKIE));
     let moviesList = [];
     let banTargetMovie = null;
     let isBanModalOpen = false;
@@ -260,6 +283,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         await fetchPollData();
     } catch (error) {
         console.error('Ошибка загрузки опроса:', error);
+    }
+
+    if (shouldRequestUserId) {
+        openUserOnboardingModal({ suggestedId: lastKnownUserId });
     }
 
     function renderMovies(movies) {
@@ -604,11 +631,112 @@ document.addEventListener('DOMContentLoaded', async () => {
             closeCustomVoteModal({ fromPopState: true });
         } else if (modalId === 'ban') {
             closeBanModal({ fromPopState: true });
+        } else if (modalId === 'user-onboarding') {
+            closeUserOnboardingModal({ fromPopState: true });
         } else if (modalId === 'user-switch') {
             closeUserSwitchModal({ fromPopState: true });
         }
 
         removeModalPopStateListenerIfIdle();
+    }
+
+    function setUserOnboardingError(text) {
+        if (!userOnboardingError) return;
+        if (text) {
+            userOnboardingError.textContent = text;
+            userOnboardingError.hidden = false;
+        } else {
+            userOnboardingError.textContent = '';
+            userOnboardingError.hidden = true;
+        }
+    }
+
+    function setUserOnboardingLoading(isLoading) {
+        isUserOnboardingSubmitting = isLoading;
+        if (userOnboardingSubmit) {
+            userOnboardingSubmit.disabled = isLoading;
+            userOnboardingSubmit.textContent = isLoading ? 'Сохраняем...' : 'Сохранить ID';
+        }
+        if (userOnboardingInput) {
+            userOnboardingInput.disabled = isLoading;
+        }
+        if (userOnboardingSuggestionsList) {
+            Array.from(userOnboardingSuggestionsList.querySelectorAll('button')).forEach((button) => {
+                button.disabled = isLoading;
+            });
+        }
+    }
+
+    function renderUserOnboardingSuggestions(suggestions = []) {
+        if (!userOnboardingSuggestions || !userOnboardingSuggestionsList) return;
+
+        const normalized = Array.isArray(suggestions)
+            ? suggestions.map(normalizeUserId).filter(Boolean)
+            : [];
+
+        userOnboardingSuggestionsList.innerHTML = '';
+        if (normalized.length === 0) {
+            userOnboardingSuggestions.hidden = true;
+            return;
+        }
+
+        userOnboardingSuggestions.hidden = false;
+        normalized.slice(0, 5).forEach((suggestion) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'user-switch-chip';
+            button.textContent = suggestion;
+            button.dataset.userId = suggestion;
+            button.addEventListener('click', () => {
+                if (userOnboardingInput) {
+                    userOnboardingInput.value = suggestion;
+                    userOnboardingInput.focus();
+                }
+                setUserOnboardingError('');
+            });
+            userOnboardingSuggestionsList.appendChild(button);
+        });
+    }
+
+    function resetUserOnboardingModal(suggestedId = '') {
+        if (userOnboardingInput) {
+            userOnboardingInput.value = normalizeUserId(suggestedId);
+        }
+        setUserOnboardingError('');
+        setUserOnboardingLoading(false);
+        renderUserOnboardingSuggestions([]);
+    }
+
+    function openUserOnboardingModal({ suggestedId = '' } = {}) {
+        if (!userOnboardingModal) return;
+        resetUserOnboardingModal(suggestedId || readRecentUserIds()[0]);
+        userOnboardingModal.style.display = 'flex';
+        if (!isUserOnboardingModalOpen) {
+            lockScroll();
+            isUserOnboardingModalOpen = true;
+            pushModalHistory('user-onboarding');
+        }
+        if (userOnboardingInput) {
+            userOnboardingInput.focus();
+        }
+    }
+
+    function closeUserOnboardingModal(options = {}) {
+        const { fromPopState = false } = options;
+        const wasTracked = modalHistoryStack.includes('user-onboarding');
+        if (userOnboardingModal) {
+            userOnboardingModal.style.display = 'none';
+        }
+        if (isUserOnboardingModalOpen) {
+            unlockScroll();
+            isUserOnboardingModalOpen = false;
+        }
+        removeModalFromHistory('user-onboarding');
+
+        if (!fromPopState && wasTracked) {
+            ignoreModalPopState = true;
+            history.back();
+        }
     }
 
     function setUserSwitchError(text) {
@@ -1245,6 +1373,54 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    async function submitUserOnboarding() {
+        if (!userOnboardingInput || isUserOnboardingSubmitting) return;
+        const userId = normalizeUserId(userOnboardingInput.value);
+        if (!userId) {
+            setUserOnboardingError('Укажите ID пользователя.');
+            return;
+        }
+
+        setUserOnboardingError('');
+        setUserOnboardingLoading(true);
+        renderUserOnboardingSuggestions([]);
+
+        try {
+            const response = await fetch(buildPollApiUrl('/api/polls/auth/register'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ user_id: userId }),
+            });
+
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                if (response.status === 409) {
+                    renderUserOnboardingSuggestions(payload?.suggestions || []);
+                }
+                throw new Error(payload?.error || 'Не удалось сохранить ID.');
+            }
+
+            lastKnownUserId = normalizeUserId(payload.user_id) || userId;
+            rememberUserId(lastKnownUserId);
+            voterToken = payload.voter_token || voterToken;
+            shouldRequestUserId = false;
+
+            if (typeof payload.points_balance === 'number') {
+                updatePointsBalance(payload.points_balance, payload.points_earned_total);
+            }
+
+            closeUserOnboardingModal();
+            showToast('ID сохранён. Загружаем данные...', 'success');
+            await fetchPollData({ skipVoteHandling: false, showErrors: true });
+        } catch (error) {
+            console.error('Ошибка сохранения ID:', error);
+            setUserOnboardingError(error.message || 'Не удалось сохранить ID.');
+        } finally {
+            setUserOnboardingLoading(false);
+        }
+    }
+
     function formatPoints(value) {
         const absValue = Math.abs(value);
         const decl = declOfNum(absValue, ['балл', 'балла', 'баллов']);
@@ -1359,6 +1535,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         votedMovieWrapper.style.display = 'block';
     }
 
+
+    userOnboardingSubmit?.addEventListener('click', submitUserOnboarding);
+    userOnboardingInput?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            submitUserOnboarding();
+        }
+    });
 
     logoutButton?.addEventListener('click', handleLogoutClick);
 
