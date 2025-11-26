@@ -328,6 +328,17 @@ def register_user_id():
 
     device_label = _normalize_device_label(data.get('device_label')) or _resolve_device_label()
 
+    def _build_profile_payload(profile_obj):
+        return {
+            'success': True,
+            'user_id': profile_obj.user_id,
+            'voter_token': profile_obj.token,
+            'device_label': profile_obj.device_label,
+            'points_balance': profile_obj.total_points or 0,
+            'created_at': profile_obj.created_at.isoformat() if profile_obj.created_at else None,
+            'updated_at': profile_obj.updated_at.isoformat() if profile_obj.updated_at else None,
+        }
+
     try:
         existing = PollVoterProfile.query.filter_by(user_id=user_id).first()
     except (ProgrammingError, OperationalError):
@@ -335,12 +346,15 @@ def register_user_id():
         return jsonify({'error': 'Сервис временно недоступен'}), 503
 
     if existing:
-        response = prevent_caching(jsonify({
-            'error': 'Этот ID уже занят. Попробуйте другой вариант.',
-            'conflict': True,
-            'suggestions': _suggest_user_ids(user_id),
-        }))
-        return response, 409
+        try:
+            profile = ensure_voter_profile_for_user(user_id, device_label=device_label)
+            db.session.commit()
+        except ValueError:
+            return jsonify({'error': 'user_id обязателен'}), 400
+
+        payload = _build_profile_payload(profile)
+        response = prevent_caching(jsonify(payload))
+        return _set_voter_cookies(response, profile.token, profile.user_id)
 
     desired_token = request.cookies.get(VOTER_TOKEN_COOKIE) or secrets.token_hex(16)
     profile = ensure_voter_profile(desired_token, device_label=device_label)
@@ -356,26 +370,19 @@ def register_user_id():
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        conflict_response = prevent_caching(jsonify({
-            'error': 'Этот ID уже занят. Попробуйте другой вариант.',
-            'conflict': True,
-            'suggestions': _suggest_user_ids(user_id),
-        }))
-        return conflict_response, 409
+        try:
+            profile = ensure_voter_profile_for_user(user_id, device_label=device_label)
+            db.session.commit()
+        except ValueError:
+            return jsonify({'error': 'user_id обязателен'}), 400
+        except (ProgrammingError, OperationalError):
+            db.session.rollback()
+            return jsonify({'error': 'Сервис временно недоступен'}), 503
     except (ProgrammingError, OperationalError):
         db.session.rollback()
         return jsonify({'error': 'Сервис временно недоступен'}), 503
 
-    payload = {
-        'success': True,
-        'user_id': user_id,
-        'voter_token': profile.token,
-        'device_label': profile.device_label,
-        'points_balance': profile.total_points or 0,
-        'created_at': profile.created_at.isoformat() if profile.created_at else None,
-        'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
-    }
-
+    payload = _build_profile_payload(profile)
     response = prevent_caching(jsonify(payload))
     return _set_voter_cookies(response, profile.token, profile.user_id)
 
