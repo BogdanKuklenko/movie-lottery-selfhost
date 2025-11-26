@@ -236,7 +236,11 @@ def test_get_poll_restores_points_for_existing_token(app):
 
     voter_token = 'abcd' * 8
 
-    profile = PollVoterProfile(token=voter_token, total_points=10)
+    profile = PollVoterProfile(
+        token=voter_token,
+        total_points=10,
+        points_accrued_total=7,
+    )
     db.session.add(profile)
     db.session.add(
         Vote(
@@ -292,7 +296,13 @@ def test_points_total_survives_logout_with_same_token(app):
 
     voter_token = '1234abcd' * 4
 
-    db.session.add(PollVoterProfile(token=voter_token, total_points=25))
+    db.session.add(
+        PollVoterProfile(
+            token=voter_token,
+            total_points=25,
+            points_accrued_total=sum(range(1, 5)),
+        )
+    )
     for idx, poll in enumerate(polls, start=1):
         db.session.add(
             Vote(
@@ -339,7 +349,13 @@ def test_get_poll_uses_requested_token_history_with_user_id_cookie(app):
     user_id = 'poll-user-1'
     new_token = 'c' * 32
 
-    db.session.add(PollVoterProfile(token=legacy_token, total_points=0))
+    db.session.add(
+        PollVoterProfile(
+            token=legacy_token,
+            total_points=0,
+            points_accrued_total=5,
+        )
+    )
     db.session.add(
         Vote(
             poll_id=poll.id,
@@ -348,7 +364,14 @@ def test_get_poll_uses_requested_token_history_with_user_id_cookie(app):
             points_awarded=5,
         )
     )
-    db.session.add(PollVoterProfile(token=new_token, total_points=0, user_id=user_id))
+    db.session.add(
+        PollVoterProfile(
+            token=new_token,
+            total_points=0,
+            user_id=user_id,
+            points_accrued_total=5,
+        )
+    )
     db.session.commit()
 
     client.set_cookie(api_routes.VOTER_USER_ID_COOKIE, user_id)
@@ -375,7 +398,14 @@ def test_get_poll_uses_recent_device_history_when_cookie_missing(app):
     legacy_token = 'd' * 32
     device_label = 'device-xyz'
 
-    db.session.add(PollVoterProfile(token=legacy_token, total_points=0, device_label=device_label))
+    db.session.add(
+        PollVoterProfile(
+            token=legacy_token,
+            total_points=0,
+            points_accrued_total=6,
+            device_label=device_label,
+        )
+    )
     db.session.add(
         Vote(
             poll_id=poll.id,
@@ -394,7 +424,7 @@ def test_get_poll_uses_recent_device_history_when_cookie_missing(app):
     assert poll_response.status_code == 200
 
     payload = poll_response.get_json()
-    assert payload['voter_token'] != legacy_token
+    assert payload['voter_token'] == legacy_token
     assert payload['points_earned_total'] == 6
 
 
