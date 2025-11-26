@@ -4,7 +4,12 @@ import os
 class Config:
     """Base configuration class for the application."""
 
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'a_super_secret_key')
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+    if not SECRET_KEY:
+        raise ValueError(
+            "SECRET_KEY environment variable must be set for security. "
+            "Generate one using: python -c \"import secrets; print(secrets.token_hex(32))\""
+        )
     PUBLIC_BASE_URL = os.environ.get('PUBLIC_BASE_URL')
     try:
         POLL_POINTS_PER_VOTE = int(os.environ.get('POLL_POINTS_PER_VOTE', 1))

@@ -650,6 +650,76 @@ def _is_movie_banned_for_poll(movie_data):
     return False
 
 
+def _check_movies_banned_batch(movies_data):
+    """
+    Batch-check multiple movies for ban status to avoid N+1 queries.
+    Returns a set of banned movie data (uses index-based identification).
+    """
+    banned_indices = set()
+    
+    # Quick check: movies with direct ban_status
+    for idx, movie_data in enumerate(movies_data):
+        ban_status = str(movie_data.get('ban_status') or '').lower()
+        if ban_status in {'active', 'pending'}:
+            banned_indices.add(idx)
+    
+    # Batch fetch library movies by kinopoisk_id
+    kinopoisk_ids = [
+        movie['kinopoisk_id'] 
+        for idx, movie in enumerate(movies_data) 
+        if idx not in banned_indices and movie.get('kinopoisk_id')
+    ]
+    
+    if kinopoisk_ids:
+        library_movies_by_kp = {
+            m.kinopoisk_id: m 
+            for m in LibraryMovie.query.filter(LibraryMovie.kinopoisk_id.in_(kinopoisk_ids)).all()
+        }
+    else:
+        library_movies_by_kp = {}
+    
+    # Check by name/year for movies without kinopoisk_id
+    name_year_pairs = [
+        (movie['name'], movie['year'], idx)
+        for idx, movie in enumerate(movies_data) 
+        if idx not in banned_indices 
+        and not movie.get('kinopoisk_id') 
+        and movie.get('name') 
+        and movie.get('year')
+    ]
+    
+    if name_year_pairs:
+        names = [pair[0] for pair in name_year_pairs]
+        years = [pair[1] for pair in name_year_pairs]
+        library_movies_by_name_year = {
+            (m.name, m.year): m 
+            for m in LibraryMovie.query.filter(
+                LibraryMovie.name.in_(names),
+                LibraryMovie.year.in_(years)
+            ).all()
+        }
+    else:
+        library_movies_by_name_year = {}
+    
+    # Mark banned movies
+    for idx, movie in enumerate(movies_data):
+        if idx in banned_indices:
+            continue
+            
+        library_movie = None
+        
+        if movie.get('kinopoisk_id'):
+            library_movie = library_movies_by_kp.get(movie['kinopoisk_id'])
+        elif movie.get('name') and movie.get('year'):
+            library_movie = library_movies_by_name_year.get((movie['name'], movie['year']))
+        
+        if library_movie and library_movie.badge == 'ban':
+            if library_movie.ban_status in {'active', 'pending'}:
+                banned_indices.add(idx)
+    
+    return banned_indices
+
+
 def _get_active_poll_movies(poll):
     return [movie for movie in poll.movies if not getattr(movie, 'is_banned', False)]
 
@@ -1037,12 +1107,14 @@ def create_poll():
 
     _refresh_library_bans()
 
-    for movie_data in movies_json:
-        if _is_movie_banned_for_poll(movie_data):
-            movie_name = movie_data.get('name') or 'Неизвестный фильм'
-            return jsonify({
-                "error": f"Фильм \"{movie_name}\" находится в бане и не может быть добавлен в опрос"
-            }), 422
+    # Batch-check for banned movies to avoid N+1 queries
+    banned_indices = _check_movies_banned_batch(movies_json)
+    if banned_indices:
+        idx = list(banned_indices)[0]
+        movie_name = movies_json[idx].get('name') or 'Неизвестный фильм'
+        return jsonify({
+            "error": f"Фильм \"{movie_name}\" находится в бане и не может быть добавлен в опрос"
+        }), 422
 
     creator_token, _ = _get_or_issue_creator_token()
 

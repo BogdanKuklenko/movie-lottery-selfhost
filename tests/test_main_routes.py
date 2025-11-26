@@ -1,9 +1,7 @@
 import os
 import sys
-import os
 import calendar
 import shutil
-import sys
 import tempfile
 from unittest.mock import MagicMock
 

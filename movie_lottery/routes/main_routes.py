@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, current_app
+from flask import Blueprint, render_template, current_app, request
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from .. import db
@@ -149,10 +149,36 @@ def view_poll_results(poll_id):
 def admin_poll_points():
     return render_template('admin_poll_points.html')
 
-@main_bp.route('/init-db/super-secret-key-for-db-init-12345')
+@main_bp.route('/admin/init-db', methods=['POST'])
 def init_db():
-    from .. import db
-    with db.get_app().app_context():
-        db.drop_all()
-        db.create_all()
-    return "База данных полностью очищена и создана заново!"
+    """
+    Initialize or reinitialize the database.
+    Requires the ADMIN_SECRET_KEY environment variable to be set correctly.
+    Only accessible via POST request with proper secret key in Authorization header.
+    """
+    import os
+    
+    # Get admin secret from environment
+    admin_secret = os.environ.get('ADMIN_SECRET_KEY')
+    if not admin_secret:
+        return {"error": "Admin initialization disabled (ADMIN_SECRET_KEY not set)"}, 403
+    
+    # Check Authorization header
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return {"error": "Missing or invalid Authorization header"}, 401
+    
+    provided_secret = auth_header[7:]  # Remove 'Bearer ' prefix
+    if provided_secret != admin_secret:
+        current_app.logger.warning(f"Failed init_db attempt with incorrect secret from {request.remote_addr}")
+        return {"error": "Invalid secret key"}, 403
+    
+    try:
+        from .. import db
+        with db.get_app().app_context():
+            db.drop_all()
+            db.create_all()
+        return {"status": "success", "message": "Database reinitialized"}, 200
+    except Exception as e:
+        current_app.logger.error(f"Error reinitializing database: {str(e)}")
+        return {"error": "Database reinitialization failed"}, 500
