@@ -243,6 +243,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (userIdFromResponse) {
             lastKnownUserId = userIdFromResponse;
             rememberUserId(userIdFromResponse);
+            shouldRequestUserId = false;
+        } else if (pollData?.voter_token) {
+            shouldRequestUserId = true;
+            if (!isUserOnboardingModalOpen) {
+                openUserOnboardingModal({ suggestedId: lastKnownUserId });
+            }
         }
 
         voterToken = pollData.voter_token || voterToken;
