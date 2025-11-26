@@ -425,7 +425,21 @@ def logout_with_user_id():
     }
 
     response = prevent_caching(jsonify(payload))
-    return _set_voter_cookies(response, profile.token, profile.user_id)
+    response.set_cookie(
+        VOTER_TOKEN_COOKIE,
+        '',
+        max_age=0,
+        samesite='Lax',
+        secure=request.is_secure,
+    )
+    response.set_cookie(
+        VOTER_USER_ID_COOKIE,
+        '',
+        max_age=0,
+        samesite='Lax',
+        secure=request.is_secure,
+    )
+    return response
 
 
 def _parse_iso_date(raw_value, for_end=False):
