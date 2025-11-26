@@ -612,6 +612,23 @@ def test_voter_stats_returns_json_on_missing_tables(app, monkeypatch):
     assert recovery_called['called'] is True
 
 
+def test_voter_stats_filters_by_user_id(app):
+    client = app.test_client()
+
+    profile_a = PollVoterProfile(token='token-a', user_id='alice')
+    profile_b = PollVoterProfile(token='token-b', user_id='bob')
+    db.session.add_all([profile_a, profile_b])
+    db.session.commit()
+
+    response = client.get('/api/polls/voter-stats', query_string={'user_id': 'ali'})
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['total'] == 1
+    assert payload['items'][0]['voter_token'] == 'token-a'
+    assert payload['items'][0]['user_id'] == 'alice'
+
+
 def test_vote_in_poll_awards_movie_points(app):
     client = app.test_client()
 
@@ -719,3 +736,47 @@ def test_patch_total_points_validates_payload(app):
 
     refreshed = PollVoterProfile.query.get(token)
     assert refreshed.total_points == 7
+
+
+def test_patch_user_id_updates_profile(app):
+    client = app.test_client()
+    token = 'user-token-1'
+    profile = PollVoterProfile(token=token, user_id='old-id', device_label='device-1', total_points=3)
+    db.session.add(profile)
+    db.session.commit()
+
+    response = client.patch(
+        f'/api/polls/voter-stats/{token}/user-id',
+        json={'user_id': '  new-id  '},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['user_id'] == 'new-id'
+    assert payload['device_label'] == 'device-1'
+    assert payload['total_points'] == 3
+    assert payload['updated_at']
+
+    refreshed = PollVoterProfile.query.get(token)
+    assert refreshed.user_id == 'new-id'
+    assert refreshed.updated_at is not None
+
+
+def test_patch_user_id_allows_clearing_value(app):
+    client = app.test_client()
+    token = 'user-token-2'
+    profile = PollVoterProfile(token=token, user_id='to-clear')
+    db.session.add(profile)
+    db.session.commit()
+
+    response = client.patch(
+        f'/api/polls/voter-stats/{token}/user-id',
+        json={'user_id': None},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['user_id'] is None
+
+    refreshed = PollVoterProfile.query.get(token)
+    assert refreshed.user_id is None
