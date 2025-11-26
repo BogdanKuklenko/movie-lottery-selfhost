@@ -1279,6 +1279,10 @@ def vote_in_poll(poll_id):
 
     db.session.commit()
 
+    # Fetch updated profile to get current points_accrued_total
+    profile = ensure_voter_profile(voter_token, device_label=device_label)
+    points_accrued = profile.points_accrued_total or 0
+
     if points_awarded > 0:
         success_message = f"Голос учтён! +{points_awarded} баллов к вашему счёту."
     else:
@@ -1290,6 +1294,7 @@ def vote_in_poll(poll_id):
         "movie_name": movie.name,
         "points_awarded": points_awarded,
         "points_balance": new_balance,
+        "points_earned_total": points_accrued,
         "voted_movie": _serialize_poll_movie(movie),
     }))
 
@@ -1393,12 +1398,17 @@ def ban_poll_movie(poll_id):
 
     db.session.commit()
 
+    # Fetch updated profile to get current points_accrued_total
+    profile = ensure_voter_profile(voter_token, device_label=device_label)
+    points_accrued = profile.points_accrued_total or 0
+
     response = prevent_caching(jsonify({
         "success": True,
         "ban_until": movie.ban_until.isoformat() if movie.ban_until else None,
         "ban_status": movie.ban_status,
         "ban_remaining_seconds": movie.ban_remaining_seconds,
         "points_balance": new_balance,
+        "points_earned_total": points_accrued,
         "closed_by_ban": closed_by_ban,
         "forced_winner": _serialize_poll_movie(forced_winner) if forced_winner else None,
         "library_ban": library_ban_data,
@@ -1519,11 +1529,16 @@ def custom_vote(poll_id):
 
     db.session.commit()
 
+    # Fetch updated profile to get current points_accrued_total
+    profile = ensure_voter_profile(voter_token, device_label=device_label)
+    points_accrued = profile.points_accrued_total or 0
+
     response = prevent_caching(jsonify({
         "success": True,
         "movie": _serialize_poll_movie(poll_movie),
         "points_awarded": points_awarded,
         "points_balance": new_balance,
+        "points_earned_total": points_accrued,
         "has_voted": True,
     }))
 

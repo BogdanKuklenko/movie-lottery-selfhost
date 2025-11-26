@@ -1200,14 +1200,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function initializePointsEarnedTotal(initialTotal) {
-        if (pointsEarnedTotal !== null) return;
-        const storedTotal = readStoredPointsEarnedTotal();
-        if (Number.isFinite(storedTotal)) {
-            pointsEarnedTotal = storedTotal;
-            return;
-        }
+        // Always prioritize server value over localStorage to stay in sync with DB
         const parsed = Number(initialTotal);
-        pointsEarnedTotal = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+        const serverValue = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+        
+        // Only use stored value as fallback if server value is 0 and we have a stored value
+        // (in case server temporarily returns 0 due to sync issues)
+        if (serverValue === 0) {
+            const storedTotal = readStoredPointsEarnedTotal();
+            if (Number.isFinite(storedTotal) && storedTotal > 0) {
+                pointsEarnedTotal = storedTotal;
+                return;
+            }
+        }
+        
+        pointsEarnedTotal = serverValue;
         persistPointsEarnedTotal(pointsEarnedTotal);
     }
 
@@ -1220,6 +1227,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function handlePointsAfterVote(result) {
         const awarded = Number(result.points_awarded);
         const newBalance = Number(result.points_balance);
+        const earnedTotal = Number(result.points_earned_total);
 
         if (!Number.isFinite(awarded) || !Number.isFinite(newBalance)) {
             showToast(T.toastPointsError, 'error');
@@ -1227,13 +1235,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        updatePointsBalance(newBalance);
+        updatePointsBalance(newBalance, earnedTotal);
 
         if (awarded > 0) {
-            initializePointsEarnedTotal();
-            pointsEarnedTotal += awarded;
-            persistPointsEarnedTotal(pointsEarnedTotal);
-            updatePointsStatus();
+            showToast(T.toastPointsEarned(awarded), 'success', { duration: 4000 });
+            playPointsProgress(awarded);
         }
 
         if (awarded < 0) {
@@ -1241,9 +1247,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             updateCustomVoteButtonState();
             return;
         }
-
-        showToast(T.toastPointsEarned(awarded), 'success', { duration: 4000 });
-        playPointsProgress(awarded);
     }
 
     function playPointsProgress(points) {
@@ -1290,6 +1293,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function handlePointsAfterBan(result) {
         const deducted = Number(result.points_balance);
+        const earnedTotal = Number(result.points_earned_total);
         const oldBalance = pointsBalance;
 
         if (!Number.isFinite(deducted)) {
@@ -1304,7 +1308,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             : 0;
 
         // Обновляем баланс с анимацией
-        updatePointsBalance(deducted, pointsEarnedTotal, true);
+        updatePointsBalance(deducted, earnedTotal, true);
 
         if (deductedAmount > 0) {
             showToast(T.toastPointsDeducted(deductedAmount), 'info', { duration: 4000 });
