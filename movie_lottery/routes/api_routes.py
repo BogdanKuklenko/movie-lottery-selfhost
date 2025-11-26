@@ -336,11 +336,14 @@ def login_with_user_id():
     except ValueError:
         return jsonify({'error': 'user_id обязателен'}), 400
 
+    points_earned_total = profile.points_accrued_total or 0
     payload = {
         'user_id': user_id,
         'voter_token': profile.token,
         'device_label': profile.device_label,
         'points_balance': profile.total_points or 0,
+        'points_earned_total': points_earned_total,
+        'points_accrued_total': points_earned_total,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
     }
@@ -362,12 +365,15 @@ def register_user_id():
     device_label = _normalize_device_label(data.get('device_label')) or _resolve_device_label()
 
     def _build_profile_payload(profile_obj):
+        points_earned_total = profile_obj.points_accrued_total or 0
         return {
             'success': True,
             'user_id': profile_obj.user_id,
             'voter_token': profile_obj.token,
             'device_label': profile_obj.device_label,
             'points_balance': profile_obj.total_points or 0,
+            'points_earned_total': points_earned_total,
+            'points_accrued_total': points_earned_total,
             'created_at': profile_obj.created_at.isoformat() if profile_obj.created_at else None,
             'updated_at': profile_obj.updated_at.isoformat() if profile_obj.updated_at else None,
         }

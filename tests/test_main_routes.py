@@ -78,6 +78,7 @@ def app(monkeypatch):
 
     db.session.remove()
     db.drop_all()
+    db.engine.dispose()
     ctx.pop()
     os.remove(db_path)
 
@@ -136,6 +137,54 @@ def test_change_voter_points_balance_skips_db_when_profiles_missing(app, monkeyp
     balance = helpers.change_voter_points_balance('token-xyz', 5)
 
     assert balance == 5
+
+
+def test_register_user_id_returns_points_totals(app):
+    client = app.test_client()
+    existing_token = 'register-token-1'
+    db.session.add(
+        PollVoterProfile(
+            token=existing_token,
+            total_points=12,
+            points_accrued_total=50,
+        )
+    )
+    db.session.commit()
+
+    client.set_cookie(api_routes.VOTER_TOKEN_COOKIE, existing_token)
+    response = client.post('/api/polls/auth/register', json={'user_id': 'tester'})
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['voter_token'] == existing_token
+    assert payload['points_balance'] == 12
+    assert payload['points_earned_total'] == 50
+    assert payload['points_accrued_total'] == 50
+
+    refreshed = PollVoterProfile.query.filter_by(user_id='tester').first()
+    assert refreshed is not None
+    assert refreshed.token == existing_token
+
+
+def test_login_user_id_returns_points_totals(app):
+    client = app.test_client()
+    profile = PollVoterProfile(
+        token='login-token-1',
+        user_id='login-user',
+        total_points=7,
+        points_accrued_total=33,
+    )
+    db.session.add(profile)
+    db.session.commit()
+
+    response = client.post('/api/polls/auth/login', json={'user_id': 'login-user'})
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['voter_token'] == 'login-token-1'
+    assert payload['points_balance'] == 7
+    assert payload['points_earned_total'] == 33
+    assert payload['points_accrued_total'] == 33
 
 
 def test_ensure_poll_movie_points_column_backfills_missing_column(app):
