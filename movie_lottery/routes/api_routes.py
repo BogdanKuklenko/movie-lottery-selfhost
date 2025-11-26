@@ -6,7 +6,7 @@ from collections import defaultdict
 from datetime import datetime, time, timezone
 from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy import func
-from sqlalchemy.exc import OperationalError, ProgrammingError
+from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 
 from .. import db
 from ..models import (
@@ -62,6 +62,14 @@ def _resolve_device_label():
         if agent_str:
             return agent_str[:255]
 
+    return None
+
+
+def _normalize_device_label(raw_label=None):
+    if isinstance(raw_label, str):
+        trimmed = raw_label.strip()
+        if trimmed:
+            return trimmed[:255]
     return None
 
 
@@ -172,6 +180,35 @@ def _normalize_user_id(raw_value):
     return user_id[:128] if user_id else None
 
 
+def _suggest_user_ids(preferred, limit=3):
+    base = _normalize_user_id(preferred)
+    if not base or limit <= 0:
+        return []
+
+    try:
+        existing_ids = {
+            row[0]
+            for row in db.session.query(PollVoterProfile.user_id)
+            .filter(PollVoterProfile.user_id.isnot(None))
+            .all()
+        }
+    except (ProgrammingError, OperationalError):
+        existing_ids = set()
+
+    suggestions = []
+    suffix = 1
+    separator = '-' if base and base[-1].isdigit() else ' '
+
+    while len(suggestions) < limit and suffix < 10_000:
+        candidate = f"{base}{separator}{suffix}"[:128]
+        if candidate != base and candidate not in existing_ids:
+            suggestions.append(candidate)
+            existing_ids.add(candidate)
+        suffix += 1
+
+    return suggestions
+
+
 def _read_user_id_from_request():
     raw_user_id = request.cookies.get(VOTER_USER_ID_COOKIE) or request.headers.get(VOTER_USER_ID_HEADER)
     return _normalize_user_id(raw_user_id)
@@ -258,14 +295,7 @@ def login_with_user_id():
         return jsonify({'error': 'Некорректный user_id'}), 400
 
     raw_label = data.get('device_label') if isinstance(data, dict) else None
-    device_label = None
-    if isinstance(raw_label, str):
-        trimmed = raw_label.strip()
-        if trimmed:
-            device_label = trimmed[:255]
-
-    if device_label is None:
-        device_label = _resolve_device_label()
+    device_label = _normalize_device_label(raw_label) or _resolve_device_label()
 
     try:
         profile = ensure_voter_profile_for_user(user_id, device_label=device_label)
@@ -286,6 +316,70 @@ def login_with_user_id():
     return _set_voter_cookies(response, profile.token, user_id)
 
 
+@api_bp.route('/polls/auth/register', methods=['POST'])
+def register_user_id():
+    data = _get_json_payload()
+    if data is None or 'user_id' not in data:
+        return jsonify({'error': 'Передайте user_id в теле запроса'}), 400
+
+    user_id = _normalize_user_id(data.get('user_id'))
+    if not user_id:
+        return jsonify({'error': 'Некорректный user_id'}), 400
+
+    device_label = _normalize_device_label(data.get('device_label')) or _resolve_device_label()
+
+    try:
+        existing = PollVoterProfile.query.filter_by(user_id=user_id).first()
+    except (ProgrammingError, OperationalError):
+        db.session.rollback()
+        return jsonify({'error': 'Сервис временно недоступен'}), 503
+
+    if existing:
+        response = prevent_caching(jsonify({
+            'error': 'Этот ID уже занят. Попробуйте другой вариант.',
+            'conflict': True,
+            'suggestions': _suggest_user_ids(user_id),
+        }))
+        return response, 409
+
+    desired_token = request.cookies.get(VOTER_TOKEN_COOKIE) or secrets.token_hex(16)
+    profile = ensure_voter_profile(desired_token, device_label=device_label)
+
+    if profile.user_id and profile.user_id != user_id:
+        desired_token = secrets.token_hex(16)
+        profile = ensure_voter_profile(desired_token, device_label=device_label)
+
+    profile.user_id = user_id
+    profile.updated_at = datetime.utcnow()
+
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        conflict_response = prevent_caching(jsonify({
+            'error': 'Этот ID уже занят. Попробуйте другой вариант.',
+            'conflict': True,
+            'suggestions': _suggest_user_ids(user_id),
+        }))
+        return conflict_response, 409
+    except (ProgrammingError, OperationalError):
+        db.session.rollback()
+        return jsonify({'error': 'Сервис временно недоступен'}), 503
+
+    payload = {
+        'success': True,
+        'user_id': user_id,
+        'voter_token': profile.token,
+        'device_label': profile.device_label,
+        'points_balance': profile.total_points or 0,
+        'created_at': profile.created_at.isoformat() if profile.created_at else None,
+        'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
+    }
+
+    response = prevent_caching(jsonify(payload))
+    return _set_voter_cookies(response, profile.token, user_id)
+
+
 @api_bp.route('/polls/auth/logout', methods=['POST'])
 def logout_with_user_id():
     data = _get_json_payload() or {}
@@ -294,14 +388,7 @@ def logout_with_user_id():
         return jsonify({'error': 'user_id обязателен'}), 400
 
     raw_label = data.get('device_label') if isinstance(data, dict) else None
-    device_label = None
-    if isinstance(raw_label, str):
-        trimmed = raw_label.strip()
-        if trimmed:
-            device_label = trimmed[:255]
-
-    if device_label is None:
-        device_label = _resolve_device_label()
+    device_label = _normalize_device_label(raw_label) or _resolve_device_label()
 
     try:
         profile = ensure_voter_profile_for_user(user_id, device_label=device_label)
