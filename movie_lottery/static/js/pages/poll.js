@@ -603,6 +603,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function pushModalHistory(modalId) {
         if (!modalId) return;
+        if (modalId === 'user-onboarding' && shouldRequestUserId) {
+            return;
+        }
         const alreadyTracked = modalHistoryStack.includes(modalId);
         if (!alreadyTracked) {
             modalHistoryStack.push(modalId);
@@ -638,7 +641,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else if (modalId === 'ban') {
             closeBanModal({ fromPopState: true });
         } else if (modalId === 'user-onboarding') {
-            closeUserOnboardingModal({ fromPopState: true });
+            if (shouldRequestUserId) {
+                openUserOnboardingModal({ suggestedId: lastKnownUserId });
+            } else {
+                closeUserOnboardingModal({ fromPopState: true });
+            }
         } else if (modalId === 'user-switch') {
             closeUserSwitchModal({ fromPopState: true });
         }
@@ -728,7 +735,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function closeUserOnboardingModal(options = {}) {
-        const { fromPopState = false } = options;
+        const { fromPopState = false, force = false } = options;
+        const shouldKeepOpen = shouldRequestUserId && !force;
+        if (shouldKeepOpen) {
+            openUserOnboardingModal({ suggestedId: userOnboardingInput?.value || lastKnownUserId });
+            return;
+        }
         const wasTracked = modalHistoryStack.includes('user-onboarding');
         if (userOnboardingModal) {
             userOnboardingModal.style.display = 'none';
