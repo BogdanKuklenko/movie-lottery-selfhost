@@ -305,6 +305,21 @@
     margin: 8px 0 0;
 }
 
+.table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.votes-list {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.votes-list .votes-table {
+    min-width: 520px;
+}
+
 @media (max-width: 768px) {
     .secret-row {
         flex-direction: column;
