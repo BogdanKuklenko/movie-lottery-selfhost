@@ -903,6 +903,7 @@ def test_voter_stats_filters_by_user_id(app):
     assert payload['items'][0]['voter_token'] == 'token-a'
     assert payload['items'][0]['user_id'] == 'alice'
     assert payload['items'][0]['points_accrued_total'] == 0
+    assert payload['items'][0]['points_earned_total'] == 0
 
 
 def test_vote_in_poll_awards_movie_points(app):
@@ -946,6 +947,7 @@ def test_patch_device_label_updates_profile(app):
     payload = response.get_json()
     assert payload['device_label'] == 'Новая метка'
     assert payload['updated_at'] is not None
+    assert payload['points_earned_total'] == 0
 
     refreshed = PollVoterProfile.query.get(token)
     assert refreshed.device_label == 'Новая метка'
@@ -967,6 +969,7 @@ def test_patch_device_label_allows_clearing_value(app):
     assert response.status_code == 200
     payload = response.get_json()
     assert payload['device_label'] is None
+    assert payload['points_earned_total'] == 0
 
     refreshed = PollVoterProfile.query.get(token)
     assert refreshed.device_label is None
@@ -989,6 +992,7 @@ def test_patch_total_points_updates_profile(app):
     assert payload['total_points'] == 42
     assert payload['updated_at'] is not None
     assert payload['points_accrued_total'] == 0
+    assert payload['points_earned_total'] == 0
 
     refreshed = PollVoterProfile.query.get(token)
     assert refreshed.total_points == 42
@@ -1010,6 +1014,7 @@ def test_patch_points_accrued_total_updates_profile(app):
     assert response.status_code == 200
     payload = response.get_json()
     assert payload['points_accrued_total'] == 123
+    assert payload['points_earned_total'] == 123
     assert payload['total_points'] == 5
     assert payload['updated_at'] is not None
 

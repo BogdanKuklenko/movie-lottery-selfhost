@@ -133,7 +133,8 @@ function buildRow(item) {
     const userId = item.user_id || '';
 
     const totalPoints = Number.isFinite(Number(item.total_points)) ? Number(item.total_points) : 0;
-    const accruedPoints = Number.isFinite(Number(item.points_accrued_total)) ? Number(item.points_accrued_total) : 0;
+    const rawEarned = item.points_earned_total ?? item.points_accrued_total;
+    const earnedPoints = Number.isFinite(Number(rawEarned)) ? Number(rawEarned) : 0;
 
     return `
         <tr>
@@ -194,8 +195,8 @@ function buildRow(item) {
                         inputmode="numeric"
                         step="1"
                         class="accrued-points-input"
-                        value="${escapeHtml(accruedPoints)}"
-                        data-initial-value="${escapeHtml(accruedPoints)}"
+                        value="${escapeHtml(earnedPoints)}"
+                        data-initial-value="${escapeHtml(earnedPoints)}"
                         disabled
                     />
                     <button type="button" class="accrued-points-toggle" data-mode="view">Редактировать</button>
@@ -902,7 +903,8 @@ async function saveAccruedPoints(container) {
             throw new Error(errorMessage);
         }
 
-        const newValue = Number.isFinite(Number(data.points_accrued_total)) ? Number(data.points_accrued_total) : 0;
+        const rawEarned = data.points_earned_total ?? data.points_accrued_total;
+        const newValue = Number.isFinite(Number(rawEarned)) ? Number(rawEarned) : 0;
         input.value = newValue;
         input.dataset.initialValue = String(newValue);
         exitAccruedPointsEditing(container);

@@ -460,6 +460,7 @@ def logout_with_user_id():
         'previous_token': previous_token,
         'rotated_token': new_token,
         'points_balance': profile.total_points or 0,
+        'points_earned_total': profile.points_accrued_total or 0,
         'device_label': profile.device_label,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
@@ -1799,12 +1800,14 @@ def list_voter_stats():
             votes = votes_map.get(profile.token, [])
             filtered_points = sum((vote.get('points_awarded') or 0) for vote in votes)
             last_vote_at = votes[0]['voted_at'] if votes else None
+            earned_total = profile.points_accrued_total or 0
             items.append({
                 'voter_token': profile.token,
                 'user_id': profile.user_id,
                 'device_label': profile.device_label,
                 'total_points': profile.total_points or 0,
-                'points_accrued_total': profile.points_accrued_total or 0,
+                'points_accrued_total': earned_total,
+                'points_earned_total': earned_total,
                 'filtered_points': filtered_points,
                 'created_at': profile.created_at.isoformat() if profile.created_at else None,
                 'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
@@ -1846,12 +1849,14 @@ def voter_stats_details(voter_token):
     votes = votes_map.get(profile.token, [])
     filtered_points = sum((vote.get('points_awarded') or 0) for vote in votes)
 
+    earned_total = profile.points_accrued_total or 0
     payload = {
         'voter_token': profile.token,
         'user_id': profile.user_id,
         'device_label': profile.device_label,
         'total_points': profile.total_points or 0,
-        'points_accrued_total': profile.points_accrued_total or 0,
+        'points_accrued_total': earned_total,
+        'points_earned_total': earned_total,
         'filtered_points': filtered_points,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
@@ -1884,12 +1889,14 @@ def update_voter_device_label(voter_token):
     profile.updated_at = datetime.utcnow()
     db.session.commit()
 
+    earned_total = profile.points_accrued_total or 0
     payload = {
         'voter_token': profile.token,
         'user_id': profile.user_id,
         'device_label': profile.device_label,
         'total_points': profile.total_points or 0,
-        'points_accrued_total': profile.points_accrued_total or 0,
+        'points_accrued_total': earned_total,
+        'points_earned_total': earned_total,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
     }
@@ -1912,12 +1919,14 @@ def update_voter_total_points(voter_token):
     profile.updated_at = datetime.utcnow()
     db.session.commit()
 
+    earned_total = profile.points_accrued_total or 0
     payload = {
         'voter_token': profile.token,
         'user_id': profile.user_id,
         'device_label': profile.device_label,
         'total_points': profile.total_points or 0,
-        'points_accrued_total': profile.points_accrued_total or 0,
+        'points_accrued_total': earned_total,
+        'points_earned_total': earned_total,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
     }
@@ -1942,12 +1951,14 @@ def update_voter_user_id(voter_token):
     profile.updated_at = datetime.utcnow()
     db.session.commit()
 
+    earned_total = profile.points_accrued_total or 0
     payload = {
         'voter_token': profile.token,
         'user_id': profile.user_id,
         'device_label': profile.device_label,
         'total_points': profile.total_points or 0,
-        'points_accrued_total': profile.points_accrued_total or 0,
+        'points_accrued_total': earned_total,
+        'points_earned_total': earned_total,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
     }
@@ -1970,12 +1981,14 @@ def update_voter_points_accrued_total(voter_token):
     profile.updated_at = datetime.utcnow()
     db.session.commit()
 
+    earned_total = profile.points_accrued_total or 0
     payload = {
         'voter_token': profile.token,
         'user_id': profile.user_id,
         'device_label': profile.device_label,
         'total_points': profile.total_points or 0,
-        'points_accrued_total': profile.points_accrued_total or 0,
+        'points_accrued_total': earned_total,
+        'points_earned_total': earned_total,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
     }
