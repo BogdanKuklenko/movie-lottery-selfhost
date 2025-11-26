@@ -143,6 +143,7 @@ function buildRow(item) {
                     <code>${escapeHtml(item.voter_token)}</code>
                     <div class="details-actions">
                         <button type="button" class="copy-button" data-copy-token="${escapeHtml(item.voter_token)}">Скопировать</button>
+                        <button type="button" class="delete-button" data-delete-token="${escapeHtml(item.voter_token)}">Удалить</button>
                     </div>
                 </div>
             </td>
@@ -467,6 +468,66 @@ function handleCopy(event) {
     navigator.clipboard.writeText(token)
         .then(() => setMessage('Токен скопирован.', 'success'))
         .catch(() => setMessage('Не удалось скопировать токен.', 'error'));
+}
+
+function handleDeleteClick(event) {
+    const button = event.target.closest('[data-delete-token]');
+    if (!button) return;
+    const token = button.dataset.deleteToken;
+    if (!token) return;
+    openDeleteModal(token);
+}
+
+function openDeleteModal(token) {
+    const modal = document.getElementById('delete-token-modal');
+    const tokenEl = document.getElementById('delete-token-value');
+    const secretInput = document.getElementById('delete-admin-secret');
+    if (!modal || !tokenEl) return;
+    tokenEl.textContent = token;
+    modal.style.display = 'block';
+    modal.setAttribute('aria-hidden', 'false');
+    if (secretInput) {
+        secretInput.value = '';
+        secretInput.focus();
+    }
+    // store token on modal for later reference
+    modal.dataset.targetToken = token;
+}
+
+function closeDeleteModal() {
+    const modal = document.getElementById('delete-token-modal');
+    if (!modal) return;
+    modal.style.display = 'none';
+    modal.setAttribute('aria-hidden', 'true');
+    delete modal.dataset.targetToken;
+}
+
+async function confirmDeleteToken() {
+    const modal = document.getElementById('delete-token-modal');
+    const token = modal?.dataset?.targetToken;
+    const secretInput = document.getElementById('delete-admin-secret');
+    const secret = secretInput?.value || '';
+    if (!token) return setMessage('Не указан токен для удаления', 'error');
+    if (!secret) return setMessage('Введите админский секрет для подтверждения', 'error');
+
+    try {
+        const response = await fetch(buildPollApiUrl(`/api/polls/voter-stats/${encodeURIComponent(token)}`), {
+            method: 'DELETE',
+            headers: buildHeaders({ Authorization: `Bearer ${secret}` }),
+            credentials: 'include',
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.error || 'Не удалось удалить токен');
+        }
+        setMessage('Токен успешно удалён', 'success');
+        closeDeleteModal();
+        fetchStats();
+    } catch (err) {
+        console.error(err);
+        setMessage(err.message || 'Ошибка при удалении токена', 'error');
+    }
 }
 
 function enterDeviceLabelEditing(container) {
@@ -1039,6 +1100,7 @@ function attachEvents() {
     elements.pollSettingsForm?.addEventListener('submit', savePollSettings);
     elements.table?.querySelector('thead')?.addEventListener('click', handleSort);
     elements.tableBody?.addEventListener('click', handleCopy);
+    elements.tableBody?.addEventListener('click', handleDeleteClick);
     elements.tableBody?.addEventListener('click', handleUserIdClick);
     elements.tableBody?.addEventListener('keydown', handleUserIdKeydown);
     elements.tableBody?.addEventListener('click', handleDeviceLabelClick);
@@ -1055,6 +1117,12 @@ function attachEvents() {
             fetchStats();
         }
     });
+
+    // Modal buttons for delete confirmation
+    const deleteConfirm = document.getElementById('delete-confirm');
+    const deleteCancel = document.getElementById('delete-cancel');
+    deleteConfirm?.addEventListener('click', confirmDeleteToken);
+    deleteCancel?.addEventListener('click', closeDeleteModal);
 }
 
 function bootstrap() {

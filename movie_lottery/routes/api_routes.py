@@ -298,6 +298,37 @@ def get_poll_settings_api():
     return prevent_caching(jsonify(payload))
 
 
+@api_bp.route('/polls/voter-stats/<string:voter_token>', methods=['DELETE'])
+def delete_voter_profile(voter_token):
+    """Delete a voter profile and its votes. Requires ADMIN_SECRET_KEY in Authorization header.
+    This endpoint is intended to be used from the admin UI only.
+    """
+    import os
+    auth_header = request.headers.get('Authorization', '')
+    admin_secret = os.environ.get('ADMIN_SECRET_KEY')
+    if not admin_secret:
+        return jsonify({'error': 'Admin deletion disabled (ADMIN_SECRET_KEY not set)'}), 403
+    if not auth_header.startswith('Bearer '):
+        return jsonify({'error': 'Missing Authorization header'}), 401
+    provided = auth_header[7:]
+    if provided != admin_secret:
+        current_app.logger.warning('Unauthorized attempt to delete voter profile %s from %s', voter_token, request.remote_addr)
+        return jsonify({'error': 'Invalid admin secret'}), 403
+
+    try:
+        # Delete votes first to avoid FK constraint issues
+        db.session.query(Vote).filter(Vote.voter_token == voter_token).delete(synchronize_session=False)
+        deleted = db.session.query(PollVoterProfile).filter(PollVoterProfile.token == voter_token).delete(synchronize_session=False)
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        current_app.logger.error('Error deleting voter profile %s: %s', voter_token, exc)
+        return jsonify({'error': 'Failed to delete voter profile'}), 500
+
+    if deleted:
+        return jsonify({'success': True, 'deleted': int(deleted)})
+    return jsonify({'success': True, 'deleted': 0})
+
 @api_bp.route('/polls/settings', methods=['PATCH'])
 def update_poll_settings_api():
     data = _get_json_payload()

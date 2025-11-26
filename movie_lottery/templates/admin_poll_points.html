@@ -126,6 +126,22 @@
         </section>
     </div>
 
+    <!-- Delete confirmation modal -->
+    <div id="delete-token-modal" class="modal" role="dialog" aria-modal="true" aria-hidden="true" style="display:none;">
+        <div class="modal-content">
+            <h3>Удалить токен голосующего</h3>
+            <p id="delete-modal-message">Вы уверены, что хотите удалить токен <code id="delete-token-value"></code>? Все записи голосов и баланс будут удалены.</p>
+            <label>
+                <span>Введите админский секрет для подтверждения</span>
+                <input type="password" id="delete-admin-secret" placeholder="Admin secret" />
+            </label>
+            <div class="modal-actions">
+                <button type="button" id="delete-confirm" class="cta-button">Удалить</button>
+                <button type="button" id="delete-cancel" class="cta-button secondary">Отмена</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         window.appConfig = window.appConfig || {};
         window.appConfig.pollApiBaseUrl = {{ poll_api_base_url|tojson }};
