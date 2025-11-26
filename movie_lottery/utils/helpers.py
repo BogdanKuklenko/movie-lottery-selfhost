@@ -704,7 +704,7 @@ def aggregate_positive_vote_points_by_tokens(voter_tokens):
 
     cleaned_tokens = [token for token in voter_tokens if isinstance(token, str) and token.strip()]
     if not cleaned_tokens:
-        return {}
+        return None
 
     try:
         rows = (

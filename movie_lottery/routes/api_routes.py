@@ -1081,6 +1081,7 @@ def get_poll(poll_id):
             history_tokens.append(token)
 
     preferred_token = requested_voter_token or request.cookies.get(VOTER_TOKEN_COOKIE) or voter_token
+    identity_filters_used = False
 
     def _resolve_points_from_history(aggregated):
         if aggregated is None:
@@ -1102,6 +1103,9 @@ def get_poll(poll_id):
             filters.append(PollVoterProfile.device_label == device_label)
         if user_id:
             filters.append(PollVoterProfile.user_id == user_id)
+
+        nonlocal identity_filters_used
+        identity_filters_used = bool(filters)
 
         if not filters:
             return []
@@ -1126,12 +1130,34 @@ def get_poll(poll_id):
                 logger.warning('Не удалось получить историю токенов с начислениями: %s', exc)
             return []
 
+    def _extend_history_with_unfiltered_recent_tokens():
+        try:
+            query = (
+                db.session.query(Vote.voter_token)
+                .filter(Vote.points_awarded > 0)
+                .order_by(Vote.voted_at.desc(), Vote.id.desc())
+            )
+
+            if history_tokens:
+                query = query.filter(~Vote.voter_token.in_(history_tokens))
+
+            return [row[0] for row in query.limit(5).all()]
+        except (ProgrammingError, OperationalError) as exc:
+            db.session.rollback()
+            logger = getattr(current_app, 'logger', None)
+            if logger:
+                logger.warning('Не удалось получить историю токенов без фильтров: %s', exc)
+            return []
+
     aggregated_points = aggregate_positive_vote_points_by_tokens(history_tokens)
     preferred_token = requested_voter_token or request.cookies.get(VOTER_TOKEN_COOKIE) or voter_token
     points_earned_total = _resolve_points_from_history(aggregated_points)
 
-    if aggregated_points is not None and voter_token and points_earned_total in (None, 0):
+    if voter_token and (aggregated_points is None or points_earned_total in (None, 0)):
         recent_tokens = _extend_history_with_recent_tokens()
+        if not recent_tokens and not identity_filters_used and not history_tokens:
+            recent_tokens = _extend_history_with_unfiltered_recent_tokens()
+
         if recent_tokens:
             history_tokens.extend(recent_tokens)
             aggregated_points = aggregate_positive_vote_points_by_tokens(history_tokens)
