@@ -16,6 +16,15 @@ body {
     overflow-x: hidden;
 }
 
+/* Отключаем перетаскивание изображений по всему сайту */
+img {
+    -webkit-user-drag: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
 /* Класс для отключения вертикального скролла */
 body.no-scroll {
     position: fixed;
