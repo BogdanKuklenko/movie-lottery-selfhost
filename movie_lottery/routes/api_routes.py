@@ -45,10 +45,12 @@ POLL_CREATOR_COOKIE = 'poll_creator_token'
 POLL_CREATOR_HEADER = 'X-Poll-Creator-Token'
 POLL_CREATOR_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
 VOTER_TOKEN_COOKIE = 'voter_token'
+VOTER_TOKEN_HEADER = 'X-Poll-Voter-Token'
 VOTER_USER_ID_COOKIE = 'voter_user_id'
 VOTER_USER_ID_HEADER = 'X-Poll-User-Id'
 VOTER_COOKIE_MAX_AGE = 60 * 60 * 24 * 30  # 30 days
 _CREATOR_TOKEN_RE = re.compile(r'^[a-f0-9]{32}$', re.IGNORECASE)
+_VOTER_TOKEN_RE = re.compile(r'^[a-f0-9]{32}$', re.IGNORECASE)
 
 
 def _resolve_device_label():
@@ -242,11 +244,18 @@ def _resolve_voter_identity():
     device_label = _resolve_device_label()
     user_id = _read_user_id_from_request()
 
+    raw_voter_token = request.headers.get(VOTER_TOKEN_HEADER) or request.args.get('voter_token')
+    if isinstance(raw_voter_token, str):
+        trimmed = raw_voter_token.strip()
+        raw_voter_token = trimmed if _VOTER_TOKEN_RE.match(trimmed) else None
+    else:
+        raw_voter_token = None
+
     if user_id:
         profile = ensure_voter_profile_for_user(user_id, device_label=device_label)
         voter_token = profile.token
     else:
-        voter_token = request.cookies.get(VOTER_TOKEN_COOKIE) or secrets.token_hex(16)
+        voter_token = raw_voter_token or request.cookies.get(VOTER_TOKEN_COOKIE) or secrets.token_hex(16)
         profile = ensure_voter_profile(voter_token, device_label=device_label)
 
     return {
