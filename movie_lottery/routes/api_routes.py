@@ -1155,7 +1155,12 @@ def get_poll(poll_id):
 
     if voter_token and (aggregated_points is None or points_earned_total in (None, 0)):
         recent_tokens = _extend_history_with_recent_tokens()
-        if not recent_tokens and not identity_filters_used and not history_tokens:
+        allow_unfiltered_history_lookup = not identity_filters_used and (
+            not history_tokens
+            or (len(history_tokens) == 1 and points_earned_total in (None, 0))
+        )
+
+        if not recent_tokens and allow_unfiltered_history_lookup:
             recent_tokens = _extend_history_with_unfiltered_recent_tokens()
 
         if recent_tokens:
