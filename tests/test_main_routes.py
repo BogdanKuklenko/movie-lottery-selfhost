@@ -224,6 +224,61 @@ def test_create_poll_requires_minimum_movies(app):
     assert 'Нужно добавить хотя бы два фильма' in data['error']
 
 
+def test_get_poll_restores_points_for_existing_token(app):
+    client = app.test_client()
+
+    primary_response = _create_poll_via_api(client, [_build_movie('One'), _build_movie('Two')])
+    secondary_response = _create_poll_via_api(client, [_build_movie('Three'), _build_movie('Four')])
+
+    primary_poll_id = primary_response.get_json()['poll_id']
+    primary_poll = Poll.query.get(primary_poll_id)
+    secondary_poll = Poll.query.get(secondary_response.get_json()['poll_id'])
+
+    voter_token = 'abcd' * 8
+
+    profile = PollVoterProfile(token=voter_token, total_points=10)
+    db.session.add(profile)
+    db.session.add(
+        Vote(
+            poll_id=primary_poll.id,
+            movie_id=primary_poll.movies[0].id,
+            voter_token=voter_token,
+            points_awarded=3,
+        )
+    )
+    db.session.add(
+        Vote(
+            poll_id=secondary_poll.id,
+            movie_id=secondary_poll.movies[0].id,
+            voter_token=voter_token,
+            points_awarded=4,
+        )
+    )
+    db.session.commit()
+
+    client.set_cookie(api_routes.VOTER_TOKEN_COOKIE, voter_token)
+    initial_response = client.get(f'/api/polls/{primary_poll_id}')
+    assert initial_response.status_code == 200
+    initial_payload = initial_response.get_json()
+    assert initial_payload['points_earned_total'] == 7
+
+    client.delete_cookie(api_routes.VOTER_TOKEN_COOKIE)
+    client.delete_cookie(api_routes.VOTER_USER_ID_COOKIE)
+
+    response = client.get(
+        f'/api/polls/{primary_poll_id}',
+        headers={api_routes.VOTER_TOKEN_HEADER: voter_token},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['points_earned_total'] == 7
+
+    restored_cookie = client.get_cookie(api_routes.VOTER_TOKEN_COOKIE)
+    assert restored_cookie is not None
+    assert restored_cookie.value == voter_token
+
+
 def test_poll_ban_sets_forced_winner(app):
     client = app.test_client()
 
