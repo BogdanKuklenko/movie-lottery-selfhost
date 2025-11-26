@@ -5,7 +5,7 @@ import secrets
 from collections import defaultdict
 from datetime import datetime, time, timezone
 from flask import Blueprint, request, jsonify, current_app
-from sqlalchemy import func, or_
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 
 from .. import db
@@ -22,7 +22,6 @@ from ..models import (
 )
 from ..utils.kinopoisk import get_movie_data_from_kinopoisk
 from ..utils.helpers import (
-    aggregate_positive_vote_points_by_tokens,
     build_external_url,
     build_telegram_share_url,
     change_voter_points_balance,
@@ -260,8 +259,27 @@ def _resolve_voter_identity():
         profile = ensure_voter_profile_for_user(user_id, device_label=device_label)
         voter_token = profile.token
     else:
-        voter_token = raw_voter_token or request.cookies.get(VOTER_TOKEN_COOKIE) or secrets.token_hex(16)
-        profile = ensure_voter_profile(voter_token, device_label=device_label)
+        voter_token = raw_voter_token or request.cookies.get(VOTER_TOKEN_COOKIE)
+        profile = None
+
+        if voter_token:
+            profile = ensure_voter_profile(voter_token, device_label=device_label)
+        elif device_label:
+            try:
+                profile = (
+                    PollVoterProfile.query.filter_by(device_label=device_label)
+                    .order_by(PollVoterProfile.updated_at.desc())
+                    .first()
+                )
+            except (ProgrammingError, OperationalError):
+                profile = None
+
+            if profile:
+                voter_token = profile.token
+
+        if profile is None:
+            voter_token = voter_token or secrets.token_hex(16)
+            profile = ensure_voter_profile(voter_token, device_label=device_label)
 
     return {
         'voter_token': voter_token,
@@ -1072,81 +1090,10 @@ def get_poll(poll_id):
     voter_token = identity['voter_token']
     profile = identity['profile']
     user_id = identity['user_id']
-    device_label = identity.get('device_label')
-    requested_voter_token = identity.get('requested_voter_token')
     points_balance = profile.total_points or 0
     db.session.commit()
 
-    history_tokens = []
-
-    def _add_history_token(token):
-        if token and token not in history_tokens:
-            history_tokens.append(token)
-
-    for token in (
-        requested_voter_token,
-        request.cookies.get(VOTER_TOKEN_COOKIE),
-        voter_token,
-        getattr(profile, 'token', None),
-    ):
-        _add_history_token(token)
-
-    preferred_token = requested_voter_token or request.cookies.get(VOTER_TOKEN_COOKIE) or voter_token
-
-    def _resolve_points_from_history(aggregated):
-        if aggregated is None:
-            return None
-
-        points = aggregated.get(preferred_token)
-
-        if points is None and voter_token:
-            points = aggregated.get(voter_token)
-
-        if points is None:
-            points = sum(aggregated.values()) if aggregated else 0
-
-        return points
-
-    def _extend_history_with_recent_tokens():
-        filters = []
-        if device_label:
-            filters.append(PollVoterProfile.device_label == device_label)
-        if user_id:
-            filters.append(PollVoterProfile.user_id == user_id)
-
-        if not filters:
-            return []
-
-        try:
-            rows = (
-                db.session.query(PollVoterProfile.token)
-                .filter(or_(*filters))
-                .all()
-            )
-            return [row[0] for row in rows]
-        except (ProgrammingError, OperationalError) as exc:
-            db.session.rollback()
-            logger = getattr(current_app, 'logger', None)
-            if logger:
-                logger.warning('Не удалось получить связанные токены голосующего: %s', exc)
-            return []
-
-    recent_tokens = _extend_history_with_recent_tokens()
-    for token in recent_tokens:
-        _add_history_token(token)
-
-    if not history_tokens:
-        aggregated_points = {}
-    else:
-        aggregated_points = aggregate_positive_vote_points_by_tokens(history_tokens)
-
-    preferred_token = requested_voter_token or request.cookies.get(VOTER_TOKEN_COOKIE) or voter_token
-    points_earned_total = _resolve_points_from_history(aggregated_points)
-
-    if aggregated_points is None:
-        points_earned_total = points_balance
-    elif points_earned_total is None:
-        points_earned_total = 0
+    points_earned_total = profile.points_accrued_total or 0
 
     # Проверяем, голосовал ли уже этот пользователь
     existing_vote = Vote.query.filter_by(poll_id=poll_id, voter_token=voter_token).first()

@@ -5,7 +5,7 @@ from datetime import datetime
 from urllib.parse import urljoin, quote_plus
 
 from flask import current_app, url_for
-from sqlalchemy import func, inspect, text
+from sqlalchemy import inspect, text
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from .. import db
@@ -25,7 +25,14 @@ class _FallbackVoterProfile:
     """In-memory profile used when the points tables are unavailable."""
 
     __slots__ = (
-        'token', 'device_label', 'total_points', 'created_at', 'updated_at', 'user_id', '_is_fallback'
+        'token',
+        'device_label',
+        'total_points',
+        'points_accrued_total',
+        'created_at',
+        'updated_at',
+        'user_id',
+        '_is_fallback',
     )
 
     def __init__(self, token, device_label=None, user_id=None):
@@ -33,6 +40,7 @@ class _FallbackVoterProfile:
         self.token = token
         self.device_label = device_label
         self.total_points = 0
+        self.points_accrued_total = 0
         self.created_at = now
         self.updated_at = now
         self.user_id = user_id
@@ -640,6 +648,7 @@ def ensure_voter_profile(voter_token, device_label=None, user_id=None):
             user_id=normalized_user_id,
             device_label=normalized_label,
             total_points=0,
+            points_accrued_total=0,
             created_at=now,
             updated_at=now,
         )
@@ -683,6 +692,7 @@ def ensure_voter_profile_for_user(user_id, device_label=None):
             user_id=normalized_user_id,
             device_label=normalized_label,
             total_points=0,
+            points_accrued_total=0,
             created_at=now,
             updated_at=now,
         )
@@ -697,32 +707,6 @@ def ensure_voter_profile_for_user(user_id, device_label=None):
         return _handle_missing_voter_table(exc, profile.token, normalized_label, normalized_user_id)
 
     return profile
-
-
-def aggregate_positive_vote_points_by_tokens(voter_tokens):
-    """Вернуть сумму всех начисленных баллов (>0) по указанным токенам."""
-
-    cleaned_tokens = [token for token in voter_tokens if isinstance(token, str) and token.strip()]
-    if not cleaned_tokens:
-        return None
-
-    try:
-        rows = (
-            db.session.query(
-                Vote.voter_token,
-                func.coalesce(func.sum(Vote.points_awarded), 0),
-            )
-            .filter(Vote.voter_token.in_(cleaned_tokens), Vote.points_awarded > 0)
-            .group_by(Vote.voter_token)
-            .all()
-        )
-        return {token: int(points or 0) for token, points in rows}
-    except (ProgrammingError, OperationalError) as exc:
-        db.session.rollback()
-        logger = getattr(current_app, 'logger', None)
-        if logger:
-            logger.warning('Не удалось агрегировать начисления по токенам: %s', exc)
-        return None
 
 
 def rotate_voter_token(profile, update_votes=False):
@@ -764,6 +748,8 @@ def change_voter_points_balance(voter_token, delta, device_label=None, commit=Fa
     profile = ensure_voter_profile(voter_token, device_label=device_label)
     if delta:
         profile.total_points = (profile.total_points or 0) + delta
+        if delta > 0:
+            profile.points_accrued_total = (profile.points_accrued_total or 0) + delta
         if not getattr(profile, '_is_fallback', False):
             profile.updated_at = datetime.utcnow()
 
