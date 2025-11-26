@@ -33,7 +33,7 @@
 - **Маршрут** `/admin/poll-points` — открытая страница с фильтрами, поиском по токенам, устройствам и списку опросов.
 - **API**:
   - `GET /api/polls/voter-stats` — возвращает пагинированный список участников: `voter_token`, `user_id`, `device_label`,
-    `total_points`, `filtered_points`, `votes_count`, `last_vote_at` и массив голосов (poll_id, название, дата, фильм,
+    `total_points`, `points_accrued_total`, `filtered_points`, `votes_count`, `last_vote_at` и массив голосов (poll_id, название, дата, фильм,
     баллы, время голосования).
   - `GET /api/polls/voter-stats/<token>` — детализированная статистика конкретного токена с теми же полями.
 - **Фильтры и пагинация**: доступны параметры `page`, `per_page`, `sort_by`, `sort_order`, а также фильтрация по poll id

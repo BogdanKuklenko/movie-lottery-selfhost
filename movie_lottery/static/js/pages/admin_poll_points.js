@@ -48,7 +48,7 @@ function setLoadingState() {
     if (!elements.tableBody) return;
     elements.tableBody.innerHTML = `
         <tr>
-            <td colspan="7">Загружаем данные…</td>
+            <td colspan="8">Загружаем данные…</td>
         </tr>
     `;
 }
@@ -133,6 +133,7 @@ function buildRow(item) {
     const userId = item.user_id || '';
 
     const totalPoints = Number.isFinite(Number(item.total_points)) ? Number(item.total_points) : 0;
+    const accruedPoints = Number.isFinite(Number(item.points_accrued_total)) ? Number(item.points_accrued_total) : 0;
 
     return `
         <tr>
@@ -187,6 +188,20 @@ function buildRow(item) {
                 </div>
             </td>
             <td>
+                <div class="accrued-points-cell" data-voter-token="${escapeHtml(item.voter_token)}">
+                    <input
+                        type="number"
+                        inputmode="numeric"
+                        step="1"
+                        class="accrued-points-input"
+                        value="${escapeHtml(accruedPoints)}"
+                        data-initial-value="${escapeHtml(accruedPoints)}"
+                        disabled
+                    />
+                    <button type="button" class="accrued-points-toggle" data-mode="view">Редактировать</button>
+                </div>
+            </td>
+            <td>
                 <div class="updated-at" data-updated-at="${escapeHtml(item.updated_at || '')}">${formatDateTime(item.updated_at)}</div>
                 <div class="admin-hint">Создан: ${formatDateTime(item.created_at, false)}</div>
             </td>
@@ -206,7 +221,7 @@ function renderTable(items = []) {
     if (!items.length) {
         elements.tableBody.innerHTML = `
             <tr>
-                <td colspan="7">По текущим фильтрам ничего не найдено.</td>
+                <td colspan="8">По текущим фильтрам ничего не найдено.</td>
             </tr>
         `;
         return;
@@ -503,6 +518,31 @@ function exitPointsEditing(container, { resetValue = false } = {}) {
     input.disabled = true;
 }
 
+function enterAccruedPointsEditing(container) {
+    const input = container?.querySelector('.accrued-points-input');
+    const button = container?.querySelector('.accrued-points-toggle');
+    if (!input || !button) return;
+    container.classList.add('is-editing');
+    button.dataset.mode = 'editing';
+    button.textContent = 'Сохранить';
+    input.disabled = false;
+    input.focus();
+    input.select();
+}
+
+function exitAccruedPointsEditing(container, { resetValue = false } = {}) {
+    const input = container?.querySelector('.accrued-points-input');
+    const button = container?.querySelector('.accrued-points-toggle');
+    if (!input || !button) return;
+    container.classList.remove('is-editing');
+    button.dataset.mode = 'view';
+    button.textContent = 'Редактировать';
+    if (resetValue) {
+        input.value = input.dataset.initialValue || '0';
+    }
+    input.disabled = true;
+}
+
 function enterUserIdEditing(container) {
     const input = container?.querySelector('.user-id-input');
     const button = container?.querySelector('.user-id-toggle');
@@ -710,7 +750,7 @@ async function savePoints(container) {
 
     const trimmed = input.value.trim();
     if (trimmed === '') {
-        setMessage('Введите количество баллов.', 'error');
+        setMessage('Введите баланс баллов.', 'error');
         input.focus();
         return;
     }
@@ -726,7 +766,7 @@ async function savePoints(container) {
 
     button.disabled = true;
     input.disabled = true;
-    setMessage('Сохраняем баллы…');
+    setMessage('Сохраняем баланс баллов…');
 
     try {
         const response = await fetch(buildPollApiUrl(`/api/polls/voter-stats/${encodeURIComponent(token)}/points`), {
@@ -777,11 +817,100 @@ async function savePoints(container) {
         input.value = newValue;
         input.dataset.initialValue = String(newValue);
         exitPointsEditing(container);
-        setMessage('Баллы обновлены.', 'success');
+        setMessage('Баланс баллов обновлен.', 'success');
         updateRowMeta(container, data);
     } catch (error) {
         console.error('Ошибка обновления баллов', error);
         const userMessage = error?.message?.trim() || 'Не удалось обновить баллы.';
+        setMessage(userMessage, 'error');
+        input.disabled = false;
+        button.disabled = false;
+        return;
+    }
+
+    button.disabled = false;
+}
+
+async function saveAccruedPoints(container) {
+    const token = container?.dataset.voterToken;
+    const input = container?.querySelector('.accrued-points-input');
+    const button = container?.querySelector('.accrued-points-toggle');
+    if (!token || !input || !button) return;
+
+    const trimmed = input.value.trim();
+    if (trimmed === '') {
+        setMessage('Введите накопленные баллы.', 'error');
+        input.focus();
+        return;
+    }
+
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+        setMessage('Накопленные баллы должны быть целым числом.', 'error');
+        input.focus();
+        return;
+    }
+
+    const normalized = parsed;
+
+    button.disabled = true;
+    input.disabled = true;
+    setMessage('Сохраняем накопленные баллы…');
+
+    try {
+        const response = await fetch(buildPollApiUrl(`/api/polls/voter-stats/${encodeURIComponent(token)}/points-accrued`), {
+            method: 'PATCH',
+            headers: buildHeaders({ 'Content-Type': 'application/json' }),
+            credentials: 'include',
+            body: JSON.stringify({ points_accrued_total: normalized })
+        });
+
+        if (!response.ok) {
+            let errorDetail = '';
+            try {
+                const errorData = await response.json();
+                if (typeof errorData === 'string') {
+                    errorDetail = errorData;
+                } else {
+                    errorDetail = errorData?.error || errorData?.message || '';
+                }
+            } catch (jsonError) {
+                try {
+                    errorDetail = (await response.text())?.trim();
+                } catch (textError) {
+                    errorDetail = '';
+                }
+            }
+            const statusText = response.statusText ? ` (${response.statusText})` : '';
+            const errorMessage = `Сервер вернул ${response.status}${statusText}${errorDetail ? `: ${errorDetail}` : ''}`;
+            throw new Error(errorMessage);
+        }
+
+        let data;
+        try {
+            data = await response.json();
+        } catch (jsonError) {
+            let rawText = '';
+            try {
+                rawText = (await response.text())?.trim();
+            } catch (textError) {
+                rawText = '';
+            }
+            const errorMessage = rawText
+                ? `Не удалось распарсить ответ сервера: ${rawText}`
+                : 'Не удалось распарсить ответ сервера.';
+            throw new Error(errorMessage);
+        }
+
+        const newValue = Number.isFinite(Number(data.points_accrued_total)) ? Number(data.points_accrued_total) : 0;
+        input.value = newValue;
+        input.dataset.initialValue = String(newValue);
+        exitAccruedPointsEditing(container);
+        setMessage('Накопленные баллы обновлены.', 'success');
+        updateRowMeta(container, data);
+    } catch (error) {
+        console.error('Ошибка обновления накопленных баллов', error);
+        const userMessage = error?.message?.trim() || 'Не удалось обновить накопленные баллы.';
         setMessage(userMessage, 'error');
         input.disabled = false;
         button.disabled = false;
@@ -872,6 +1001,33 @@ function handlePointsKeydown(event) {
     }
 }
 
+function handleAccruedPointsClick(event) {
+    const button = event.target.closest('.accrued-points-toggle');
+    if (!button) return;
+    const container = button.closest('.accrued-points-cell');
+    if (!container) return;
+    if (button.dataset.mode === 'editing') {
+        saveAccruedPoints(container);
+    } else {
+        enterAccruedPointsEditing(container);
+    }
+}
+
+function handleAccruedPointsKeydown(event) {
+    const input = event.target.closest('.accrued-points-input');
+    if (!input) return;
+    const container = input.closest('.accrued-points-cell');
+    const button = container?.querySelector('.accrued-points-toggle');
+    if (!container || !button) return;
+    if (event.key === 'Enter' && button.dataset.mode === 'editing') {
+        event.preventDefault();
+        saveAccruedPoints(container);
+    } else if (event.key === 'Escape') {
+        event.preventDefault();
+        exitAccruedPointsEditing(container, { resetValue: true });
+    }
+}
+
 function attachEvents() {
     elements.filtersForm?.addEventListener('submit', handleFiltersSubmit);
     elements.resetFilters?.addEventListener('click', handleResetFilters);
@@ -887,6 +1043,8 @@ function attachEvents() {
     elements.tableBody?.addEventListener('keydown', handleDeviceLabelKeydown);
     elements.tableBody?.addEventListener('click', handlePointsClick);
     elements.tableBody?.addEventListener('keydown', handlePointsKeydown);
+    elements.tableBody?.addEventListener('click', handleAccruedPointsClick);
+    elements.tableBody?.addEventListener('keydown', handleAccruedPointsKeydown);
     elements.perPageSelect?.addEventListener('change', (event) => {
         const value = parseInt(event.target.value, 10);
         if (!Number.isNaN(value)) {

@@ -1756,6 +1756,7 @@ def list_voter_stats():
             'user_id': PollVoterProfile.user_id,
             'device_label': PollVoterProfile.device_label,
             'total_points': PollVoterProfile.total_points,
+            'points_accrued_total': PollVoterProfile.points_accrued_total,
             'created_at': PollVoterProfile.created_at,
             'updated_at': PollVoterProfile.updated_at,
         }
@@ -1797,6 +1798,7 @@ def list_voter_stats():
                 'user_id': profile.user_id,
                 'device_label': profile.device_label,
                 'total_points': profile.total_points or 0,
+                'points_accrued_total': profile.points_accrued_total or 0,
                 'filtered_points': filtered_points,
                 'created_at': profile.created_at.isoformat() if profile.created_at else None,
                 'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
@@ -1843,6 +1845,7 @@ def voter_stats_details(voter_token):
         'user_id': profile.user_id,
         'device_label': profile.device_label,
         'total_points': profile.total_points or 0,
+        'points_accrued_total': profile.points_accrued_total or 0,
         'filtered_points': filtered_points,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
@@ -1880,6 +1883,7 @@ def update_voter_device_label(voter_token):
         'user_id': profile.user_id,
         'device_label': profile.device_label,
         'total_points': profile.total_points or 0,
+        'points_accrued_total': profile.points_accrued_total or 0,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
     }
@@ -1907,6 +1911,7 @@ def update_voter_total_points(voter_token):
         'user_id': profile.user_id,
         'device_label': profile.device_label,
         'total_points': profile.total_points or 0,
+        'points_accrued_total': profile.points_accrued_total or 0,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
     }
@@ -1936,6 +1941,35 @@ def update_voter_user_id(voter_token):
         'user_id': profile.user_id,
         'device_label': profile.device_label,
         'total_points': profile.total_points or 0,
+        'points_accrued_total': profile.points_accrued_total or 0,
+        'created_at': profile.created_at.isoformat() if profile.created_at else None,
+        'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
+    }
+
+    return prevent_caching(jsonify(payload))
+
+
+@api_bp.route('/polls/voter-stats/<string:voter_token>/points-accrued', methods=['PATCH'])
+def update_voter_points_accrued_total(voter_token):
+    data = _get_json_payload()
+    if data is None or 'points_accrued_total' not in data:
+        return jsonify({'error': 'Передайте points_accrued_total в теле запроса'}), 400
+
+    new_value = data.get('points_accrued_total')
+    if isinstance(new_value, bool) or not isinstance(new_value, int):
+        return jsonify({'error': 'points_accrued_total должен быть целым числом'}), 400
+
+    profile = PollVoterProfile.query.get_or_404(voter_token)
+    profile.points_accrued_total = new_value
+    profile.updated_at = datetime.utcnow()
+    db.session.commit()
+
+    payload = {
+        'voter_token': profile.token,
+        'user_id': profile.user_id,
+        'device_label': profile.device_label,
+        'total_points': profile.total_points or 0,
+        'points_accrued_total': profile.points_accrued_total or 0,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
     }
