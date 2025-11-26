@@ -75,6 +75,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             ?.split('=')[1] || '';
     };
 
+    const normalizeUserId = (value) => {
+        if (value === undefined || value === null) return '';
+        const normalized = String(value).trim();
+        return normalized ? normalized.slice(0, 128) : '';
+    };
+
     const pointsBalanceCard = document.getElementById('points-widget');
     const pointsBalanceLabel = document.getElementById('points-balance-label');
     const pointsBalanceValue = document.getElementById('points-balance-value');
@@ -164,12 +170,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const getActiveMovies = (movies) => {
         if (!Array.isArray(movies)) return [];
         return movies.filter(movie => !isMovieBanned(movie));
-    };
-
-    const normalizeUserId = (value) => {
-        if (value === undefined || value === null) return '';
-        const normalized = String(value).trim();
-        return normalized ? normalized.slice(0, 128) : '';
     };
 
     const readRecentUserIds = () => {
