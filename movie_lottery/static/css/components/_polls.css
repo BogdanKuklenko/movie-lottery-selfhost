@@ -94,12 +94,9 @@
 
 .poll-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 16px;
-    justify-content: center;
-    flex-wrap: wrap;
     padding-top: 4px;
-    text-align: center;
 }
 
 .logout-button {
@@ -117,6 +114,15 @@
     border: 1px solid rgba(255, 215, 0, 0.2);
     transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
     flex-shrink: 0;
+}
+
+.poll-header-text {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1 1 0;
+    text-align: center;
+    align-items: center;
 }
 
 .logout-button:hover {
@@ -154,6 +160,7 @@
     }
 
     .logout-button {
+        align-self: center;
         width: 38px;
         height: 38px;
         border-radius: 10px;
