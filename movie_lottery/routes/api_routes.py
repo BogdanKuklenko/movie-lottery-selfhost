@@ -28,6 +28,8 @@ from ..utils.helpers import (
     build_external_url,
     build_telegram_share_url,
     ensure_voter_profile,
+    ensure_voter_profile_for_user,
+    rotate_voter_token,
     change_voter_points_balance,
     prevent_caching,
     ensure_poll_tables,
@@ -42,6 +44,10 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 POLL_CREATOR_COOKIE = 'poll_creator_token'
 POLL_CREATOR_HEADER = 'X-Poll-Creator-Token'
 POLL_CREATOR_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
+VOTER_TOKEN_COOKIE = 'voter_token'
+VOTER_USER_ID_COOKIE = 'voter_user_id'
+VOTER_USER_ID_HEADER = 'X-Poll-User-Id'
+VOTER_COOKIE_MAX_AGE = 60 * 60 * 24 * 30  # 30 days
 _CREATOR_TOKEN_RE = re.compile(r'^[a-f0-9]{32}$', re.IGNORECASE)
 
 
@@ -158,6 +164,62 @@ def _set_creator_cookie(response, token):
     return response
 
 
+def _normalize_user_id(raw_value):
+    if raw_value is None:
+        return None
+
+    user_id = str(raw_value).strip()
+    return user_id[:128] if user_id else None
+
+
+def _read_user_id_from_request():
+    raw_user_id = request.cookies.get(VOTER_USER_ID_COOKIE) or request.headers.get(VOTER_USER_ID_HEADER)
+    return _normalize_user_id(raw_user_id)
+
+
+def _set_voter_cookies(response, voter_token, user_id=None):
+    if not response or not voter_token:
+        return response
+
+    response.set_cookie(
+        VOTER_TOKEN_COOKIE,
+        voter_token,
+        max_age=VOTER_COOKIE_MAX_AGE,
+        samesite='Lax',
+        secure=request.is_secure,
+    )
+
+    if user_id:
+        response.set_cookie(
+            VOTER_USER_ID_COOKIE,
+            user_id,
+            max_age=VOTER_COOKIE_MAX_AGE,
+            samesite='Lax',
+            secure=request.is_secure,
+        )
+
+    return response
+
+
+def _resolve_voter_identity():
+    device_label = _resolve_device_label()
+    user_id = _read_user_id_from_request()
+
+    if user_id:
+        profile = ensure_voter_profile_for_user(user_id, device_label=device_label)
+        voter_token = profile.token
+    else:
+        voter_token = request.cookies.get(VOTER_TOKEN_COOKIE) or secrets.token_hex(16)
+        profile = ensure_voter_profile(voter_token, device_label=device_label)
+
+    return {
+        'voter_token': voter_token,
+        'profile': profile,
+        'user_id': user_id,
+        'device_label': device_label,
+    }
+
+
 @api_bp.route('/polls/settings', methods=['GET'])
 def get_poll_settings_api():
     settings = get_poll_settings()
@@ -183,6 +245,89 @@ def update_poll_settings_api():
         return jsonify({'error': 'Сервис настроек временно недоступен'}), 503
 
     return prevent_caching(jsonify(_serialize_poll_settings(settings)))
+
+
+@api_bp.route('/polls/auth/login', methods=['POST'])
+def login_with_user_id():
+    data = _get_json_payload()
+    if data is None or 'user_id' not in data:
+        return jsonify({'error': 'Передайте user_id в теле запроса'}), 400
+
+    user_id = _normalize_user_id(data.get('user_id'))
+    if not user_id:
+        return jsonify({'error': 'Некорректный user_id'}), 400
+
+    raw_label = data.get('device_label') if isinstance(data, dict) else None
+    device_label = None
+    if isinstance(raw_label, str):
+        trimmed = raw_label.strip()
+        if trimmed:
+            device_label = trimmed[:255]
+
+    if device_label is None:
+        device_label = _resolve_device_label()
+
+    try:
+        profile = ensure_voter_profile_for_user(user_id, device_label=device_label)
+        db.session.commit()
+    except ValueError:
+        return jsonify({'error': 'user_id обязателен'}), 400
+
+    payload = {
+        'user_id': user_id,
+        'voter_token': profile.token,
+        'device_label': profile.device_label,
+        'points_balance': profile.total_points or 0,
+        'created_at': profile.created_at.isoformat() if profile.created_at else None,
+        'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
+    }
+
+    response = prevent_caching(jsonify(payload))
+    return _set_voter_cookies(response, profile.token, user_id)
+
+
+@api_bp.route('/polls/auth/logout', methods=['POST'])
+def logout_with_user_id():
+    data = _get_json_payload() or {}
+    user_id = _normalize_user_id(data.get('user_id') if isinstance(data, dict) else None) or _read_user_id_from_request()
+    if not user_id:
+        return jsonify({'error': 'user_id обязателен'}), 400
+
+    raw_label = data.get('device_label') if isinstance(data, dict) else None
+    device_label = None
+    if isinstance(raw_label, str):
+        trimmed = raw_label.strip()
+        if trimmed:
+            device_label = trimmed[:255]
+
+    if device_label is None:
+        device_label = _resolve_device_label()
+
+    try:
+        profile = ensure_voter_profile_for_user(user_id, device_label=device_label)
+        previous_token = profile.token
+        new_token = rotate_voter_token(profile)
+        db.session.commit()
+    except ValueError:
+        return jsonify({'error': 'user_id обязателен'}), 400
+    except (ProgrammingError, OperationalError):
+        db.session.rollback()
+        return jsonify({'error': 'Сервис временно недоступен'}), 503
+
+    payload = {
+        'success': True,
+        'user_id': user_id,
+        'voter_token': profile.token,
+        'previous_token': previous_token,
+        'rotated_token': new_token,
+        'points_balance': profile.total_points or 0,
+        'device_label': profile.device_label,
+        'created_at': profile.created_at.isoformat() if profile.created_at else None,
+        'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
+    }
+
+    response = prevent_caching(jsonify(payload))
+    return _set_voter_cookies(response, profile.token, user_id)
 
 
 def _parse_iso_date(raw_value, for_end=False):
@@ -232,6 +377,7 @@ def _prepare_voter_filters(args):
     token = (args.get('token') or '').strip()
     poll_id = (args.get('poll_id') or '').strip()
     device_label = (args.get('device_label') or '').strip()
+    user_id = _normalize_user_id(args.get('user_id'))
     date_from = _parse_iso_date(args.get('date_from'))
     date_to = _parse_iso_date(args.get('date_to'), for_end=True)
 
@@ -241,6 +387,7 @@ def _prepare_voter_filters(args):
         'token': token,
         'poll_id': poll_id,
         'device_label': device_label,
+        'user_id': user_id,
         'date_from': date_from,
         'date_to': date_to,
         'requires_vote_filters': requires_vote_filters,
@@ -792,13 +939,10 @@ def get_poll(poll_id):
 
     poll_settings = get_poll_settings()
 
-    # Получаем токен голосующего из cookie или генерируем новый
-    voter_token = request.cookies.get('voter_token')
-    if not voter_token:
-        voter_token = secrets.token_hex(16)
-
-    device_label = _resolve_device_label()
-    profile = ensure_voter_profile(voter_token, device_label=device_label)
+    identity = _resolve_voter_identity()
+    voter_token = identity['voter_token']
+    profile = identity['profile']
+    user_id = identity['user_id']
     points_balance = profile.total_points or 0
     db.session.commit()
 
@@ -847,6 +991,7 @@ def get_poll(poll_id):
         "points_balance": points_balance,
         "points_earned_total": points_earned_total,
         "voter_token": voter_token,
+        "user_id": user_id,
         "custom_vote_cost": custom_vote_cost,
         "custom_vote_cost_updated_at": poll_settings.updated_at.isoformat() + "Z" if poll_settings and poll_settings.updated_at else None,
         "can_vote_custom": can_vote_custom,
@@ -856,11 +1001,7 @@ def get_poll(poll_id):
         "poll_settings": _serialize_poll_settings(poll_settings),
     }))
 
-    # Устанавливаем cookie с токеном голосующего
-    if not request.cookies.get('voter_token'):
-        response.set_cookie('voter_token', voter_token, max_age=60*60*24*30)  # 30 дней
-
-    return response
+    return _set_voter_cookies(response, voter_token, user_id)
 
 
 @api_bp.route('/polls/<poll_id>/vote', methods=['POST'])
@@ -895,12 +1036,10 @@ def vote_in_poll(poll_id):
     if getattr(movie, 'is_banned', False):
         return jsonify({"error": "Фильм заблокирован для голосования"}), 403
     
-    # Получаем или создаём токен голосующего
-    voter_token = request.cookies.get('voter_token')
-    if not voter_token:
-        voter_token = secrets.token_hex(16)
-
-    device_label = _resolve_device_label()
+    identity = _resolve_voter_identity()
+    voter_token = identity['voter_token']
+    device_label = identity['device_label']
+    user_id = identity['user_id']
 
     # Проверяем, не голосовал ли уже этот пользователь
     existing_vote = Vote.query.filter_by(poll_id=poll_id, voter_token=voter_token).first()
@@ -940,12 +1079,8 @@ def vote_in_poll(poll_id):
         "points_balance": new_balance,
         "voted_movie": _serialize_poll_movie(movie),
     }))
-    
-    # Устанавливаем cookie с токеном
-    if not request.cookies.get('voter_token'):
-        response.set_cookie('voter_token', voter_token, max_age=60*60*24*30)
 
-    return response
+    return _set_voter_cookies(response, voter_token, user_id)
 
 
 @api_bp.route('/polls/<poll_id>/ban', methods=['POST'])
@@ -990,9 +1125,11 @@ def ban_poll_movie(poll_id):
     if not movie.is_banned and len(active_movies_before) <= 1:
         return jsonify({"error": "Нельзя забанить последний фильм"}), 409
 
-    voter_token = request.cookies.get('voter_token') or secrets.token_hex(16)
-    device_label = _resolve_device_label()
-    profile = ensure_voter_profile(voter_token, device_label=device_label)
+    identity = _resolve_voter_identity()
+    voter_token = identity['voter_token']
+    device_label = identity['device_label']
+    user_id = identity['user_id']
+    profile = identity['profile']
     balance_before = profile.total_points or 0
 
     # Получаем индивидуальную цену за месяц бана из библиотеки
@@ -1054,10 +1191,7 @@ def ban_poll_movie(poll_id):
         "library_ban": library_ban_data,
     }))
 
-    if not request.cookies.get('voter_token'):
-        response.set_cookie('voter_token', voter_token, max_age=60*60*24*30)
-
-    return response
+    return _set_voter_cookies(response, voter_token, user_id)
 
 
 @api_bp.route('/polls/<poll_id>/custom-vote', methods=['POST'])
@@ -1086,14 +1220,16 @@ def custom_vote(poll_id):
 
     kinopoisk_id = payload.get('kinopoisk_id')
 
-    voter_token = request.cookies.get('voter_token') or secrets.token_hex(16)
-    device_label = _resolve_device_label()
+    identity = _resolve_voter_identity()
+    voter_token = identity['voter_token']
+    device_label = identity['device_label']
+    user_id = identity['user_id']
 
     existing_vote = Vote.query.filter_by(poll_id=poll_id, voter_token=voter_token).first()
     if existing_vote:
         return jsonify({"error": "Вы уже проголосовали в этом опросе"}), 400
 
-    profile = ensure_voter_profile(voter_token, device_label=device_label)
+    profile = identity['profile']
     cost = _get_custom_vote_cost()
     current_balance = profile.total_points or 0
 
@@ -1178,10 +1314,7 @@ def custom_vote(poll_id):
         "has_voted": True,
     }))
 
-    if not request.cookies.get('voter_token'):
-        response.set_cookie('voter_token', voter_token, max_age=60*60*24*30)
-
-    return response
+    return _set_voter_cookies(response, voter_token, user_id)
 
 
 @api_bp.route('/polls/<poll_id>/results', methods=['GET'])
@@ -1486,6 +1619,7 @@ def list_voter_stats():
 
         sort_map = {
             'token': PollVoterProfile.token,
+            'user_id': PollVoterProfile.user_id,
             'device_label': PollVoterProfile.device_label,
             'total_points': PollVoterProfile.total_points,
             'created_at': PollVoterProfile.created_at,
@@ -1503,6 +1637,9 @@ def list_voter_stats():
 
         if filters['device_label']:
             query = query.filter(PollVoterProfile.device_label.ilike(f"%{filters['device_label']}%"))
+
+        if filters['user_id']:
+            query = query.filter(PollVoterProfile.user_id.ilike(f"%{filters['user_id']}%"))
 
         if filters['requires_vote_filters']:
             query = query.join(PollVoterProfile.votes)
@@ -1523,6 +1660,7 @@ def list_voter_stats():
             last_vote_at = votes[0]['voted_at'] if votes else None
             items.append({
                 'voter_token': profile.token,
+                'user_id': profile.user_id,
                 'device_label': profile.device_label,
                 'total_points': profile.total_points or 0,
                 'filtered_points': filtered_points,
@@ -1568,6 +1706,7 @@ def voter_stats_details(voter_token):
 
     payload = {
         'voter_token': profile.token,
+        'user_id': profile.user_id,
         'device_label': profile.device_label,
         'total_points': profile.total_points or 0,
         'filtered_points': filtered_points,
