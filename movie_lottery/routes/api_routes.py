@@ -313,7 +313,7 @@ def login_with_user_id():
     }
 
     response = prevent_caching(jsonify(payload))
-    return _set_voter_cookies(response, profile.token, user_id)
+    return _set_voter_cookies(response, profile.token, profile.user_id)
 
 
 @api_bp.route('/polls/auth/register', methods=['POST'])
@@ -377,33 +377,37 @@ def register_user_id():
     }
 
     response = prevent_caching(jsonify(payload))
-    return _set_voter_cookies(response, profile.token, user_id)
+    return _set_voter_cookies(response, profile.token, profile.user_id)
 
 
 @api_bp.route('/polls/auth/logout', methods=['POST'])
 def logout_with_user_id():
     data = _get_json_payload() or {}
-    user_id = _normalize_user_id(data.get('user_id') if isinstance(data, dict) else None) or _read_user_id_from_request()
-    if not user_id:
-        return jsonify({'error': 'user_id обязателен'}), 400
-
     raw_label = data.get('device_label') if isinstance(data, dict) else None
     device_label = _normalize_device_label(raw_label) or _resolve_device_label()
+    voter_token = request.cookies.get(VOTER_TOKEN_COOKIE)
+    user_id = _normalize_user_id(data.get('user_id') if isinstance(data, dict) else None) or _read_user_id_from_request()
 
     try:
-        profile = ensure_voter_profile_for_user(user_id, device_label=device_label)
+        if user_id:
+            profile = ensure_voter_profile_for_user(user_id, device_label=device_label)
+        elif voter_token:
+            profile = ensure_voter_profile(voter_token, device_label=device_label)
+        else:
+            return jsonify({'error': 'Не удалось определить профиль для выхода'}), 400
+
         previous_token = profile.token
         new_token = rotate_voter_token(profile)
         db.session.commit()
     except ValueError:
-        return jsonify({'error': 'user_id обязателен'}), 400
+        return jsonify({'error': 'Не удалось определить профиль для выхода'}), 400
     except (ProgrammingError, OperationalError):
         db.session.rollback()
         return jsonify({'error': 'Сервис временно недоступен'}), 503
 
     payload = {
         'success': True,
-        'user_id': user_id,
+        'user_id': profile.user_id,
         'voter_token': profile.token,
         'previous_token': previous_token,
         'rotated_token': new_token,
@@ -414,7 +418,7 @@ def logout_with_user_id():
     }
 
     response = prevent_caching(jsonify(payload))
-    return _set_voter_cookies(response, profile.token, user_id)
+    return _set_voter_cookies(response, profile.token, profile.user_id)
 
 
 def _parse_iso_date(raw_value, for_end=False):

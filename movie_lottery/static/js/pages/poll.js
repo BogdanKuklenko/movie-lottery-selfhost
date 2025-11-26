@@ -1302,20 +1302,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         setLogoutButtonBusy(true);
 
         try {
+            const requestPayload = {};
+            if (lastKnownUserId) {
+                requestPayload.user_id = lastKnownUserId;
+            }
+
             const response = await fetch(buildPollApiUrl('/api/polls/auth/logout'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
+                body: JSON.stringify(requestPayload),
             });
 
             const payload = await response.json().catch(() => ({}));
-            if (!response.ok) {
+            if (!response.ok || payload?.success === false) {
                 throw new Error(payload?.error || 'Не удалось выполнить выход.');
             }
 
             lastKnownUserId = normalizeUserId(payload.user_id) || lastKnownUserId;
             resetVoterSessionState();
-            showToast('Сеанс сброшен. Выберите ID заново.', 'info');
+            const successMessage = payload.user_id
+                ? 'Сеанс сброшен. Выберите ID заново.'
+                : 'Сеанс сброшен. Можно выбрать новый ID.';
+            showToast(successMessage, 'info');
             openUserSwitchModal({ suggestedId: lastKnownUserId });
         } catch (error) {
             console.error('Ошибка выхода из профиля:', error);
