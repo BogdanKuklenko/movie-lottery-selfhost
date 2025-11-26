@@ -1830,6 +1830,7 @@ def update_voter_device_label(voter_token):
 
     payload = {
         'voter_token': profile.token,
+        'user_id': profile.user_id,
         'device_label': profile.device_label,
         'total_points': profile.total_points or 0,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
@@ -1856,6 +1857,36 @@ def update_voter_total_points(voter_token):
 
     payload = {
         'voter_token': profile.token,
+        'user_id': profile.user_id,
+        'device_label': profile.device_label,
+        'total_points': profile.total_points or 0,
+        'created_at': profile.created_at.isoformat() if profile.created_at else None,
+        'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
+    }
+
+    return prevent_caching(jsonify(payload))
+
+
+@api_bp.route('/polls/voter-stats/<string:voter_token>/user-id', methods=['PATCH'])
+def update_voter_user_id(voter_token):
+    data = _get_json_payload()
+    if data is None or 'user_id' not in data:
+        return jsonify({'error': 'Передайте user_id в теле запроса'}), 400
+
+    raw_user_id = data.get('user_id')
+    if raw_user_id is not None and not isinstance(raw_user_id, (str, int)):
+        return jsonify({'error': 'user_id должен быть строкой или null'}), 400
+
+    normalized_user_id = _normalize_user_id(raw_user_id)
+
+    profile = PollVoterProfile.query.get_or_404(voter_token)
+    profile.user_id = normalized_user_id
+    profile.updated_at = datetime.utcnow()
+    db.session.commit()
+
+    payload = {
+        'voter_token': profile.token,
+        'user_id': profile.user_id,
         'device_label': profile.device_label,
         'total_points': profile.total_points or 0,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,

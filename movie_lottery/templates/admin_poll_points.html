@@ -59,6 +59,10 @@
                     <input type="text" id="token-filter" placeholder="Часть токена или полный токен">
                 </label>
                 <label>
+                    <span>User ID</span>
+                    <input type="text" id="user-id-filter" placeholder="Идентификатор пользователя">
+                </label>
+                <label>
                     <span>Poll ID</span>
                     <input type="text" id="poll-filter" placeholder="Например, 8-символьный id">
                 </label>
@@ -98,6 +102,7 @@
                     <thead>
                         <tr>
                             <th data-sort="token">Токен</th>
+                            <th data-sort="user_id">User ID</th>
                             <th data-sort="device_label">Устройство</th>
                             <th data-sort="total_points">Баллы (всего)</th>
                             <th data-sort="updated_at">Обновлён</th>
@@ -107,7 +112,7 @@
                     </thead>
                     <tbody id="stats-table-body">
                         <tr>
-                            <td colspan="6">Данные загружаются…</td>
+                            <td colspan="7">Данные загружаются…</td>
                         </tr>
                     </tbody>
                 </table>

@@ -6,6 +6,7 @@ const state = {
     sortBy: 'updated_at',
     sortOrder: 'desc',
     token: '',
+    userId: '',
     pollId: '',
     deviceLabel: '',
     dateFrom: '',
@@ -23,6 +24,7 @@ function initElements() {
     elements.resetFilters = document.getElementById('reset-filters');
     elements.perPageSelect = document.getElementById('per-page-select');
     elements.tokenFilter = document.getElementById('token-filter');
+    elements.userIdFilter = document.getElementById('user-id-filter');
     elements.pollFilter = document.getElementById('poll-filter');
     elements.deviceFilter = document.getElementById('device-filter');
     elements.dateFrom = document.getElementById('date-from');
@@ -46,7 +48,7 @@ function setLoadingState() {
     if (!elements.tableBody) return;
     elements.tableBody.innerHTML = `
         <tr>
-            <td colspan="6">Загружаем данные…</td>
+            <td colspan="7">Загружаем данные…</td>
         </tr>
     `;
 }
@@ -128,6 +130,7 @@ function buildRow(item) {
         : '<span class="badge">—</span>';
     const lastVote = votes.length ? votes[0].voted_at : null;
     const deviceLabel = item.device_label || '';
+    const userId = item.user_id || '';
 
     const totalPoints = Number.isFinite(Number(item.total_points)) ? Number(item.total_points) : 0;
 
@@ -139,6 +142,20 @@ function buildRow(item) {
                     <div class="details-actions">
                         <button type="button" class="copy-button" data-copy-token="${escapeHtml(item.voter_token)}">Скопировать</button>
                     </div>
+                </div>
+            </td>
+            <td>
+                <div class="user-id-cell" data-voter-token="${escapeHtml(item.voter_token)}">
+                    <input
+                        type="text"
+                        class="user-id-input"
+                        value="${escapeHtml(userId)}"
+                        data-initial-value="${escapeHtml(userId)}"
+                        placeholder="Без user ID"
+                        maxlength="128"
+                        disabled
+                    />
+                    <button type="button" class="user-id-toggle" data-mode="view">Редактировать</button>
                 </div>
             </td>
             <td>
@@ -189,7 +206,7 @@ function renderTable(items = []) {
     if (!items.length) {
         elements.tableBody.innerHTML = `
             <tr>
-                <td colspan="6">По текущим фильтрам ничего не найдено.</td>
+                <td colspan="7">По текущим фильтрам ничего не найдено.</td>
             </tr>
         `;
         return;
@@ -230,6 +247,7 @@ function buildHeaders(extra = {}) {
 
 function collectFiltersFromForm() {
     state.token = elements.tokenFilter?.value.trim() || '';
+    state.userId = elements.userIdFilter?.value.trim() || '';
     state.pollId = elements.pollFilter?.value.trim() || '';
     state.deviceLabel = elements.deviceFilter?.value.trim() || '';
     state.dateFrom = elements.dateFrom?.value || '';
@@ -315,6 +333,7 @@ async function fetchStats() {
     });
 
     if (state.token) params.set('token', state.token);
+    if (state.userId) params.set('user_id', state.userId);
     if (state.pollId) params.set('poll_id', state.pollId);
     if (state.deviceLabel) params.set('device_label', state.deviceLabel);
     if (state.dateFrom) params.set('date_from', state.dateFrom);
@@ -371,7 +390,7 @@ async function fetchStats() {
         if (elements.tableBody) {
             elements.tableBody.innerHTML = `
                 <tr>
-                    <td colspan="6">${escapeHtml(userMessage)}</td>
+                    <td colspan="7">${escapeHtml(userMessage)}</td>
                 </tr>
             `;
         }
@@ -391,6 +410,7 @@ function handleResetFilters() {
         elements.filtersForm.reset();
     }
     state.token = '';
+    state.userId = '';
     state.pollId = '';
     state.deviceLabel = '';
     state.dateFrom = '';
@@ -483,6 +503,31 @@ function exitPointsEditing(container, { resetValue = false } = {}) {
     input.disabled = true;
 }
 
+function enterUserIdEditing(container) {
+    const input = container?.querySelector('.user-id-input');
+    const button = container?.querySelector('.user-id-toggle');
+    if (!input || !button) return;
+    container.classList.add('is-editing');
+    button.dataset.mode = 'editing';
+    button.textContent = 'Сохранить';
+    input.disabled = false;
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+}
+
+function exitUserIdEditing(container, { resetValue = false } = {}) {
+    const input = container?.querySelector('.user-id-input');
+    const button = container?.querySelector('.user-id-toggle');
+    if (!input || !button) return;
+    container.classList.remove('is-editing');
+    button.dataset.mode = 'view';
+    button.textContent = 'Редактировать';
+    if (resetValue) {
+        input.value = input.dataset.initialValue || '';
+    }
+    input.disabled = true;
+}
+
 function updateRowMeta(container, profile) {
     const row = container?.closest('tr');
     if (!row || !profile) return;
@@ -566,6 +611,88 @@ async function saveDeviceLabel(container) {
     } catch (error) {
         console.error('Ошибка обновления метки устройства', error);
         const userMessage = error?.message?.trim() || 'Не удалось обновить метку устройства.';
+        setMessage(userMessage, 'error');
+        input.disabled = false;
+        button.disabled = false;
+        return;
+    }
+
+    button.disabled = false;
+}
+
+async function saveUserId(container) {
+    const token = container?.dataset.voterToken;
+    const input = container?.querySelector('.user-id-input');
+    const button = container?.querySelector('.user-id-toggle');
+    if (!token || !input || !button) return;
+
+    const trimmed = input.value.trim();
+    let normalized = trimmed ? trimmed.slice(0, 128) : null;
+    if (normalized !== null && trimmed.length > 128) {
+        input.value = normalized;
+    }
+    if (normalized === null) {
+        input.value = '';
+    }
+
+    button.disabled = true;
+    input.disabled = true;
+    setMessage('Сохраняем user ID…');
+
+    try {
+        const response = await fetch(buildPollApiUrl(`/api/polls/voter-stats/${encodeURIComponent(token)}/user-id`), {
+            method: 'PATCH',
+            headers: buildHeaders({ 'Content-Type': 'application/json' }),
+            credentials: 'include',
+            body: JSON.stringify({ user_id: normalized })
+        });
+
+        if (!response.ok) {
+            let errorDetail = '';
+            try {
+                const errorData = await response.json();
+                if (typeof errorData === 'string') {
+                    errorDetail = errorData;
+                } else {
+                    errorDetail = errorData?.error || errorData?.message || '';
+                }
+            } catch (jsonError) {
+                try {
+                    errorDetail = (await response.text())?.trim();
+                } catch (textError) {
+                    errorDetail = '';
+                }
+            }
+            const statusText = response.statusText ? ` (${response.statusText})` : '';
+            const errorMessage = `Сервер вернул ${response.status}${statusText}${errorDetail ? `: ${errorDetail}` : ''}`;
+            throw new Error(errorMessage);
+        }
+
+        let data;
+        try {
+            data = await response.json();
+        } catch (jsonError) {
+            let rawText = '';
+            try {
+                rawText = (await response.text())?.trim();
+            } catch (textError) {
+                rawText = '';
+            }
+            const errorMessage = rawText
+                ? `Не удалось распарсить ответ сервера: ${rawText}`
+                : 'Не удалось распарсить ответ сервера.';
+            throw new Error(errorMessage);
+        }
+
+        const newValue = data.user_id || '';
+        input.value = newValue;
+        input.dataset.initialValue = newValue;
+        exitUserIdEditing(container);
+        setMessage('User ID обновлен.', 'success');
+        updateRowMeta(container, data);
+    } catch (error) {
+        console.error('Ошибка обновления user ID', error);
+        const userMessage = error?.message?.trim() || 'Не удалось обновить user ID.';
         setMessage(userMessage, 'error');
         input.disabled = false;
         button.disabled = false;
@@ -691,6 +818,33 @@ function handleDeviceLabelKeydown(event) {
     }
 }
 
+function handleUserIdClick(event) {
+    const button = event.target.closest('.user-id-toggle');
+    if (!button) return;
+    const container = button.closest('.user-id-cell');
+    if (!container) return;
+    if (button.dataset.mode === 'editing') {
+        saveUserId(container);
+    } else {
+        enterUserIdEditing(container);
+    }
+}
+
+function handleUserIdKeydown(event) {
+    const input = event.target.closest('.user-id-input');
+    if (!input) return;
+    const container = input.closest('.user-id-cell');
+    const button = container?.querySelector('.user-id-toggle');
+    if (!container || !button) return;
+    if (event.key === 'Enter' && button.dataset.mode === 'editing') {
+        event.preventDefault();
+        saveUserId(container);
+    } else if (event.key === 'Escape') {
+        event.preventDefault();
+        exitUserIdEditing(container, { resetValue: true });
+    }
+}
+
 function handlePointsClick(event) {
     const button = event.target.closest('.points-toggle');
     if (!button) return;
@@ -727,6 +881,8 @@ function attachEvents() {
     elements.pollSettingsForm?.addEventListener('submit', savePollSettings);
     elements.table?.querySelector('thead')?.addEventListener('click', handleSort);
     elements.tableBody?.addEventListener('click', handleCopy);
+    elements.tableBody?.addEventListener('click', handleUserIdClick);
+    elements.tableBody?.addEventListener('keydown', handleUserIdKeydown);
     elements.tableBody?.addEventListener('click', handleDeviceLabelClick);
     elements.tableBody?.addEventListener('keydown', handleDeviceLabelKeydown);
     elements.tableBody?.addEventListener('click', handlePointsClick);
