@@ -9,6 +9,7 @@ from flask_cors import CORS
 import atexit
 
 from .diagnostic_middleware import start_diagnostics, checkpoint, finish_diagnostics
+from .cli import register_cli
 
 _diag = start_diagnostics()
 db = SQLAlchemy()
@@ -82,7 +83,7 @@ def create_app():
 
     from . import models
     checkpoint("Models imported")
-    
+
     from .routes.main_routes import main_bp
     checkpoint("main_routes imported")
     
@@ -92,6 +93,8 @@ def create_app():
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
     checkpoint("Blueprints registered")
+
+    register_cli(app)
     
     # Запускаем планировщик для очистки истёкших опросов
     # В продакшене (Gunicorn) или в режиме разработки, но не в reloader процессе
