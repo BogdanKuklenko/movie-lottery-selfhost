@@ -92,6 +92,50 @@
     padding: 20px;
 }
 
+.logout-button {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background: rgba(17, 19, 24, 0.78);
+    color: var(--secondary-color);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(10px);
+    z-index: 1200;
+    border: 1px solid rgba(255, 215, 0, 0.2);
+    transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+}
+
+.logout-button:hover {
+    transform: translateY(-1px);
+    background: rgba(25, 28, 34, 0.9);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    color: #fff4c2;
+}
+
+.logout-button:active {
+    transform: translateY(0);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.logout-button.logout-button-busy,
+.logout-button:disabled {
+    opacity: 0.75;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.logout-button .logout-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
 .poll-container {
     max-width: 1400px;
     margin: 0 auto;
@@ -857,6 +901,97 @@
     margin-top: 8px;
     color: #fbbf24;
     font-size: 13px;
+}
+
+/* --- Смена пользователя --- */
+.user-switch-content {
+    max-width: 480px;
+    width: 95%;
+    background: linear-gradient(135deg, rgba(24, 25, 35, 0.95), rgba(18, 21, 33, 0.95));
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 24px 50px rgba(0, 0, 0, 0.4);
+}
+
+.user-switch-description {
+    color: #cbd5e1;
+    margin-top: 4px;
+    margin-bottom: 18px;
+}
+
+.user-switch-label {
+    display: block;
+    font-size: 14px;
+    color: #e5e7eb;
+    margin-bottom: 8px;
+}
+
+.user-switch-input {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: #f8fafc;
+    font-size: 15px;
+}
+
+.user-switch-input:focus-visible {
+    outline: 2px solid rgba(255, 204, 0, 0.45);
+    outline-offset: 2px;
+}
+
+.user-switch-error {
+    color: #fca5a5;
+    margin-top: 8px;
+}
+
+.user-switch-actions {
+    margin-top: 22px;
+    gap: 12px;
+}
+
+.user-switch-suggestions {
+    margin-top: 14px;
+    padding: 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+}
+
+.user-switch-hint {
+    margin: 0 0 8px;
+    color: #cbd5e1;
+    font-size: 13px;
+}
+
+.user-switch-suggestions-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.user-switch-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #f8fafc;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.2s ease, border-color 0.2s ease;
+    font-size: 13px;
+}
+
+.user-switch-chip:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.user-switch-chip:active {
+    transform: translateY(0);
 }
 
 .vote-confirm-movie {
