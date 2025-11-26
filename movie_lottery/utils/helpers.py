@@ -725,8 +725,13 @@ def aggregate_positive_vote_points_by_tokens(voter_tokens):
         return None
 
 
-def rotate_voter_token(profile):
-    """Перевыпустить токен голосующего, обновив связанные голоса."""
+def rotate_voter_token(profile, update_votes=False):
+    """Перевыпустить токен голосующего.
+
+    По умолчанию голоса остаются привязанными к исходному токену, чтобы
+    сохранить историю начислений. При необходимости можно явно запросить
+    обновление связанных записей голосов, передав ``update_votes=True``.
+    """
     if not profile:
         return None
 
@@ -738,12 +743,18 @@ def rotate_voter_token(profile):
     if getattr(profile, '_is_fallback', False):
         return new_token
 
-    try:
-        Vote.query.filter_by(voter_token=old_token).update({'voter_token': new_token})
-        db.session.flush()
-    except (ProgrammingError, OperationalError) as exc:
-        fallback = _handle_missing_voter_table(exc, new_token, getattr(profile, 'device_label', None), getattr(profile, 'user_id', None))
-        return getattr(fallback, 'token', new_token)
+    if update_votes:
+        try:
+            Vote.query.filter_by(voter_token=old_token).update({'voter_token': new_token})
+            db.session.flush()
+        except (ProgrammingError, OperationalError) as exc:
+            fallback = _handle_missing_voter_table(
+                exc,
+                new_token,
+                getattr(profile, 'device_label', None),
+                getattr(profile, 'user_id', None),
+            )
+            return getattr(fallback, 'token', new_token)
 
     return new_token
 

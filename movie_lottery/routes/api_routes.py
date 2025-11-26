@@ -410,6 +410,8 @@ def logout_with_user_id():
     voter_token = request.cookies.get(VOTER_TOKEN_COOKIE)
     user_id = _normalize_user_id(data.get('user_id') if isinstance(data, dict) else None) or _read_user_id_from_request()
 
+    rotate_token = isinstance(data, dict) and bool(data.get('rotate_token'))
+
     try:
         if user_id:
             profile = ensure_voter_profile_for_user(user_id, device_label=device_label)
@@ -419,7 +421,7 @@ def logout_with_user_id():
             return jsonify({'error': 'Не удалось определить профиль для выхода'}), 400
 
         previous_token = profile.token
-        new_token = rotate_voter_token(profile)
+        new_token = rotate_voter_token(profile) if rotate_token else None
         db.session.commit()
     except ValueError:
         return jsonify({'error': 'Не удалось определить профиль для выхода'}), 400

@@ -279,6 +279,55 @@ def test_get_poll_restores_points_for_existing_token(app):
     assert restored_cookie.value == voter_token
 
 
+def test_points_total_survives_logout_with_same_token(app):
+    client = app.test_client()
+
+    polls = []
+    for idx in range(4):
+        response = _create_poll_via_api(
+            client,
+            [_build_movie(f'Movie {idx}A'), _build_movie(f'Movie {idx}B')],
+        )
+        polls.append(Poll.query.get(response.get_json()['poll_id']))
+
+    voter_token = '1234abcd' * 4
+
+    db.session.add(PollVoterProfile(token=voter_token, total_points=25))
+    for idx, poll in enumerate(polls, start=1):
+        db.session.add(
+            Vote(
+                poll_id=poll.id,
+                movie_id=poll.movies[0].id,
+                voter_token=voter_token,
+                points_awarded=idx,
+            )
+        )
+    db.session.commit()
+
+    client.set_cookie(api_routes.VOTER_TOKEN_COOKIE, voter_token)
+
+    initial_response = client.get(f'/api/polls/{polls[0].id}')
+    assert initial_response.status_code == 200
+    initial_payload = initial_response.get_json()
+    assert initial_payload['points_earned_total'] == sum(range(1, 5))
+
+    logout_response = client.post('/api/polls/auth/logout')
+    assert logout_response.status_code == 200
+    logout_payload = logout_response.get_json()
+    assert logout_payload['voter_token'] == voter_token
+    assert logout_payload['rotated_token'] is None
+
+    post_logout_response = client.get(
+        f'/api/polls/{polls[0].id}',
+        headers={api_routes.VOTER_TOKEN_HEADER: voter_token},
+    )
+
+    assert post_logout_response.status_code == 200
+    post_logout_payload = post_logout_response.get_json()
+    assert post_logout_payload['voter_token'] == voter_token
+    assert post_logout_payload['points_earned_total'] == sum(range(1, 5))
+
+
 def test_get_poll_uses_requested_token_history_with_user_id_cookie(app):
     client = app.test_client()
 
