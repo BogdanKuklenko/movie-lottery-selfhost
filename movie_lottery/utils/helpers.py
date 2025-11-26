@@ -5,7 +5,7 @@ from datetime import datetime
 from urllib.parse import urljoin, quote_plus
 
 from flask import current_app, url_for
-from sqlalchemy import inspect, text
+from sqlalchemy import func, inspect, text
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from .. import db
@@ -697,6 +697,32 @@ def ensure_voter_profile_for_user(user_id, device_label=None):
         return _handle_missing_voter_table(exc, profile.token, normalized_label, normalized_user_id)
 
     return profile
+
+
+def aggregate_positive_vote_points_by_tokens(voter_tokens):
+    """Вернуть сумму всех начисленных баллов (>0) по указанным токенам."""
+
+    cleaned_tokens = [token for token in voter_tokens if isinstance(token, str) and token.strip()]
+    if not cleaned_tokens:
+        return {}
+
+    try:
+        rows = (
+            db.session.query(
+                Vote.voter_token,
+                func.coalesce(func.sum(Vote.points_awarded), 0),
+            )
+            .filter(Vote.voter_token.in_(cleaned_tokens), Vote.points_awarded > 0)
+            .group_by(Vote.voter_token)
+            .all()
+        )
+        return {token: int(points or 0) for token, points in rows}
+    except (ProgrammingError, OperationalError) as exc:
+        db.session.rollback()
+        logger = getattr(current_app, 'logger', None)
+        if logger:
+            logger.warning('Не удалось агрегировать начисления по токенам: %s', exc)
+        return None
 
 
 def rotate_voter_token(profile):

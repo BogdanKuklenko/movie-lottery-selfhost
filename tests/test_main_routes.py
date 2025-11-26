@@ -279,6 +279,43 @@ def test_get_poll_restores_points_for_existing_token(app):
     assert restored_cookie.value == voter_token
 
 
+def test_get_poll_uses_requested_token_history_with_user_id_cookie(app):
+    client = app.test_client()
+
+    response = _create_poll_via_api(client, [_build_movie('First'), _build_movie('Second')])
+    poll_id = response.get_json()['poll_id']
+    poll = Poll.query.get(poll_id)
+
+    legacy_token = 'b' * 32
+    user_id = 'poll-user-1'
+    new_token = 'c' * 32
+
+    db.session.add(PollVoterProfile(token=legacy_token, total_points=0))
+    db.session.add(
+        Vote(
+            poll_id=poll.id,
+            movie_id=poll.movies[0].id,
+            voter_token=legacy_token,
+            points_awarded=5,
+        )
+    )
+    db.session.add(PollVoterProfile(token=new_token, total_points=0, user_id=user_id))
+    db.session.commit()
+
+    client.set_cookie(api_routes.VOTER_USER_ID_COOKIE, user_id)
+    client.set_cookie(api_routes.VOTER_TOKEN_COOKIE, new_token)
+
+    response = client.get(
+        f'/api/polls/{poll_id}',
+        query_string={'voter_token': legacy_token},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['voter_token'] == new_token
+    assert payload['points_earned_total'] == 5
+
+
 def test_poll_ban_sets_forced_winner(app):
     client = app.test_client()
 

@@ -22,19 +22,20 @@ from ..models import (
 )
 from ..utils.kinopoisk import get_movie_data_from_kinopoisk
 from ..utils.helpers import (
-    generate_unique_id,
-    ensure_background_photo,
-    generate_unique_poll_id,
+    aggregate_positive_vote_points_by_tokens,
     build_external_url,
     build_telegram_share_url,
+    change_voter_points_balance,
+    ensure_background_photo,
+    ensure_poll_tables,
     ensure_voter_profile,
     ensure_voter_profile_for_user,
-    rotate_voter_token,
-    change_voter_points_balance,
-    prevent_caching,
-    ensure_poll_tables,
+    generate_unique_id,
+    generate_unique_poll_id,
     get_custom_vote_cost,
     get_poll_settings,
+    prevent_caching,
+    rotate_voter_token,
     update_poll_settings,
 )
 
@@ -240,16 +241,20 @@ def _set_voter_cookies(response, voter_token, user_id=None):
     return response
 
 
+def _read_voter_token_from_request():
+    raw_voter_token = request.headers.get(VOTER_TOKEN_HEADER) or request.args.get('voter_token')
+    if isinstance(raw_voter_token, str):
+        trimmed = raw_voter_token.strip()
+        if _VOTER_TOKEN_RE.match(trimmed):
+            return trimmed
+    return None
+
+
 def _resolve_voter_identity():
     device_label = _resolve_device_label()
     user_id = _read_user_id_from_request()
 
-    raw_voter_token = request.headers.get(VOTER_TOKEN_HEADER) or request.args.get('voter_token')
-    if isinstance(raw_voter_token, str):
-        trimmed = raw_voter_token.strip()
-        raw_voter_token = trimmed if _VOTER_TOKEN_RE.match(trimmed) else None
-    else:
-        raw_voter_token = None
+    raw_voter_token = _read_voter_token_from_request()
 
     if user_id:
         profile = ensure_voter_profile_for_user(user_id, device_label=device_label)
@@ -263,6 +268,7 @@ def _resolve_voter_identity():
         'profile': profile,
         'user_id': user_id,
         'device_label': device_label,
+        'requested_voter_token': raw_voter_token,
     }
 
 
@@ -1064,23 +1070,28 @@ def get_poll(poll_id):
     voter_token = identity['voter_token']
     profile = identity['profile']
     user_id = identity['user_id']
+    requested_voter_token = identity.get('requested_voter_token')
     points_balance = profile.total_points or 0
     db.session.commit()
 
-    points_earned_total = 0
-    try:
-        points_earned_total = (
-            db.session.query(func.coalesce(func.sum(Vote.points_awarded), 0))
-            .filter(Vote.voter_token == voter_token, Vote.points_awarded > 0)
-            .scalar()
-            or 0
-        )
-    except (ProgrammingError, OperationalError) as exc:
-        db.session.rollback()
-        logger = getattr(current_app, 'logger', None)
-        if logger:
-            logger.warning('Не удалось получить сумму начисленных баллов: %s', exc)
+    history_tokens = []
+    for token in (requested_voter_token, request.cookies.get(VOTER_TOKEN_COOKIE), voter_token):
+        if token and token not in history_tokens:
+            history_tokens.append(token)
+
+    aggregated_points = aggregate_positive_vote_points_by_tokens(history_tokens)
+    preferred_token = requested_voter_token or request.cookies.get(VOTER_TOKEN_COOKIE) or voter_token
+
+    if aggregated_points is None:
         points_earned_total = points_balance
+    else:
+        points_earned_total = aggregated_points.get(preferred_token)
+
+        if points_earned_total is None and voter_token:
+            points_earned_total = aggregated_points.get(voter_token)
+
+        if points_earned_total is None:
+            points_earned_total = 0
 
     # Проверяем, голосовал ли уже этот пользователь
     existing_vote = Vote.query.filter_by(poll_id=poll_id, voter_token=voter_token).first()
