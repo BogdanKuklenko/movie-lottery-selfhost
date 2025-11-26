@@ -75,6 +75,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             ?.split('=')[1] || '';
     };
 
+    const deleteCookie = (cookieName) => {
+        if (typeof document === 'undefined' || !cookieName) return;
+        const secureFlag = window.location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = `${cookieName}=; Max-Age=0; Path=/; SameSite=Lax${secureFlag}`;
+    };
+
     const normalizeUserId = (value) => {
         if (value === undefined || value === null) return '';
         const normalized = String(value).trim();
@@ -1339,6 +1345,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             lastKnownUserId = normalizeUserId(payload.user_id) || lastKnownUserId;
             resetVoterSessionState();
+            deleteCookie(VOTER_TOKEN_COOKIE);
+            deleteCookie(VOTER_USER_ID_COOKIE);
             const successMessage = payload.user_id
                 ? 'Сеанс сброшен. Выберите ID заново.'
                 : 'Сеанс сброшен. Можно выбрать новый ID.';
