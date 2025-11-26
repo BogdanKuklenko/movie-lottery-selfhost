@@ -125,7 +125,7 @@ def ensure_vote_points_column():
 
 
 def ensure_poll_voter_user_id_column():
-    """Добавляет колонку user_id в poll_voter_profile, если её нет."""
+    """Добавляет отсутствующие критичные колонки в poll_voter_profile."""
     engine = db.engine
 
     try:
@@ -138,25 +138,58 @@ def ensure_poll_voter_user_id_column():
         return False
 
     existing_columns = {col['name'] for col in inspector.get_columns(table_name)}
-    if 'user_id' in existing_columns:
+    needs_user_id = 'user_id' not in existing_columns
+    needs_points_accrued = 'points_accrued_total' not in existing_columns
+
+    if not (needs_user_id or needs_points_accrued):
         return False
 
     dialect = engine.dialect.name
 
     try:
         with engine.begin() as connection:
-            if dialect == 'postgresql':
+            statements = []
+            if needs_user_id:
+                if dialect == 'postgresql':
+                    statements.append(
+                        "ALTER TABLE poll_voter_profile "
+                        "ADD COLUMN IF NOT EXISTS user_id VARCHAR(128) UNIQUE"
+                    )
+                else:
+                    statements.append(
+                        "ALTER TABLE poll_voter_profile ADD COLUMN user_id VARCHAR(128) UNIQUE"
+                    )
+
+            if needs_points_accrued:
+                if dialect == 'postgresql':
+                    statements.append(
+                        "ALTER TABLE poll_voter_profile "
+                        "ADD COLUMN IF NOT EXISTS points_accrued_total INTEGER NOT NULL DEFAULT 0"
+                    )
+                else:
+                    statements.append(
+                        "ALTER TABLE poll_voter_profile ADD COLUMN points_accrued_total INTEGER DEFAULT 0"
+                    )
+
+            for stmt in statements:
+                connection.execute(text(stmt))
+
+            if needs_points_accrued:
                 connection.execute(text(
-                    "ALTER TABLE poll_voter_profile "
-                    "ADD COLUMN IF NOT EXISTS user_id VARCHAR(128) UNIQUE"
-                ))
-            else:
-                connection.execute(text(
-                    "ALTER TABLE poll_voter_profile ADD COLUMN user_id VARCHAR(128) UNIQUE"
+                    "UPDATE poll_voter_profile "
+                    "SET points_accrued_total = COALESCE(points_accrued_total, 0)"
                 ))
 
         logger = getattr(current_app, 'logger', None)
-        message = 'Автоматически добавлена колонка user_id в poll_voter_profile.'
+        added_columns = []
+        if needs_user_id:
+            added_columns.append('user_id')
+        if needs_points_accrued:
+            added_columns.append('points_accrued_total')
+        message = (
+            'Автоматически добавлены колонки в poll_voter_profile: '
+            + ', '.join(added_columns)
+        )
         if logger:
             logger.info(message)
         else:

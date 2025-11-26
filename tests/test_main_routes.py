@@ -187,6 +187,28 @@ def test_login_user_id_returns_points_totals(app):
     assert payload['points_accrued_total'] == 33
 
 
+def test_ensure_voter_profile_columns_backfill_points_accrued(app):
+    db.session.execute(text('ALTER TABLE poll_voter_profile DROP COLUMN points_accrued_total'))
+    db.session.commit()
+
+    engine = db.engine
+    before_columns = {col['name'] for col in inspect(engine).get_columns('poll_voter_profile')}
+    assert 'points_accrued_total' not in before_columns
+
+    created = helpers.ensure_poll_voter_user_id_column()
+    assert created is True
+
+    after_columns = {col['name'] for col in inspect(engine).get_columns('poll_voter_profile')}
+    assert 'points_accrued_total' in after_columns
+
+    db.session.add(PollVoterProfile(token='restored-token'))
+    db.session.commit()
+
+    restored = PollVoterProfile.query.get('restored-token')
+    assert restored is not None
+    assert (restored.points_accrued_total or 0) == 0
+
+
 def test_ensure_poll_movie_points_column_backfills_missing_column(app):
     client = app.test_client()
     response = _create_poll_via_api(client, [_build_movie('One'), _build_movie('Two')])
