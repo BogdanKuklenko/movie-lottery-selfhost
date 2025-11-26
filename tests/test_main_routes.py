@@ -316,6 +316,39 @@ def test_get_poll_uses_requested_token_history_with_user_id_cookie(app):
     assert payload['points_earned_total'] == 5
 
 
+def test_get_poll_uses_recent_device_history_when_cookie_missing(app):
+    client = app.test_client()
+
+    response = _create_poll_via_api(client, [_build_movie('Old'), _build_movie('New')])
+    poll_id = response.get_json()['poll_id']
+    poll = Poll.query.get(poll_id)
+
+    legacy_token = 'd' * 32
+    device_label = 'device-xyz'
+
+    db.session.add(PollVoterProfile(token=legacy_token, total_points=0, device_label=device_label))
+    db.session.add(
+        Vote(
+            poll_id=poll.id,
+            movie_id=poll.movies[0].id,
+            voter_token=legacy_token,
+            points_awarded=6,
+        )
+    )
+    db.session.commit()
+
+    poll_response = client.get(
+        f'/api/polls/{poll_id}',
+        headers={'X-Device-Label': device_label},
+    )
+
+    assert poll_response.status_code == 200
+
+    payload = poll_response.get_json()
+    assert payload['voter_token'] != legacy_token
+    assert payload['points_earned_total'] == 6
+
+
 def test_poll_ban_sets_forced_winner(app):
     client = app.test_client()
 
