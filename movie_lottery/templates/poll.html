@@ -10,6 +10,21 @@
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body class="poll-body">
+    <button
+        id="logout-button"
+        class="icon-button logout-button"
+        type="button"
+        title="Сменить пользователя"
+        aria-label="Сменить пользователя"
+    >
+        <span class="logout-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M13 5H7C6.44772 5 6 5.44772 6 6V18C6 18.5523 6.44772 19 7 19H13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M10 12H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M16 8L20 12L16 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </span>
+    </button>
     <div class="background-rotator"></div>
     
     <div class="container poll-container">
@@ -75,6 +90,36 @@
                 <!-- Карточка выбранного фильма -->
             </div>
         </section>
+    </div>
+
+    <div id="user-switch-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content user-switch-content">
+            <h2>Сменить пользователя</h2>
+            <p class="user-switch-description">Сбросьте текущий токен и привяжите другой ID для голосования.</p>
+
+            <label class="user-switch-label" for="user-switch-input">ID пользователя</label>
+            <input
+                id="user-switch-input"
+                class="user-switch-input"
+                type="text"
+                inputmode="text"
+                autocomplete="off"
+                maxlength="128"
+                placeholder="Введите или выберите ID"
+            >
+
+            <div id="user-switch-suggestions" class="user-switch-suggestions" hidden>
+                <p class="user-switch-hint">Недавние ID:</p>
+                <div id="user-switch-suggestions-list" class="user-switch-suggestions-list"></div>
+            </div>
+
+            <p id="user-switch-error" class="user-switch-error" hidden></p>
+
+            <div class="modal-buttons user-switch-actions">
+                <button id="user-switch-submit" class="cta-button" type="button">Сохранить</button>
+                <button id="user-switch-cancel" class="secondary-button" type="button">Отмена</button>
+            </div>
+        </div>
     </div>
 
     <!-- Модальное окно подтверждения голосования -->

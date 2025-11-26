@@ -28,6 +28,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const banLabelFormula = document.getElementById('ban-label-formula');
     const banTotalCost = document.getElementById('ban-total-cost');
     const pollWinnerBanner = document.getElementById('poll-winner-banner');
+    const logoutButton = document.getElementById('logout-button');
+    const userSwitchModal = document.getElementById('user-switch-modal');
+    const userSwitchInput = document.getElementById('user-switch-input');
+    const userSwitchError = document.getElementById('user-switch-error');
+    const userSwitchSubmit = document.getElementById('user-switch-submit');
+    const userSwitchCancel = document.getElementById('user-switch-cancel');
+    const userSwitchSuggestions = document.getElementById('user-switch-suggestions');
+    const userSwitchSuggestionsList = document.getElementById('user-switch-suggestions-list');
 
     const TEXTS = {
         ru: {
@@ -94,12 +102,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     let pointsBalance = null;
     let pointsEarnedTotal = null;
     let voterToken = null;
+    let isLogoutInProgress = false;
+    let isUserSwitchModalOpen = false;
+    let lastKnownUserId = null;
     let moviesList = [];
     let banTargetMovie = null;
     let isBanModalOpen = false;
     let pollClosedByBan = false;
     let forcedWinner = null;
     const PLACEHOLDER_POSTER = 'https://via.placeholder.com/200x300.png?text=No+Image';
+
+    const RECENT_USER_IDS_KEY = 'pollRecentUserIds';
 
     const modalHistoryStack = [];
     let ignoreModalPopState = false;
@@ -128,6 +141,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     const getActiveMovies = (movies) => {
         if (!Array.isArray(movies)) return [];
         return movies.filter(movie => !isMovieBanned(movie));
+    };
+
+    const normalizeUserId = (value) => {
+        if (value === undefined || value === null) return '';
+        const normalized = String(value).trim();
+        return normalized ? normalized.slice(0, 128) : '';
+    };
+
+    const readRecentUserIds = () => {
+        if (typeof localStorage === 'undefined') return [];
+        try {
+            const stored = localStorage.getItem(RECENT_USER_IDS_KEY);
+            const parsed = JSON.parse(stored);
+            if (!Array.isArray(parsed)) return [];
+            return parsed
+                .map(normalizeUserId)
+                .filter(Boolean)
+                .slice(0, 6);
+        } catch (error) {
+            console.warn('Не удалось прочитать сохранённые ID', error);
+            return [];
+        }
+    };
+
+    const storeRecentUserIds = (ids) => {
+        if (typeof localStorage === 'undefined') return;
+        try {
+            localStorage.setItem(RECENT_USER_IDS_KEY, JSON.stringify(ids.slice(0, 6)));
+        } catch (error) {
+            console.warn('Не удалось сохранить список ID', error);
+        }
+    };
+
+    const rememberUserId = (userId) => {
+        const normalized = normalizeUserId(userId);
+        if (!normalized) return;
+        const existing = readRecentUserIds().filter((id) => id !== normalized);
+        existing.unshift(normalized);
+        storeRecentUserIds(existing);
     };
 
     async function fetchPollData(options = {}) {
@@ -163,6 +215,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function applyPollData(pollData, { skipVoteHandling = false } = {}) {
         if (!pollData) return;
+
+        const userIdFromResponse = normalizeUserId(pollData.user_id);
+        if (userIdFromResponse) {
+            lastKnownUserId = userIdFromResponse;
+            rememberUserId(userIdFromResponse);
+        }
 
         voterToken = pollData.voter_token || voterToken;
         updatePointsBalance(pollData.points_balance, pollData.points_earned_total);
@@ -546,9 +604,121 @@ document.addEventListener('DOMContentLoaded', async () => {
             closeCustomVoteModal({ fromPopState: true });
         } else if (modalId === 'ban') {
             closeBanModal({ fromPopState: true });
+        } else if (modalId === 'user-switch') {
+            closeUserSwitchModal({ fromPopState: true });
         }
 
         removeModalPopStateListenerIfIdle();
+    }
+
+    function setUserSwitchError(text) {
+        if (!userSwitchError) return;
+        if (text) {
+            userSwitchError.textContent = text;
+            userSwitchError.hidden = false;
+        } else {
+            userSwitchError.textContent = '';
+            userSwitchError.hidden = true;
+        }
+    }
+
+    function setUserSwitchLoading(isLoading) {
+        if (userSwitchSubmit) {
+            userSwitchSubmit.disabled = isLoading;
+            userSwitchSubmit.textContent = isLoading ? 'Сохраняем...' : 'Сохранить';
+        }
+        if (userSwitchCancel) {
+            userSwitchCancel.disabled = isLoading;
+        }
+        if (userSwitchInput) {
+            userSwitchInput.disabled = isLoading;
+        }
+        if (userSwitchSuggestionsList) {
+            Array.from(userSwitchSuggestionsList.querySelectorAll('button')).forEach((button) => {
+                button.disabled = isLoading;
+            });
+        }
+    }
+
+    function renderUserIdSuggestions(prefillId = '') {
+        if (!userSwitchSuggestions || !userSwitchSuggestionsList) return;
+        const suggestions = [];
+
+        const suggested = normalizeUserId(prefillId || lastKnownUserId);
+        if (suggested) {
+            suggestions.push(suggested);
+        }
+
+        readRecentUserIds().forEach((id) => {
+            if (!suggestions.includes(id)) {
+                suggestions.push(id);
+            }
+        });
+
+        userSwitchSuggestionsList.innerHTML = '';
+
+        if (suggestions.length === 0) {
+            userSwitchSuggestions.hidden = true;
+            return;
+        }
+
+        userSwitchSuggestions.hidden = false;
+        suggestions.slice(0, 6).forEach((id) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'user-switch-chip';
+            button.textContent = id;
+            button.dataset.userId = id;
+            button.addEventListener('click', () => {
+                if (userSwitchInput) {
+                    userSwitchInput.value = id;
+                    userSwitchInput.focus();
+                }
+                setUserSwitchError('');
+            });
+            userSwitchSuggestionsList.appendChild(button);
+        });
+    }
+
+    function resetUserSwitchModal(suggestedId = '') {
+        if (userSwitchInput) {
+            userSwitchInput.value = normalizeUserId(suggestedId);
+        }
+        setUserSwitchError('');
+        setUserSwitchLoading(false);
+        renderUserIdSuggestions(suggestedId);
+    }
+
+    function openUserSwitchModal({ suggestedId = '' } = {}) {
+        if (!userSwitchModal) return;
+        resetUserSwitchModal(suggestedId);
+        userSwitchModal.style.display = 'flex';
+        if (!isUserSwitchModalOpen) {
+            lockScroll();
+            isUserSwitchModalOpen = true;
+            pushModalHistory('user-switch');
+        }
+        if (userSwitchInput) {
+            userSwitchInput.focus();
+        }
+    }
+
+    function closeUserSwitchModal(options = {}) {
+        const { fromPopState = false } = options;
+        const wasTracked = modalHistoryStack.includes('user-switch');
+        if (userSwitchModal) {
+            userSwitchModal.style.display = 'none';
+        }
+        if (isUserSwitchModalOpen) {
+            unlockScroll();
+            isUserSwitchModalOpen = false;
+        }
+        removeModalFromHistory('user-switch');
+
+        if (!fromPopState && wasTracked) {
+            ignoreModalPopState = true;
+            history.back();
+        }
     }
 
     function resetBanModal() {
@@ -727,6 +897,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `voter-${voterToken}-points-earned-total`;
     }
 
+    function clearStoredPointsEarnedTotal() {
+        const storageKey = getPointsEarnedStorageKey();
+        if (!storageKey || typeof localStorage === 'undefined') return;
+        try {
+            localStorage.removeItem(storageKey);
+        } catch (error) {
+            console.warn('Не удалось очистить сохранённые баллы', error);
+        }
+    }
+
     function readStoredPointsEarnedTotal() {
         const storageKey = getPointsEarnedStorageKey();
         if (!storageKey || typeof localStorage === 'undefined') return null;
@@ -803,6 +983,54 @@ document.addEventListener('DOMContentLoaded', async () => {
         showPointsBadge(T.pointsBadgeError);
         pointsBalanceStatus.textContent = T.pointsUnavailable;
         updateCustomVoteButtonState();
+    }
+
+    function resetPointsDisplayToDefault() {
+        if (!pointsBalanceCard || !pointsBalanceValue || !pointsBalanceStatus || !pointsStateBadge) return;
+        pointsBalanceCard.classList.remove('points-balance-card-error');
+        pointsBalanceValue.textContent = '—';
+        pointsBalanceStatus.textContent = T.pointsStatusEmpty;
+        pointsStateBadge.textContent = '—';
+        pointsStateBadge.setAttribute('aria-hidden', 'true');
+        pointsStateBadge.classList.add('points-state-badge-hidden');
+        if (pointsProgress) {
+            pointsProgress.hidden = true;
+        }
+    }
+
+    function resetVoterSessionState() {
+        clearStoredPointsEarnedTotal();
+        pointsBalance = null;
+        pointsEarnedTotal = null;
+        voterToken = null;
+        hasVoted = false;
+        votedMovie = null;
+        votedMoviePointsDelta = null;
+        selectedMovie = null;
+        pollClosedByBan = false;
+        forcedWinner = null;
+        moviesList = [];
+        updateVotingDisabledState(false);
+        resetPointsDisplayToDefault();
+        if (pollMessage) {
+            pollMessage.style.display = 'none';
+            pollMessage.textContent = '';
+        }
+        if (votedMovieWrapper) {
+            votedMovieWrapper.style.display = 'none';
+        }
+        highlightSelectedMovie(null);
+        if (pollGrid) {
+            pollGrid.innerHTML = '';
+        }
+        if (pollWinnerBanner) {
+            pollWinnerBanner.hidden = true;
+            pollWinnerBanner.textContent = '';
+        }
+        updateCustomVoteButtonState();
+        if (pollDescription) {
+            pollDescription.textContent = 'Выберите один фильм из списка ниже';
+        }
     }
 
     function hidePointsBadge() {
@@ -934,6 +1162,89 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateCustomVoteButtonState();
     }
 
+    function setLogoutButtonBusy(isBusy) {
+        if (!logoutButton) return;
+        logoutButton.disabled = isBusy;
+        logoutButton.classList.toggle('logout-button-busy', isBusy);
+    }
+
+    async function handleLogoutClick() {
+        if (isLogoutInProgress) return;
+        isLogoutInProgress = true;
+        setLogoutButtonBusy(true);
+
+        try {
+            const response = await fetch(buildPollApiUrl('/api/polls/auth/logout'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+            });
+
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(payload?.error || 'Не удалось выполнить выход.');
+            }
+
+            lastKnownUserId = normalizeUserId(payload.user_id) || lastKnownUserId;
+            resetVoterSessionState();
+            showToast('Сеанс сброшен. Выберите ID заново.', 'info');
+            openUserSwitchModal({ suggestedId: lastKnownUserId });
+        } catch (error) {
+            console.error('Ошибка выхода из профиля:', error);
+            showToast(error.message || 'Не удалось выполнить выход.', 'error');
+        } finally {
+            isLogoutInProgress = false;
+            setLogoutButtonBusy(false);
+        }
+    }
+
+    async function submitUserSwitch() {
+        if (!userSwitchInput || isLogoutInProgress) return;
+        const userId = normalizeUserId(userSwitchInput.value);
+        if (!userId) {
+            setUserSwitchError('Укажите ID пользователя.');
+            return;
+        }
+
+        setUserSwitchError('');
+        setUserSwitchLoading(true);
+
+        try {
+            const response = await fetch(buildPollApiUrl('/api/polls/auth/login'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ user_id: userId }),
+            });
+
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(payload?.error || 'Не удалось сменить пользователя.');
+            }
+
+            lastKnownUserId = normalizeUserId(payload.user_id) || userId;
+            rememberUserId(lastKnownUserId);
+            resetVoterSessionState();
+
+            if (typeof payload.points_balance === 'number') {
+                updatePointsBalance(payload.points_balance, payload.points_earned_total);
+            }
+
+            if (payload.voter_token) {
+                voterToken = payload.voter_token;
+            }
+
+            closeUserSwitchModal();
+            showToast('Профиль обновлён. Загружаем данные...', 'success');
+            await fetchPollData({ skipVoteHandling: false, showErrors: true });
+        } catch (error) {
+            console.error('Ошибка смены пользователя:', error);
+            setUserSwitchError(error.message || 'Не удалось сменить пользователя.');
+        } finally {
+            setUserSwitchLoading(false);
+        }
+    }
+
     function formatPoints(value) {
         const absValue = Math.abs(value);
         const decl = declOfNum(absValue, ['балл', 'балла', 'баллов']);
@@ -1047,6 +1358,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
         votedMovieWrapper.style.display = 'block';
     }
+
+
+    logoutButton?.addEventListener('click', handleLogoutClick);
+
+    userSwitchCancel?.addEventListener('click', () => closeUserSwitchModal());
+    userSwitchSubmit?.addEventListener('click', submitUserSwitch);
+    userSwitchInput?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            submitUserSwitch();
+        }
+    });
+
+    userSwitchModal?.addEventListener('click', (event) => {
+        if (event.target === userSwitchModal) {
+            closeUserSwitchModal();
+        }
+    });
 
 
     // Закрытие модального окна по клику вне его
