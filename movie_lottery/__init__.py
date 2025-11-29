@@ -1,12 +1,14 @@
 import os
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
-from werkzeug.middleware.proxy_fix import ProxyFix
+import atexit
+import os
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from flask_cors import CORS
-import atexit
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .diagnostic_middleware import start_diagnostics, checkpoint, finish_diagnostics
 
@@ -46,11 +48,19 @@ def create_app():
     checkpoint("Config loaded")
 
     _configure_cors(app)
-    
+
     try:
         os.makedirs(app.instance_path)
     except OSError:
         pass
+
+    # Ensure trailer upload directory exists
+    trailer_dir = app.config.get('TRAILER_UPLOAD_DIR')
+    if trailer_dir:
+        try:
+            os.makedirs(trailer_dir, exist_ok=True)
+        except OSError as exc:
+            app.logger.warning('Не удалось создать директорию для трейлеров %s: %s', trailer_dir, exc)
 
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
     checkpoint("ProxyFix configured")

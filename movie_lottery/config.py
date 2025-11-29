@@ -54,7 +54,20 @@ class Config:
     QBIT_PORT = os.environ.get('QBIT_PORT')
     QBIT_USERNAME = os.environ.get('QBIT_USERNAME')
     QBIT_PASSWORD = os.environ.get('QBIT_PASSWORD')
-    
+
     # Kinopoisk API key
     KINOPOISK_API_TOKEN = os.environ.get('KINOPOISK_API_TOKEN') or os.environ.get('KINOPOISK_API_KEY')
     KINOPOISK_API_KEY = KINOPOISK_API_TOKEN
+
+    # Trailer upload settings
+    TRAILER_UPLOAD_SUBDIR = os.environ.get('TRAILER_UPLOAD_SUBDIR', 'trailers')
+    TRAILER_MEDIA_ROOT = os.environ.get('TRAILER_MEDIA_ROOT') or os.path.join(instance_dir, 'media')
+    TRAILER_UPLOAD_DIR = os.path.join(TRAILER_MEDIA_ROOT, TRAILER_UPLOAD_SUBDIR)
+
+    raw_mime_types = os.environ.get('TRAILER_ALLOWED_MIME_TYPES', 'video/mp4,video/webm')
+    TRAILER_ALLOWED_MIME_TYPES = [mt.strip().lower() for mt in raw_mime_types.split(',') if mt.strip()]
+
+    try:
+        TRAILER_MAX_FILE_SIZE = int(os.environ.get('TRAILER_MAX_FILE_SIZE', 100 * 1024 * 1024))
+    except (TypeError, ValueError):
+        TRAILER_MAX_FILE_SIZE = 100 * 1024 * 1024

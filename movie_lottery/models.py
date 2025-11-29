@@ -41,6 +41,9 @@ class LibraryMovie(db.Model):
     rating_kp = db.Column(db.Float, nullable=True)
     genres = db.Column(db.String(200), nullable=True)
     countries = db.Column(db.String(200), nullable=True)
+    trailer_file_path = db.Column(db.String(500), nullable=True)
+    trailer_mime_type = db.Column(db.String(100), nullable=True)
+    trailer_file_size = db.Column(db.Integer, nullable=True)
     added_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     bumped_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     badge = db.Column(db.String(20), nullable=True)  # Бейдж: favorite, ban, watchlist, top, watched, new
@@ -49,6 +52,10 @@ class LibraryMovie(db.Model):
     ban_applied_by = db.Column(db.String(120), nullable=True)
     ban_cost = db.Column(db.Integer, nullable=True)
     ban_cost_per_month = db.Column(db.Integer, nullable=True)  # Индивидуальная цена за месяц бана (по умолчанию 1)
+
+    @property
+    def has_local_trailer(self):
+        return bool(self.trailer_file_path)
 
     def refresh_ban_status(self):
         """Переводит фильм из бана в watchlist после истечения срока."""
