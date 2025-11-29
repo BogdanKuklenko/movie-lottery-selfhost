@@ -1,0 +1,13 @@
+{
+  "name": "Кино-лотерея",
+  "short_name": "Кино-лотерея",
+  "description": "Голосуй за фильмы и смотри трейлеры",
+  "start_url": "/poll",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": []
+}
+
+

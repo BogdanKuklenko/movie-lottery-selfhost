@@ -52,10 +52,16 @@ class LibraryMovie(db.Model):
     ban_applied_by = db.Column(db.String(120), nullable=True)
     ban_cost = db.Column(db.Integer, nullable=True)
     ban_cost_per_month = db.Column(db.Integer, nullable=True)  # Индивидуальная цена за месяц бана (по умолчанию 1)
+    trailer_view_cost = db.Column(db.Integer, nullable=True)  # Стоимость просмотра трейлера в баллах (по умолчанию 1)
 
     @property
     def has_local_trailer(self):
-        return bool(self.trailer_file_path)
+        # Безопасный доступ к атрибуту, который может отсутствовать в БД
+        try:
+            trailer_path = self.trailer_file_path
+            return bool(trailer_path)
+        except (OperationalError, ProgrammingError):
+            return False
 
     def refresh_ban_status(self):
         """Переводит фильм из бана в watchlist после истечения срока."""

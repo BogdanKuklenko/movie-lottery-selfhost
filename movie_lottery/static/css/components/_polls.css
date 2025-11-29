@@ -545,28 +545,37 @@
 .poll-movie-actions {
     display: flex;
     justify-content: center;
-    gap: 10px;
-    padding: 0 16px 16px 16px;
-    flex-wrap: wrap;
+    gap: 4px;
+    padding: 0 8px 10px 8px;
+    flex-wrap: nowrap;
 }
 
 .poll-ban-button {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     justify-content: center;
+    font-size: 10px;
+    padding: 6px 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-radius: 6px;
 }
 
 .poll-ban-button:disabled {
     cursor: not-allowed;
-    opacity: 0.6;
+    opacity: 0.5;
 }
 
 .poll-ban-button-static {
-    background: #ef4444;
-    border-color: #ef4444;
-    color: #fff;
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
     cursor: default;
     pointer-events: none;
     box-shadow: none;
+    font-size: 9px;
+    padding: 5px 6px;
 }
 
 .poll-movie-info h3 {
@@ -1471,5 +1480,675 @@
     .poll-results-votes {
         align-self: flex-start;
     }
+}
+
+/* --- Кнопка просмотра трейлера на карточке фильма --- */
+.poll-trailer-button {
+    background: rgba(255, 215, 0, 0.1);
+    color: var(--accent-gold);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    min-width: 42px;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
+    transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.poll-trailer-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, rgba(255, 215, 0, 0.3) 0%, rgba(255, 180, 0, 0.4) 100%);
+    z-index: 0;
+    pointer-events: none;
+}
+
+.poll-trailer-button.holding::before {
+    width: 100%;
+    transition: width 2s linear;
+}
+
+.poll-trailer-button.holding {
+    transform: scale(0.95);
+    border-color: rgba(255, 215, 0, 0.6);
+}
+
+.poll-trailer-button:hover:not(.holding) {
+    background: rgba(255, 215, 0, 0.18);
+    border-color: rgba(255, 215, 0, 0.45);
+}
+
+.poll-trailer-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.poll-trailer-button-icon,
+.poll-trailer-cost {
+    position: relative;
+    z-index: 1;
+}
+
+.poll-trailer-button-icon {
+    font-size: 9px;
+}
+
+.poll-trailer-cost {
+    font-size: 9px;
+    opacity: 0.85;
+}
+
+/* --- Оверлей подтверждения удержания --- */
+.hold-confirm-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: none;
+}
+
+.hold-confirm-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.hold-confirm-circle {
+    position: relative;
+    width: 120px;
+    height: 120px;
+}
+
+.hold-confirm-circle svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.hold-confirm-circle-bg {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.15);
+    stroke-width: 6;
+}
+
+.hold-confirm-circle-progress {
+    fill: none;
+    stroke: var(--accent-gold);
+    stroke-width: 6;
+    stroke-linecap: round;
+    stroke-dasharray: 339.292;
+    stroke-dashoffset: 339.292;
+    transition: none;
+    filter: drop-shadow(0 0 6px rgba(255, 215, 0, 0.4));
+}
+
+.hold-confirm-overlay.active .hold-confirm-circle-progress {
+    stroke-dashoffset: 0;
+    transition: stroke-dashoffset 2s linear;
+}
+
+.hold-confirm-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 36px;
+    color: white;
+}
+
+.hold-confirm-text {
+    margin-top: 20px;
+    color: white;
+    font-size: 16px;
+    font-weight: 500;
+    text-align: center;
+}
+
+.hold-confirm-hint {
+    margin-top: 8px;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 13px;
+}
+
+.hold-confirm-cost {
+    margin-top: 12px;
+    color: var(--accent-gold);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* --- Полноэкранный плеер трейлеров --- */
+.trailer-fullscreen-modal {
+    background: #000 !important;
+    /* Используем dvh для мобильных - учитывает адресную строку */
+    height: 100vh;
+    height: 100dvh;
+    height: -webkit-fill-available; /* Safari iOS fallback */
+    width: 100vw;
+    width: 100dvw;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    /* Скрываем скроллбары */
+    overflow: hidden;
+    /* Предотвращаем выбор текста */
+    -webkit-user-select: none;
+    user-select: none;
+    /* Предотвращаем контекстное меню */
+    -webkit-touch-callout: none;
+}
+
+.trailer-fullscreen-content {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    background: #000;
+    border-radius: 0;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    /* Safe area для устройств с вырезом (notch) */
+    padding-top: env(safe-area-inset-top, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
+}
+
+.trailer-player-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8) 0%, transparent 100%);
+    border: none;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+.trailer-player-title {
+    color: var(--secondary-color);
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.trailer-player-close {
+    width: 36px;
+    height: 36px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    color: rgba(255, 255, 255, 0.9);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    font-size: 20px;
+    font-weight: 300;
+    line-height: 1;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.trailer-player-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    transform: scale(1.05);
+}
+
+.trailer-player-wrapper {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    position: relative;
+    min-height: 0;
+}
+
+.trailer-player-wrapper.is-loading .trailer-video {
+    opacity: 0.3;
+}
+
+.trailer-player-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: rgba(0, 0, 0, 0.85);
+    color: rgba(255, 255, 255, 0.9);
+    z-index: 10;
+    text-align: center;
+    padding: 20px;
+}
+
+.trailer-player-loading[hidden] {
+    display: none;
+}
+
+.trailer-loading-spinner {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top-color: var(--accent-gold);
+    animation: trailer-spinner 0.8s linear infinite;
+}
+
+@keyframes trailer-spinner {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.trailer-video {
+    width: 100%;
+    height: 100%;
+    max-height: 100vh;
+    display: block;
+    background: #000;
+    object-fit: contain;
+    cursor: pointer;
+}
+
+.trailer-video:focus {
+    outline: none;
+}
+
+/* Блок ошибки */
+.trailer-player-error {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.9);
+    text-align: center;
+    padding: 24px;
+    z-index: 15;
+}
+
+.trailer-error-icon {
+    font-size: 32px;
+    display: block;
+}
+
+.trailer-error-text {
+    color: #fca5a5;
+    font-size: 14px;
+}
+
+.trailer-retry-button {
+    margin-top: 8px;
+    padding: 10px 24px;
+    font-size: 13px;
+    border-radius: 8px;
+    background: rgba(255, 215, 0, 0.15);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    color: var(--accent-gold);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.trailer-retry-button:hover {
+    background: rgba(255, 215, 0, 0.25);
+    border-color: rgba(255, 215, 0, 0.5);
+}
+
+/* --- Кастомные контролы видеоплеера --- */
+.trailer-tap-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    cursor: pointer;
+    /* Не блокируем клики на контролах */
+    pointer-events: auto;
+}
+
+.trailer-custom-controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 16px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.4) 60%, transparent 100%);
+    z-index: 10;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+.trailer-player-wrapper.controls-hidden .trailer-custom-controls {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.trailer-player-wrapper.controls-hidden .trailer-tap-overlay {
+    pointer-events: auto;
+}
+
+.trailer-progress-container {
+    width: 100%;
+    margin-bottom: 12px;
+}
+
+.trailer-progress {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+    cursor: pointer;
+    outline: none;
+}
+
+.trailer-progress::-webkit-slider-runnable-track {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+}
+
+.trailer-progress::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 0;
+    height: 0;
+    background: transparent;
+    border: none;
+    margin-top: 0;
+}
+
+.trailer-progress::-moz-range-track {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+    border: none;
+}
+
+.trailer-progress::-moz-range-thumb {
+    width: 0;
+    height: 0;
+    background: transparent;
+    border: none;
+}
+
+.trailer-progress::-moz-range-progress {
+    height: 4px;
+    background: var(--accent-gold);
+    border-radius: 2px;
+}
+
+/* Chrome/Safari прогресс через градиент (обновляется через JS) */
+.trailer-progress {
+    background: linear-gradient(to right, var(--accent-gold) 0%, var(--accent-gold) 0%, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.2) 100%);
+}
+
+.trailer-controls-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.trailer-time {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+    font-family: 'Montserrat', sans-serif;
+    letter-spacing: 0.02em;
+}
+
+.trailer-time-separator {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.trailer-fullscreen-btn {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.9);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    padding: 0;
+}
+
+.trailer-fullscreen-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.trailer-fullscreen-btn:active {
+    transform: scale(0.95);
+}
+
+.trailer-fullscreen-btn svg {
+    width: 22px;
+    height: 22px;
+}
+
+/* Состояние fullscreen */
+.trailer-player-wrapper.is-fullscreen .fullscreen-enter-icon {
+    display: none;
+}
+
+.trailer-player-wrapper.is-fullscreen .fullscreen-exit-icon {
+    display: block !important;
+}
+
+/* Индикатор паузы по центру */
+.trailer-pause-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    width: 80px;
+    height: 80px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 6;
+    opacity: 0;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.trailer-pause-indicator.show {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+}
+
+.trailer-pause-indicator svg {
+    width: 36px;
+    height: 36px;
+    fill: white;
+}
+
+/* --- Адаптивность плеера --- */
+@media (max-width: 768px) {
+    .trailer-fullscreen-modal {
+        /* На мобильных занимаем весь экран включая области под UI браузера */
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 100%;
+        height: 100dvh;
+        width: 100%;
+        width: 100dvw;
+    }
+
+    .trailer-fullscreen-content {
+        height: 100%;
+        height: 100dvh;
+    }
+
+    .trailer-player-header {
+        padding: 12px 16px;
+        /* Учитываем safe area для notch */
+        padding-top: max(12px, env(safe-area-inset-top, 12px));
+        padding-left: max(16px, env(safe-area-inset-left, 16px));
+        padding-right: max(16px, env(safe-area-inset-right, 16px));
+    }
+
+    .trailer-player-title {
+        font-size: 14px;
+    }
+
+    .trailer-player-close {
+        width: 40px;
+        height: 40px;
+        font-size: 22px;
+    }
+    
+    .poll-trailer-button,
+    .poll-ban-button {
+        font-size: 10px;
+        padding: 6px 7px;
+    }
+    
+    .trailer-custom-controls {
+        padding: 10px 12px;
+        padding-bottom: max(10px, env(safe-area-inset-bottom, 10px));
+    }
+
+    .trailer-video {
+        width: 100%;
+        height: 100%;
+        max-height: none;
+        object-fit: contain;
+    }
+}
+
+/* Landscape ориентация на мобильных */
+@media (max-width: 926px) and (orientation: landscape) {
+    .trailer-fullscreen-modal {
+        height: 100%;
+        height: 100dvh;
+    }
+
+    .trailer-player-header {
+        padding: 8px 16px;
+        padding-left: max(16px, env(safe-area-inset-left, 16px));
+        padding-right: max(16px, env(safe-area-inset-right, 16px));
+    }
+
+    .trailer-player-title {
+        font-size: 13px;
+    }
+
+    .trailer-player-close {
+        width: 36px;
+        height: 36px;
+        font-size: 18px;
+    }
+
+    .trailer-custom-controls {
+        padding: 8px 16px;
+        padding-left: max(16px, env(safe-area-inset-left, 16px));
+        padding-right: max(16px, env(safe-area-inset-right, 16px));
+    }
+}
+
+/* --- Нативный fullscreen режим для видео --- */
+/* Стили для video в нативном fullscreen (используется на iOS и Android) */
+/* object-fit: cover заполняет весь экран (может обрезать края видео) */
+.trailer-video:fullscreen,
+.trailer-video:-webkit-full-screen,
+.trailer-video:-moz-full-screen,
+.trailer-video:-ms-fullscreen {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: none !important;
+    max-height: none !important;
+    object-fit: cover;
+    background: #000;
+}
+
+/* Скрываем backdrop модального окна при fullscreen видео */
+.trailer-fullscreen-modal:fullscreen,
+.trailer-fullscreen-modal:-webkit-full-screen,
+.trailer-fullscreen-modal:-moz-full-screen,
+.trailer-fullscreen-modal:-ms-fullscreen {
+    background: #000;
+    padding: 0;
+}
+
+/* Стили для элементов внутри fullscreen контейнера */
+.trailer-fullscreen-modal:fullscreen .trailer-fullscreen-content,
+.trailer-fullscreen-modal:-webkit-full-screen .trailer-fullscreen-content {
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+}
+
+.trailer-fullscreen-modal:fullscreen .trailer-player-wrapper,
+.trailer-fullscreen-modal:-webkit-full-screen .trailer-player-wrapper {
+    width: 100%;
+    height: 100%;
+}
+
+.trailer-fullscreen-modal:fullscreen .trailer-video,
+.trailer-fullscreen-modal:-webkit-full-screen .trailer-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 

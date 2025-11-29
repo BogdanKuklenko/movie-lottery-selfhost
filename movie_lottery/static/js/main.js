@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (movie) {
                     const searchQuery = `${movie.search_name || movie.name}${movie.year ? ' ' + movie.year : ''}`;
                     const encodedQuery = encodeURIComponent(searchQuery);
-                    const rutrackerUrl = `https://rutracker.org/forum/tracker.php?nm=${encodedQuery}`;
+                    const rutrackerUrl = `https://rutracker.net/forum/tracker.php?nm=${encodedQuery}`;
                     window.open(rutrackerUrl, '_blank');
                     showToast(`Открыт поиск на RuTracker: "${searchQuery}"`, 'info');
                 }

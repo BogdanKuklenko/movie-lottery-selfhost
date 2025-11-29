@@ -83,7 +83,33 @@ def library():
             db.session.rollback()
 
         try:
-            library_movies = LibraryMovie.query.order_by(LibraryMovie.bumped_at.desc()).all()
+            # Загружаем только базовые колонки через load_only
+            from sqlalchemy.orm import load_only
+            library_movies = (
+                LibraryMovie.query
+                .options(load_only(
+                    LibraryMovie.id,
+                    LibraryMovie.kinopoisk_id,
+                    LibraryMovie.name,
+                    LibraryMovie.search_name,
+                    LibraryMovie.poster,
+                    LibraryMovie.year,
+                    LibraryMovie.description,
+                    LibraryMovie.rating_kp,
+                    LibraryMovie.genres,
+                    LibraryMovie.countries,
+                    LibraryMovie.added_at,
+                    LibraryMovie.bumped_at,
+                    LibraryMovie.badge,
+                    LibraryMovie.points,
+                    LibraryMovie.ban_until,
+                    LibraryMovie.ban_applied_by,
+                    LibraryMovie.ban_cost,
+                    LibraryMovie.ban_cost_per_month,
+                ))
+                .order_by(LibraryMovie.bumped_at.desc())
+                .all()
+            )
         except (OperationalError, ProgrammingError) as exc:
             current_app.logger.warning(
                 "LibraryMovie.bumped_at unavailable, falling back to added_at sorting. "
@@ -91,7 +117,31 @@ def library():
                 exc,
             )
             db.session.rollback()
-            library_movies = LibraryMovie.query.order_by(LibraryMovie.added_at.desc()).all()
+            from sqlalchemy.orm import load_only
+            library_movies = (
+                LibraryMovie.query
+                .options(load_only(
+                    LibraryMovie.id,
+                    LibraryMovie.kinopoisk_id,
+                    LibraryMovie.name,
+                    LibraryMovie.search_name,
+                    LibraryMovie.poster,
+                    LibraryMovie.year,
+                    LibraryMovie.description,
+                    LibraryMovie.rating_kp,
+                    LibraryMovie.genres,
+                    LibraryMovie.countries,
+                    LibraryMovie.added_at,
+                    LibraryMovie.badge,
+                    LibraryMovie.points,
+                    LibraryMovie.ban_until,
+                    LibraryMovie.ban_applied_by,
+                    LibraryMovie.ban_cost,
+                    LibraryMovie.ban_cost_per_month,
+                ))
+                .order_by(LibraryMovie.added_at.desc())
+                .all()
+            )
         
         # Fetch all identifiers in one query to avoid N+1
         kp_ids = [m.kinopoisk_id for m in library_movies if m.kinopoisk_id]
@@ -109,17 +159,7 @@ def library():
             movie.torrent_hash = None
             
             # Безопасно вычисляем свойства для шаблона
-            try:
-                # Убеждаемся, что свойства доступны
-                _ = movie.ban_status
-                _ = movie.ban_remaining_seconds
-                _ = movie.has_local_trailer
-            except Exception as prop_exc:
-                current_app.logger.warning(
-                    "Ошибка при доступе к свойствам фильма %s: %s",
-                    movie.id,
-                    prop_exc,
-                )
+            # has_local_trailer уже обрабатывает исключения внутри, возвращая False при ошибке
 
         trailer_config = {
             'max_size': current_app.config.get('TRAILER_MAX_FILE_SIZE'),

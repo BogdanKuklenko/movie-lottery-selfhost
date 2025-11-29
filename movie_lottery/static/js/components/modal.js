@@ -192,6 +192,50 @@ function createWinnerCardHTML(movieData, isLibrary) {
 
     const banSectionHTML = isLibrary ? renderBanInfo(movieData) : '';
 
+    // Секция загрузки трейлера (только для библиотеки)
+    const parsedTrailerViewCost = movieData.trailer_view_cost;
+    // Если значение null, undefined, используем 1 по умолчанию
+    let trailerViewCostValue = 1;
+    if (parsedTrailerViewCost != null && parsedTrailerViewCost !== undefined) {
+        const numValue = Number(parsedTrailerViewCost);
+        if (Number.isFinite(numValue) && numValue >= 0) {
+            trailerViewCostValue = numValue;
+        }
+    }
+    
+    const trailerSectionHTML = isLibrary ? `
+        <div class="movie-trailer-section">
+            <h4>🎬 Трейлер</h4>
+            ${movieData.has_local_trailer 
+                ? '<div class="trailer-status trailer-status-ok">✅ Трейлер загружен</div>' 
+                : '<div class="trailer-status trailer-status-empty">Трейлер не загружен</div>'
+            }
+            <div class="trailer-upload-form">
+                <label class="trailer-upload-label" for="modal-trailer-file-input">
+                    <span class="trailer-upload-icon">📁</span>
+                    <span class="trailer-upload-text">${movieData.has_local_trailer ? 'Заменить трейлер' : 'Выбрать файл трейлера'}</span>
+                </label>
+                <input type="file" id="modal-trailer-file-input" accept="video/*" style="display: none;">
+                <p class="trailer-upload-hint">Допустимые форматы: MP4, WebM. Максимальный размер: 100 МБ.</p>
+                <div class="trailer-upload-error" style="display: none;"></div>
+                <div class="trailer-upload-progress" style="display: none;">
+                    <div class="trailer-upload-progress-bar"></div>
+                    <span class="trailer-upload-progress-text">Загрузка...</span>
+                </div>
+            </div>
+            ${movieData.has_local_trailer ? `
+                <div class="trailer-cost-form">
+                    <h5>Стоимость просмотра трейлера в опросах</h5>
+                    <div class="movie-points-form">
+                        <input type="number" id="trailer-view-cost-input" min="0" max="999" step="1" value="${escapeHtml(String(trailerViewCostValue))}">
+                        <button class="action-button save-trailer-view-cost-btn" type="button">Сохранить</button>
+                    </div>
+                    <p class="movie-points-hint">Укажите сколько баллов спишется у пользователя за просмотр трейлера. 0 = бесплатно.</p>
+                </div>
+            ` : ''}
+        </div>
+    ` : '';
+
     return `
         <div class="winner-card">
             <div class="winner-poster">
@@ -220,6 +264,7 @@ function createWinnerCardHTML(movieData, isLibrary) {
                         </div>
                     </div>` : '<p class="meta-info">Kinopoisk ID не указан, работа с magnet-ссылкой недоступна.</p>'}
 
+                ${trailerSectionHTML}
                 ${pointsSectionHTML}
                 ${banCostPerMonthSectionHTML}
                 ${banSectionHTML}
@@ -469,7 +514,7 @@ export class ModalManager {
                 
                 // Формируем URL RuTracker (используем несколько зеркал)
                 const rutrackerUrls = [
-                    `https://rutracker.org/forum/tracker.php?nm=${encodedQuery}`,
+                    `https://rutracker.net/forum/tracker.php?nm=${encodedQuery}`,
                     `https://rutracker.net/forum/tracker.php?nm=${encodedQuery}`
                 ];
                 
@@ -592,6 +637,120 @@ export class ModalManager {
         if (removeBadgeBtn && actions.onRemoveBadge) {
             removeBadgeBtn.addEventListener('click', async () => {
                 await actions.onRemoveBadge(movieData.id);
+            });
+        }
+
+        // Загрузка трейлера
+        const trailerFileInput = this.body.querySelector('#modal-trailer-file-input');
+        if (trailerFileInput && actions.onUploadTrailer) {
+            trailerFileInput.addEventListener('change', async () => {
+                const file = trailerFileInput.files?.[0];
+                if (!file) return;
+
+                const errorEl = this.body.querySelector('.trailer-upload-error');
+                const progressEl = this.body.querySelector('.trailer-upload-progress');
+                const progressBar = this.body.querySelector('.trailer-upload-progress-bar');
+                const progressText = this.body.querySelector('.trailer-upload-progress-text');
+
+                // Валидация файла
+                const maxSize = 100 * 1024 * 1024; // 100 МБ
+                const allowedTypes = ['video/mp4', 'video/webm'];
+                const mimetype = (file.type || '').toLowerCase();
+
+                if (file.size > maxSize) {
+                    if (errorEl) {
+                        errorEl.textContent = 'Размер файла превышает допустимый лимит (100 МБ).';
+                        errorEl.style.display = 'block';
+                    }
+                    trailerFileInput.value = '';
+                    return;
+                }
+
+                if (mimetype && !allowedTypes.includes(mimetype)) {
+                    if (errorEl) {
+                        errorEl.textContent = 'Недопустимый формат файла. Загрузите видео (MP4/WebM).';
+                        errorEl.style.display = 'block';
+                    }
+                    trailerFileInput.value = '';
+                    return;
+                }
+
+                // Скрываем ошибку и показываем прогресс
+                if (errorEl) errorEl.style.display = 'none';
+                if (progressEl) {
+                    progressEl.style.display = 'flex';
+                    if (progressBar) progressBar.style.width = '0%';
+                    if (progressText) progressText.textContent = 'Загрузка...';
+                }
+
+                try {
+                    await actions.onUploadTrailer(movieData.id, file);
+                } catch (error) {
+                    if (errorEl) {
+                        errorEl.textContent = error.message || 'Не удалось загрузить трейлер.';
+                        errorEl.style.display = 'block';
+                    }
+                } finally {
+                    if (progressEl) progressEl.style.display = 'none';
+                    trailerFileInput.value = '';
+                }
+            });
+        }
+
+        // Сохранение цены за просмотр трейлера
+        const saveTrailerViewCostBtn = this.body.querySelector('.save-trailer-view-cost-btn');
+        const trailerViewCostInput = this.body.querySelector('#trailer-view-cost-input');
+        if (saveTrailerViewCostBtn && trailerViewCostInput && actions.onSaveTrailerViewCost) {
+            const originalLabel = saveTrailerViewCostBtn.textContent;
+
+            const handleSaveTrailerViewCost = async () => {
+                const value = trailerViewCostInput.value.trim();
+                let parsed = null;
+                if (value !== '') {
+                    parsed = Number(value);
+                    if (!Number.isFinite(parsed)) {
+                        if (window.showToast) {
+                            window.showToast('Введите корректное число.', 'error');
+                        }
+                        return;
+                    }
+                    parsed = Math.round(parsed);
+                    if (parsed < 0 || parsed > 999) {
+                        if (window.showToast) {
+                            window.showToast('Цена должна быть в диапазоне от 0 до 999.', 'error');
+                        }
+                        return;
+                    }
+                    // Если пользователь ввел 1 (значение по умолчанию), сохраняем как null
+                    if (parsed === 1) {
+                        parsed = null;
+                    }
+                } else {
+                    // Если поле пустое, используем значение по умолчанию (1)
+                    parsed = null;
+                }
+
+                saveTrailerViewCostBtn.disabled = true;
+                saveTrailerViewCostBtn.textContent = 'Сохранение...';
+
+                try {
+                    await actions.onSaveTrailerViewCost(movieData.id, parsed);
+                } finally {
+                    saveTrailerViewCostBtn.disabled = false;
+                    saveTrailerViewCostBtn.textContent = originalLabel;
+                }
+            };
+
+            saveTrailerViewCostBtn.addEventListener('click', (event) => {
+                event.preventDefault();
+                handleSaveTrailerViewCost();
+            });
+
+            trailerViewCostInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    handleSaveTrailerViewCost();
+                }
             });
         }
 

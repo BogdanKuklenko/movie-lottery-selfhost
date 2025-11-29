@@ -26,6 +26,8 @@ services:
       - .env
     ports:
       - "8888:8000"  # Откроет сайт на http://<IP_твоего_ПК>:8080
+    volumes:
+      - media_data:/app/instance/media  # Сохраняет трейлеры между перезагрузками
     networks:
       - appnet
 
@@ -45,6 +47,7 @@ services:
 
 volumes:
   db_data:
+  media_data:  # Для хранения трейлеров и других медиа-файлов
 
 networks:
   appnet:

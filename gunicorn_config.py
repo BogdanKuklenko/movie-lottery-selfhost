@@ -1,20 +1,21 @@
-"""Gunicorn configuration for Render.com deployment."""
+"""Gunicorn configuration for deployment."""
 import os
 
 # Server socket
-bind = f"0.0.0.0:{os.environ.get('PORT', '10000')}"
+bind = f"0.0.0.0:{os.environ.get('PORT', '8000')}"
 
 # Worker processes
-workers = 1  # Single worker for memory conservation on free tier
-worker_class = "sync"
+workers = int(os.environ.get('GUNICORN_WORKERS', 2))
+threads = int(os.environ.get('GUNICORN_THREADS', 4))
+worker_class = "gthread"  # Threaded workers для лучшего стриминга
 worker_connections = 100
-max_requests = 500
+max_requests = 1000
 max_requests_jitter = 50
 
-# Timeout settings - critical for Render.com
-timeout = 300  # 5 minutes for slow startup on free tier
-graceful_timeout = 60
-keepalive = 2
+# Timeout settings - увеличены для стриминга видео
+timeout = 600  # 10 минут для больших видео файлов
+graceful_timeout = 120
+keepalive = 5
 
 # Logging
 loglevel = "info"

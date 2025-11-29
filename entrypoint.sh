@@ -24,6 +24,10 @@ if [ -z "${KP_TOKEN:-}" ] && [ -n "${KINOPOISK_API_TOKEN:-}" ]; then
   export KP_TOKEN="$KINOPOISK_API_TOKEN"
 fi
 
+# Создаём папку для хранения трейлеров
+mkdir -p /app/instance/media/trailers
+echo "[entrypoint] Media directories created."
+
 echo "[entrypoint] Waiting for DB at ${DB_HOST}:${DB_PORT}..."
 until python -c "import socket,sys; s=socket.socket(); s.settimeout(1); 
 import os; host=os.environ.get('DB_HOST','db'); port=int(os.environ.get('DB_PORT','5432'));
@@ -61,10 +65,13 @@ PY
 
 echo "[entrypoint] Starting app..."
 
+# Общие параметры gunicorn для стриминга видео
+GUNICORN_OPTS="--bind 0.0.0.0:8000 --timeout 600 --graceful-timeout 120 --keep-alive 5 --workers 2 --threads 4 --access-logfile - --error-logfile -"
+
 # 1) wsgi.py:app
 if [ -f "wsgi.py" ]; then
   echo "[entrypoint] Using wsgi:app via gunicorn"
-  exec gunicorn -b 0.0.0.0:8000 --access-logfile - --error-logfile - wsgi:app
+  exec gunicorn $GUNICORN_OPTS wsgi:app
 fi
 
 # 2) movie_lottery:create_app()
@@ -78,13 +85,13 @@ except Exception:
 PY
 if [ $? -eq 0 ]; then
   echo "[entrypoint] Using movie_lottery:create_app() via gunicorn"
-  exec gunicorn -b 0.0.0.0:8000 --access-logfile - --error-logfile - 'movie_lottery:create_app()'
+  exec gunicorn $GUNICORN_OPTS 'movie_lottery:create_app()'
 fi
 
 # 3) app.py:app
 if [ -f "app.py" ]; then
   echo "[entrypoint] Using app:app via gunicorn"
-  exec gunicorn -b 0.0.0.0:8000 --access-logfile - --error-logfile - app:app
+  exec gunicorn $GUNICORN_OPTS app:app
 fi
 
 # 4) Фолбэк — flask run (чтобы увидеть полную трассу в логах)

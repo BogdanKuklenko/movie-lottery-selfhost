@@ -216,3 +216,22 @@ export async function uploadLocalTrailer(movieId, file) {
 
     return data;
 }
+
+/**
+ * Обновляет цену за просмотр трейлера для фильма в библиотеке.
+ * @param {string|number} movieId - ID фильма в библиотеке.
+ * @param {number|null} trailerViewCost - Новая цена (null для сброса к значению по умолчанию).
+ * @returns {Promise<object>} - Результат операции.
+ */
+export async function updateLibraryMovieTrailerViewCost(movieId, trailerViewCost) {
+    const response = await fetch(`/api/library/${movieId}/trailer-view-cost`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trailer_view_cost: trailerViewCost })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(data.message || data.error || 'Не удалось обновить цену за просмотр трейлера.');
+    }
+    return data;
+}

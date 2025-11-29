@@ -56,20 +56,25 @@ def upgrade():
                         existing_nullable=False,
                     )
 
-            if 'fk_vote_voter_token_profile' not in fk_names:
+        with op.batch_alter_table('vote', schema=None) as batch_op:
+            if 'points_awarded' in vote_columns:
+                batch_op.alter_column('points_awarded', existing_type=sa.Integer(), server_default=None)
+
+    # Backfill profiles BEFORE adding foreign key constraint
+    if created_profile_table and 'vote' in table_names:
+        _backfill_profiles()
+
+    # Now add the foreign key constraint after profiles are backfilled
+    if 'vote' in table_names:
+        fk_names = {fk['name'] for fk in inspector.get_foreign_keys('vote') if fk.get('name')}
+        if 'fk_vote_voter_token_profile' not in fk_names:
+            with op.batch_alter_table('vote', schema=None) as batch_op:
                 batch_op.create_foreign_key(
                     'fk_vote_voter_token_profile',
                     'poll_voter_profile',
                     ['voter_token'],
                     ['token'],
                 )
-
-        with op.batch_alter_table('vote', schema=None) as batch_op:
-            if 'points_awarded' in vote_columns:
-                batch_op.alter_column('points_awarded', existing_type=sa.Integer(), server_default=None)
-
-    if created_profile_table and 'vote' in table_names:
-        _backfill_profiles()
 
     if 'poll_voter_profile' in table_names or created_profile_table:
         with op.batch_alter_table('poll_voter_profile', schema=None) as batch_op:

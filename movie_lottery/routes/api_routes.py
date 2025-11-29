@@ -119,6 +119,25 @@ def _remove_trailer_file(movie, settings):
 
 
 def _serialize_library_movie(movie):
+    # Безопасно получаем атрибуты трейлера, которые могут отсутствовать в БД
+    try:
+        trailer_file_path = movie.trailer_file_path
+        trailer_mime_type = movie.trailer_mime_type
+        trailer_file_size = movie.trailer_file_size
+        has_local_trailer = bool(trailer_file_path)
+    except Exception:
+        # Если колонки trailer_* ещё не существуют в БД
+        trailer_file_path = None
+        trailer_mime_type = None
+        trailer_file_size = None
+        has_local_trailer = False
+    
+    # Безопасно получаем стоимость просмотра трейлера
+    try:
+        trailer_view_cost = movie.trailer_view_cost
+    except Exception:
+        trailer_view_cost = None
+    
     return {
         'id': movie.id,
         'kinopoisk_id': movie.kinopoisk_id,
@@ -138,10 +157,11 @@ def _serialize_library_movie(movie):
         'ban_applied_by': movie.ban_applied_by,
         'ban_cost': movie.ban_cost,
         'ban_cost_per_month': movie.ban_cost_per_month,
-        'trailer_file_path': movie.trailer_file_path,
-        'trailer_mime_type': movie.trailer_mime_type,
-        'trailer_file_size': movie.trailer_file_size,
-        'has_local_trailer': movie.has_local_trailer,
+        'trailer_file_path': trailer_file_path,
+        'trailer_mime_type': trailer_mime_type,
+        'trailer_file_size': trailer_file_size,
+        'has_local_trailer': has_local_trailer,
+        'trailer_view_cost': trailer_view_cost,
     }
 
 
@@ -669,16 +689,22 @@ def _serialize_poll_movie(movie):
     if not movie:
         return None
 
-    # Получаем индивидуальную цену за месяц бана из библиотеки, если фильм там есть
+    # Получаем данные из библиотеки, если фильм там есть
+    library_movie = None
     ban_cost_per_month = None
+    has_trailer = False
+    trailer_view_cost = None
+    
     if movie.kinopoisk_id:
         library_movie = LibraryMovie.query.filter_by(kinopoisk_id=movie.kinopoisk_id).first()
-        if library_movie and library_movie.ban_cost_per_month is not None:
-            ban_cost_per_month = library_movie.ban_cost_per_month
-    elif movie.name and movie.year:
+    if not library_movie and movie.name and movie.year:
         library_movie = LibraryMovie.query.filter_by(name=movie.name, year=movie.year).first()
-        if library_movie and library_movie.ban_cost_per_month is not None:
+    
+    if library_movie:
+        if library_movie.ban_cost_per_month is not None:
             ban_cost_per_month = library_movie.ban_cost_per_month
+        has_trailer = library_movie.has_local_trailer
+        trailer_view_cost = library_movie.trailer_view_cost if library_movie.trailer_view_cost is not None else 1
 
     return {
         "id": movie.id,
@@ -696,6 +722,8 @@ def _serialize_poll_movie(movie):
         "ban_status": getattr(movie, 'ban_status', 'none'),
         "ban_remaining_seconds": getattr(movie, 'ban_remaining_seconds', 0),
         "ban_cost_per_month": ban_cost_per_month,
+        "has_trailer": has_trailer,
+        "trailer_view_cost": trailer_view_cost,
     }
 
 
@@ -971,15 +999,66 @@ def delete_lottery(lottery_id):
 def get_library_movies():
     _refresh_library_bans()
 
+    # Загружаем только базовые колонки через load_only
+    # Колонки трейлера обрабатываем через getattr() в сериализации
+    from sqlalchemy.orm import load_only
     try:
-        movies = LibraryMovie.query.order_by(LibraryMovie.bumped_at.desc()).all()
+        movies = (
+            LibraryMovie.query
+            .options(load_only(
+                LibraryMovie.id,
+                LibraryMovie.kinopoisk_id,
+                LibraryMovie.name,
+                LibraryMovie.search_name,
+                LibraryMovie.poster,
+                LibraryMovie.year,
+                LibraryMovie.description,
+                LibraryMovie.rating_kp,
+                LibraryMovie.genres,
+                LibraryMovie.countries,
+                LibraryMovie.added_at,
+                LibraryMovie.bumped_at,
+                LibraryMovie.badge,
+                LibraryMovie.points,
+                LibraryMovie.ban_until,
+                LibraryMovie.ban_applied_by,
+                LibraryMovie.ban_cost,
+                LibraryMovie.ban_cost_per_month,
+            ))
+            .order_by(LibraryMovie.bumped_at.desc())
+            .all()
+        )
     except (OperationalError, ProgrammingError) as exc:
         current_app.logger.warning(
             "LibraryMovie.bumped_at unavailable, falling back to added_at sorting. "
             "Run pending migrations. Error: %s",
             exc,
         )
-        movies = LibraryMovie.query.order_by(LibraryMovie.added_at.desc()).all()
+        db.session.rollback()
+        movies = (
+            LibraryMovie.query
+            .options(load_only(
+                LibraryMovie.id,
+                LibraryMovie.kinopoisk_id,
+                LibraryMovie.name,
+                LibraryMovie.search_name,
+                LibraryMovie.poster,
+                LibraryMovie.year,
+                LibraryMovie.description,
+                LibraryMovie.rating_kp,
+                LibraryMovie.genres,
+                LibraryMovie.countries,
+                LibraryMovie.added_at,
+                LibraryMovie.badge,
+                LibraryMovie.points,
+                LibraryMovie.ban_until,
+                LibraryMovie.ban_applied_by,
+                LibraryMovie.ban_cost,
+                LibraryMovie.ban_cost_per_month,
+            ))
+            .order_by(LibraryMovie.added_at.desc())
+            .all()
+        )
 
     kp_ids = [m.kinopoisk_id for m in movies if m.kinopoisk_id]
     identifiers_map = {}
@@ -1188,6 +1267,48 @@ def update_library_movie_ban_cost_per_month(movie_id):
         "message": "Цена за месяц бана обновлена.",
         "ban_cost_per_month": library_movie.ban_cost_per_month,
     })
+
+
+@api_bp.route('/library/<int:movie_id>/trailer-view-cost', methods=['PUT'])
+def update_library_movie_trailer_view_cost(movie_id):
+    """Обновление цены за просмотр трейлера для фильма"""
+    data = _get_json_payload()
+    if data is None:
+        return jsonify({"success": False, "message": "Некорректный JSON-запрос."}), 400
+
+    raw_cost = data.get('trailer_view_cost')
+    
+    # Если значение None или null, устанавливаем None (используется значение по умолчанию 1)
+    if raw_cost is None:
+        library_movie = LibraryMovie.query.get_or_404(movie_id)
+        library_movie.trailer_view_cost = None
+        library_movie.bumped_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify({
+            "success": True,
+            "message": "Цена за просмотр трейлера сброшена к значению по умолчанию.",
+            "trailer_view_cost": None,
+        })
+
+    try:
+        cost = int(raw_cost)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "message": "Цена за просмотр трейлера должна быть целым числом."}), 400
+
+    if cost < 0 or cost > 999:
+        return jsonify({"success": False, "message": "Цена за просмотр трейлера должна быть в диапазоне от 0 до 999."}), 400
+
+    library_movie = LibraryMovie.query.get_or_404(movie_id)
+    library_movie.trailer_view_cost = cost
+    library_movie.bumped_at = datetime.utcnow()
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": "Цена за просмотр трейлера обновлена.",
+        "trailer_view_cost": library_movie.trailer_view_cost,
+    })
+
 
 # --- Маршруты для работы с торрентами ---
 
@@ -1814,6 +1935,189 @@ def cleanup_expired_polls():
     
     db.session.commit()
     return jsonify({"success": True, "deleted_count": count})
+
+
+@api_bp.route('/polls/<poll_id>/watch-trailer', methods=['POST'])
+def watch_trailer_in_poll(poll_id):
+    """Просмотр трейлера фильма в опросе с оплатой баллами"""
+    poll = Poll.query.get_or_404(poll_id)
+
+    payload = _get_json_payload()
+    if payload is None:
+        return jsonify({"error": "Некорректный JSON-запрос"}), 400
+
+    movie_id = payload.get('movie_id')
+    if not movie_id:
+        return jsonify({"error": "Не указан фильм"}), 400
+
+    # Проверяем, что фильм принадлежит этому опросу
+    movie = PollMovie.query.filter_by(id=movie_id, poll_id=poll_id).first()
+    if not movie:
+        return jsonify({"error": "Фильм не найден в опросе"}), 404
+
+    # Ищем фильм в библиотеке по kinopoisk_id или name+year
+    library_movie = None
+    if movie.kinopoisk_id:
+        library_movie = LibraryMovie.query.filter_by(kinopoisk_id=movie.kinopoisk_id).first()
+    if not library_movie and movie.name and movie.year:
+        library_movie = LibraryMovie.query.filter_by(name=movie.name, year=movie.year).first()
+
+    if not library_movie:
+        return jsonify({"error": "Фильм не найден в библиотеке"}), 404
+
+    # Проверяем наличие трейлера
+    if not library_movie.has_local_trailer:
+        return jsonify({"error": "Трейлер для этого фильма не загружен"}), 404
+
+    # Получаем стоимость просмотра
+    trailer_cost = library_movie.trailer_view_cost if library_movie.trailer_view_cost is not None else 1
+
+    # Получаем профиль пользователя
+    identity = _resolve_voter_identity()
+    voter_token = identity['voter_token']
+    device_label = identity['device_label']
+    user_id = identity['user_id']
+    profile = identity['profile']
+    balance_before = profile.total_points or 0
+
+    # Проверяем баланс
+    if trailer_cost > 0 and balance_before < trailer_cost:
+        return jsonify({
+            "error": f"Недостаточно баллов для просмотра трейлера. Требуется {trailer_cost} баллов.",
+            "required_cost": trailer_cost,
+            "points_balance": balance_before,
+        }), 403
+
+    # Списываем баллы
+    new_balance = balance_before
+    if trailer_cost > 0:
+        new_balance = change_voter_points_balance(
+            voter_token,
+            -trailer_cost,
+            device_label=device_label,
+        )
+        db.session.commit()
+
+    # Fetch updated profile
+    profile = ensure_voter_profile(voter_token, device_label=device_label)
+    points_accrued = profile.points_accrued_total or 0
+
+    # Формируем URL для трейлера
+    settings = _get_trailer_settings()
+    trailer_url = f"/api/trailers/{library_movie.id}/stream"
+
+    response = prevent_caching(jsonify({
+        "success": True,
+        "trailer_url": trailer_url,
+        "trailer_mime_type": library_movie.trailer_mime_type,
+        "movie_name": movie.name,
+        "cost_deducted": trailer_cost,
+        "points_balance": new_balance,
+        "points_earned_total": points_accrued,
+    }))
+
+    return _set_voter_cookies(response, voter_token, user_id)
+
+
+@api_bp.route('/trailers/<int:movie_id>/stream', methods=['GET'])
+def stream_trailer(movie_id):
+    """Отдача видеофайла трейлера"""
+    from flask import send_file, Response
+    
+    library_movie = LibraryMovie.query.get_or_404(movie_id)
+    
+    if not library_movie.has_local_trailer:
+        return jsonify({"error": "Трейлер не найден"}), 404
+
+    settings = _get_trailer_settings()
+    media_root = settings.get('media_root') or ''
+    
+    # trailer_file_path хранится как "trailers/filename.mp4"
+    # media_root = instance/media
+    # Итоговый путь: instance/media/trailers/filename.mp4
+    # Нормализуем путь для кроссплатформенности
+    normalized_file_path = library_movie.trailer_file_path.replace('\\', '/').replace('/', os.sep)
+    trailer_path = os.path.normpath(os.path.join(media_root, normalized_file_path))
+    
+    current_app.logger.debug('Streaming trailer: media_root=%s, file_path=%s, full_path=%s', 
+                             media_root, library_movie.trailer_file_path, trailer_path)
+
+    if not os.path.exists(trailer_path):
+        current_app.logger.error('Файл трейлера не найден: %s', trailer_path)
+        return jsonify({"error": "Файл трейлера не найден"}), 404
+
+    mime_type = library_movie.trailer_mime_type or 'video/mp4'
+
+    # Поддержка Range requests для видео
+    file_size = os.path.getsize(trailer_path)
+    range_header = request.headers.get('Range')
+
+    if range_header:
+        # Парсим Range header
+        byte_start = 0
+        byte_end = file_size - 1
+        
+        range_match = re.match(r'bytes=(\d*)-(\d*)', range_header)
+        if range_match:
+            start_str, end_str = range_match.groups()
+            if start_str:
+                byte_start = int(start_str)
+            if end_str:
+                byte_end = int(end_str)
+        
+        byte_end = min(byte_end, file_size - 1)
+        content_length = byte_end - byte_start + 1
+
+        def generate():
+            with open(trailer_path, 'rb') as f:
+                f.seek(byte_start)
+                remaining = content_length
+                chunk_size = 1024 * 1024  # 1MB chunks для быстрого стриминга
+                while remaining > 0:
+                    chunk = f.read(min(chunk_size, remaining))
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+                    yield chunk
+
+        response = Response(
+            generate(),
+            status=206,
+            mimetype=mime_type,
+            direct_passthrough=True
+        )
+        response.headers['Content-Range'] = f'bytes {byte_start}-{byte_end}/{file_size}'
+        response.headers['Accept-Ranges'] = 'bytes'
+        response.headers['Content-Length'] = content_length
+        response.headers['Content-Type'] = mime_type
+        return response
+    else:
+        response = send_file(
+            trailer_path,
+            mimetype=mime_type,
+            as_attachment=False,
+        )
+        response.headers['Accept-Ranges'] = 'bytes'
+        response.headers['Content-Length'] = file_size
+        return response
+
+
+@api_bp.route('/movies/<int:kinopoisk_id>/trailer-info', methods=['GET'])
+def get_trailer_info(kinopoisk_id):
+    """Получение информации о трейлере фильма по kinopoisk_id"""
+    library_movie = LibraryMovie.query.filter_by(kinopoisk_id=kinopoisk_id).first()
+    
+    if not library_movie:
+        return jsonify({
+            "has_trailer": False,
+            "trailer_view_cost": None,
+        })
+
+    return jsonify({
+        "has_trailer": library_movie.has_local_trailer,
+        "trailer_view_cost": library_movie.trailer_view_cost if library_movie.trailer_view_cost is not None else 1,
+        "movie_id": library_movie.id,
+    })
 
 
 # --- Маршруты для управления бейджами ---

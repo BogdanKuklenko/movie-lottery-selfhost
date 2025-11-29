@@ -145,7 +145,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     let isBanModalOpen = false;
     let pollClosedByBan = false;
     let forcedWinner = null;
+    let isTrailerModalOpen = false;
+    let lastTrailerSource = null;
+    let lastTrailerMimeType = null;
+    let lastTrailerMovieName = null;
     const PLACEHOLDER_POSTER = 'https://via.placeholder.com/200x300.png?text=No+Image';
+
+    // Элементы медиаплеера трейлера
+    const trailerPlayerModal = document.getElementById('trailer-player-modal');
+    const trailerPlayerTitle = document.getElementById('trailer-player-title');
+    const trailerVideo = document.getElementById('trailer-video');
+    const trailerPlayerClose = trailerPlayerModal?.querySelector('.trailer-player-close');
+    const trailerPlayerError = document.getElementById('trailer-player-error');
+    const trailerPlayerWrapper = document.getElementById('trailer-player-wrapper');
+    const trailerLoadingIndicator = document.getElementById('trailer-player-loading');
+    const trailerLoadingLabel = document.getElementById('trailer-player-loading-text');
+    const trailerErrorText = document.getElementById('trailer-player-error-text');
+    const trailerRetryButton = document.getElementById('trailer-retry-button');
+    
+    // Кастомные контролы плеера
+    const trailerTapOverlay = document.getElementById('trailer-tap-overlay');
+    const trailerCustomControls = document.getElementById('trailer-custom-controls');
+    const trailerProgress = document.getElementById('trailer-progress');
+    const trailerCurrentTime = document.getElementById('trailer-current-time');
+    const trailerDuration = document.getElementById('trailer-duration');
+    const trailerFullscreenBtn = document.getElementById('trailer-fullscreen-btn');
 
     const RECENT_USER_IDS_KEY = 'pollRecentUserIds';
 
@@ -343,15 +367,33 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const actions = document.createElement('div');
             actions.className = 'poll-movie-actions';
+            
+            // Кнопка просмотра трейлера с удержанием
+            if (movie.has_trailer) {
+                const trailerBtn = document.createElement('button');
+                trailerBtn.type = 'button';
+                trailerBtn.className = 'poll-trailer-button';
+                const trailerCost = movie.trailer_view_cost ?? 1;
+                trailerBtn.innerHTML = `<span class="poll-trailer-button-icon">▶</span>${trailerCost > 0 ? `<span class="poll-trailer-cost">−${trailerCost}</span>` : ''}`;
+                trailerBtn.title = trailerCost > 0 ? `Удерживайте (${trailerCost} б.)` : 'Удерживайте';
+                
+                setupHoldToConfirm(trailerBtn, () => {
+                    handleTrailerClick(movie);
+                }, 2000, trailerCost);
+                
+                actions.appendChild(trailerBtn);
+            }
+            
             const banBtn = document.createElement('button');
             banBtn.type = 'button';
             banBtn.className = 'secondary-button poll-ban-button';
             if (isBanned) {
                 banBtn.classList.add('poll-ban-button-static');
-                banBtn.textContent = buildBanLabel(movie);
+                banBtn.textContent = buildBanLabelShort(movie);
                 banBtn.setAttribute('aria-disabled', 'true');
             } else {
-                banBtn.textContent = 'Исключить из опроса';
+                banBtn.textContent = 'Исключить';
+                banBtn.title = 'Исключить из опроса';
                 banBtn.disabled = pollClosedByBan;
                 banBtn.addEventListener('click', (event) => {
                     event.stopPropagation();
@@ -412,6 +454,469 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         openBanModal(movie);
+    }
+
+    // --- Функционал просмотра трейлера ---
+    function updateTrailerLoadingState(isLoading, text = 'Загружаем трейлер…') {
+        if (trailerPlayerWrapper) {
+            trailerPlayerWrapper.classList.toggle('is-loading', Boolean(isLoading));
+        }
+        if (trailerLoadingIndicator) {
+            trailerLoadingIndicator.hidden = !isLoading;
+        }
+        if (trailerLoadingLabel && text) {
+            trailerLoadingLabel.textContent = text;
+        }
+    }
+
+    function hideTrailerError() {
+        if (!trailerPlayerError) return;
+        trailerPlayerError.style.display = 'none';
+        if (trailerVideo) {
+            trailerVideo.style.display = 'block';
+        }
+    }
+
+    function showTrailerError(message = 'Не удалось загрузить трейлер') {
+        if (!trailerPlayerError) return;
+        if (trailerErrorText) {
+            trailerErrorText.textContent = message;
+        }
+        trailerPlayerError.style.display = 'block';
+        if (trailerVideo) {
+            trailerVideo.style.display = 'none';
+        }
+        updateTrailerLoadingState(false);
+    }
+
+    // --- Кастомные контролы плеера ---
+    let controlsHideTimeout = null;
+    let isVideoFullscreen = false;
+
+    function formatTime(seconds) {
+        if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    function updateProgressBar() {
+        if (!trailerVideo || !trailerProgress) return;
+        const duration = trailerVideo.duration || 0;
+        const currentTime = trailerVideo.currentTime || 0;
+        const percent = duration > 0 ? (currentTime / duration) * 100 : 0;
+        
+        trailerProgress.value = percent;
+        // Обновляем CSS градиент для визуального отображения прогресса
+        trailerProgress.style.background = `linear-gradient(to right, var(--accent-gold) ${percent}%, rgba(255, 255, 255, 0.2) ${percent}%)`;
+        
+        if (trailerCurrentTime) {
+            trailerCurrentTime.textContent = formatTime(currentTime);
+        }
+    }
+
+    function updateDurationDisplay() {
+        if (!trailerVideo || !trailerDuration) return;
+        trailerDuration.textContent = formatTime(trailerVideo.duration || 0);
+    }
+
+    function seekVideo(percent) {
+        if (!trailerVideo || !trailerVideo.duration) return;
+        trailerVideo.currentTime = (percent / 100) * trailerVideo.duration;
+    }
+
+    function toggleVideoPlayPause() {
+        if (!trailerVideo) return;
+        if (trailerVideo.paused) {
+            trailerVideo.play().catch(() => {});
+        } else {
+            trailerVideo.pause();
+        }
+        showControlsTemporarily();
+    }
+
+    function showControlsTemporarily() {
+        if (trailerPlayerWrapper) {
+            trailerPlayerWrapper.classList.remove('controls-hidden');
+        }
+        clearTimeout(controlsHideTimeout);
+        // Скрываем контролы через 3 секунды если видео воспроизводится
+        if (trailerVideo && !trailerVideo.paused) {
+            controlsHideTimeout = setTimeout(() => {
+                if (trailerPlayerWrapper && trailerVideo && !trailerVideo.paused) {
+                    trailerPlayerWrapper.classList.add('controls-hidden');
+                }
+            }, 3000);
+        }
+    }
+
+    function showControls() {
+        if (trailerPlayerWrapper) {
+            trailerPlayerWrapper.classList.remove('controls-hidden');
+        }
+        clearTimeout(controlsHideTimeout);
+    }
+
+    // Простой нативный fullscreen на video элементе
+    async function enterVideoFullscreen() {
+        if (!trailerVideo) return;
+        
+        try {
+            // Просто вызываем requestFullscreen на video - браузер покажет нативный плеер
+            const requestFS = trailerVideo.requestFullscreen ||
+                              trailerVideo.webkitRequestFullscreen ||
+                              trailerVideo.webkitEnterFullscreen || // iOS Safari
+                              trailerVideo.mozRequestFullScreen ||
+                              trailerVideo.msRequestFullscreen;
+            
+            if (requestFS) {
+                await requestFS.call(trailerVideo);
+                isVideoFullscreen = true;
+                updateFullscreenButtonIcon(true);
+            }
+        } catch (e) {
+            console.log('Fullscreen не поддерживается:', e.message);
+        }
+    }
+
+    async function exitVideoFullscreen() {
+        try {
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                const exitFS = document.exitFullscreen ||
+                               document.webkitExitFullscreen ||
+                               document.mozCancelFullScreen ||
+                               document.msExitFullscreen;
+                
+                if (exitFS) {
+                    await exitFS.call(document);
+                }
+            }
+            
+            // iOS Safari
+            if (trailerVideo && trailerVideo.webkitExitFullscreen) {
+                trailerVideo.webkitExitFullscreen();
+            }
+            
+            isVideoFullscreen = false;
+            updateFullscreenButtonIcon(false);
+        } catch (e) {}
+    }
+
+    function toggleVideoFullscreen() {
+        const isFullscreen = document.fullscreenElement || 
+                             document.webkitFullscreenElement ||
+                             document.mozFullScreenElement;
+        
+        if (isFullscreen) {
+            exitVideoFullscreen();
+        } else {
+            enterVideoFullscreen();
+        }
+    }
+
+    function updateFullscreenButtonIcon(isFullscreen) {
+        if (trailerFullscreenBtn) {
+            const enterIcon = trailerFullscreenBtn.querySelector('.fullscreen-enter-icon');
+            const exitIcon = trailerFullscreenBtn.querySelector('.fullscreen-exit-icon');
+            if (enterIcon) enterIcon.style.display = isFullscreen ? 'none' : 'block';
+            if (exitIcon) exitIcon.style.display = isFullscreen ? 'block' : 'none';
+        }
+    }
+
+    // Инициализация событий кастомных контролов
+    function initCustomControls() {
+        if (!trailerVideo) return;
+
+        // Обновление прогресс-бара при воспроизведении
+        trailerVideo.addEventListener('timeupdate', updateProgressBar);
+        trailerVideo.addEventListener('loadedmetadata', () => {
+            updateDurationDisplay();
+            updateProgressBar();
+            // Автостарт после загрузки метаданных
+            if (isTrailerModalOpen && trailerVideo.paused) {
+                trailerVideo.play().catch(() => {});
+            }
+        });
+        trailerVideo.addEventListener('durationchange', updateDurationDisplay);
+        
+        // Автостарт когда видео готово к воспроизведению
+        trailerVideo.addEventListener('canplay', () => {
+            if (isTrailerModalOpen && trailerVideo.paused) {
+                trailerVideo.play().catch(() => {});
+            }
+        });
+
+        // Пауза/воспроизведение ТОЛЬКО по клику на оверлей (не на видео чтобы избежать двойного срабатывания)
+        if (trailerTapOverlay) {
+            trailerTapOverlay.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleVideoPlayPause();
+            });
+        }
+
+        // Показываем контролы при движении мыши
+        if (trailerPlayerWrapper) {
+            trailerPlayerWrapper.addEventListener('mousemove', showControlsTemporarily);
+            trailerPlayerWrapper.addEventListener('touchstart', showControlsTemporarily, { passive: true });
+        }
+
+        // Показываем контролы когда видео на паузе
+        trailerVideo.addEventListener('pause', showControls);
+        trailerVideo.addEventListener('play', showControlsTemporarily);
+
+        // Прогресс-бар - перемотка
+        if (trailerProgress) {
+            trailerProgress.addEventListener('input', (e) => {
+                seekVideo(parseFloat(e.target.value));
+            });
+            trailerProgress.addEventListener('change', (e) => {
+                seekVideo(parseFloat(e.target.value));
+            });
+        }
+
+        // Кнопка fullscreen
+        if (trailerFullscreenBtn) {
+            trailerFullscreenBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleVideoFullscreen();
+            });
+        }
+
+        // Отслеживаем изменение fullscreen состояния
+        document.addEventListener('fullscreenchange', handleFullscreenStateChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenStateChange);
+    }
+
+    function handleFullscreenStateChange() {
+        const isNativeFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+        const isPseudoFullscreen = trailerPlayerModal?.classList.contains('pseudo-fullscreen');
+        const isAnyFullscreen = isNativeFullscreen || isPseudoFullscreen;
+        
+        isVideoFullscreen = Boolean(isAnyFullscreen);
+        
+        if (trailerPlayerWrapper) {
+            trailerPlayerWrapper.classList.toggle('is-fullscreen', isVideoFullscreen);
+        }
+        
+        // Обновляем иконки кнопки
+        updateFullscreenButtonIcon(isVideoFullscreen);
+    }
+
+    // Инициализируем кастомные контролы
+    initCustomControls();
+
+    function resetTrailerPlayerSource() {
+        if (trailerVideo) {
+            trailerVideo.pause();
+            trailerVideo.removeAttribute('src');
+            trailerVideo.load();
+            trailerVideo.onerror = null;
+            trailerVideo.oncanplay = null;
+        }
+    }
+
+    async function handleTrailerClick(movie) {
+        if (!movie || !movie.has_trailer) {
+            showToast('Трейлер недоступен для этого фильма.', 'info');
+            return;
+        }
+
+        const trailerCost = movie.trailer_view_cost ?? 1;
+        
+        // Проверяем баланс перед показом трейлера
+        if (trailerCost > 0 && (pointsBalance === null || pointsBalance < trailerCost)) {
+            showToast(`Недостаточно баллов для просмотра трейлера. Требуется ${trailerCost} баллов.`, 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch(buildPollApiUrl(`/api/polls/${pollId}/watch-trailer`), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ movie_id: movie.id }),
+                credentials: 'include'
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Не удалось загрузить трейлер');
+            }
+
+            // Обновляем баланс с анимацией если были списаны баллы
+            if (result.cost_deducted > 0) {
+                updatePointsBalance(result.points_balance, result.points_earned_total, true);
+                showToast(`−${result.cost_deducted} баллов за просмотр трейлера`, 'info');
+            }
+
+            // Открываем плеер с трейлером
+            openTrailerModal(movie.name, result.trailer_url, result.trailer_mime_type);
+
+        } catch (error) {
+            console.error('Ошибка при загрузке трейлера:', error);
+            showToast(error.message || 'Не удалось загрузить трейлер', 'error');
+        }
+    }
+
+    function openTrailerModal(movieName, trailerUrl, mimeType) {
+        if (!trailerPlayerModal || !trailerVideo) return;
+
+        if (trailerPlayerTitle) {
+            trailerPlayerTitle.textContent = movieName;
+        }
+
+        lastTrailerSource = trailerUrl;
+        lastTrailerMimeType = mimeType || 'video/mp4';
+        lastTrailerMovieName = movieName;
+
+        hideTrailerError();
+        updateTrailerLoadingState(true, 'Загружаем трейлер…');
+
+        // Используем нативный video плеер (без Plyr)
+        trailerVideo.pause();
+        trailerVideo.removeAttribute('src');
+        trailerVideo.innerHTML = '';
+        trailerVideo.src = trailerUrl;
+        
+        trailerVideo.onerror = () => {
+            console.error('Ошибка загрузки видео:', trailerUrl);
+            showTrailerError('Не удалось загрузить трейлер');
+        };
+        
+        trailerVideo.oncanplay = () => {
+            updateTrailerLoadingState(false);
+            updateDurationDisplay();
+        };
+
+        // Сбрасываем прогресс-бар
+        if (trailerProgress) {
+            trailerProgress.value = 0;
+            trailerProgress.style.background = 'linear-gradient(to right, var(--accent-gold) 0%, rgba(255, 255, 255, 0.2) 0%)';
+        }
+        if (trailerCurrentTime) {
+            trailerCurrentTime.textContent = '0:00';
+        }
+        if (trailerDuration) {
+            trailerDuration.textContent = '0:00';
+        }
+
+        // Открываем модальное окно
+        trailerPlayerModal.style.display = 'flex';
+        if (!isTrailerModalOpen) {
+            lockScroll();
+            isTrailerModalOpen = true;
+            pushModalHistory('trailer');
+        }
+
+        // Показываем контролы
+        showControls();
+
+        // Устанавливаем autoplay атрибут
+        trailerVideo.autoplay = true;
+        trailerVideo.load();
+
+        // Автостарт воспроизведения с небольшой задержкой для надёжности
+        setTimeout(() => {
+            if (!trailerVideo.paused) return; // Уже играет
+            
+            const playPromise = trailerVideo.play();
+
+            if (playPromise && typeof playPromise.then === 'function') {
+                playPromise
+                    .then(() => {
+                        updateTrailerLoadingState(false);
+                        showControlsTemporarily();
+                    })
+                .catch((err) => {
+                    updateTrailerLoadingState(false);
+                    const message = (err && err.message ? String(err.message) : '').toLowerCase();
+                    const isAutoplayBlocked = message.includes('play()') || message.includes('user didn');
+                    if (isAutoplayBlocked) {
+                        console.warn('Автовоспроизведение заблокировано - нажмите на видео для запуска');
+                        hideTrailerError();
+                        showControls(); // Показываем контролы чтобы пользователь мог нажать play
+                    } else {
+                        console.error('Сбой запуска трейлера:', err);
+                        showTrailerError('Не удалось запустить трейлер. Попробуйте ещё раз.');
+                    }
+                });
+            } else {
+                updateTrailerLoadingState(false);
+            }
+        }, 100); // Небольшая задержка для надёжности автостарта
+    }
+
+    // Определяем мобильное устройство
+    function isMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+               (window.innerWidth <= 768 && 'ontouchstart' in window);
+    }
+
+    function closeTrailerModal(options = {}) {
+        const { fromPopState = false } = options;
+        const wasTracked = modalHistoryStack.includes('trailer');
+        
+        // Выходим из fullscreen если активен
+        exitVideoFullscreen();
+        
+        // Останавливаем скрытие контролов
+        clearTimeout(controlsHideTimeout);
+        
+        if (trailerPlayerModal) {
+            trailerPlayerModal.style.display = 'none';
+        }
+        
+        resetTrailerPlayerSource();
+        hideTrailerError();
+        updateTrailerLoadingState(false);
+        
+        if (isTrailerModalOpen) {
+            unlockScroll();
+            isTrailerModalOpen = false;
+        }
+        
+        removeModalFromHistory('trailer');
+
+        if (!fromPopState && wasTracked) {
+            ignoreModalPopState = true;
+            history.back();
+        }
+    }
+
+    // Обработчики для модального окна трейлера
+    if (trailerPlayerClose) {
+        trailerPlayerClose.addEventListener('click', closeTrailerModal);
+    }
+    if (trailerPlayerModal) {
+        trailerPlayerModal.addEventListener('click', (e) => {
+            if (e.target === trailerPlayerModal) {
+                closeTrailerModal();
+            }
+        });
+    }
+
+    // На iOS обрабатываем выход из fullscreen видео
+    if (trailerVideo) {
+        trailerVideo.addEventListener('webkitendfullscreen', () => {
+            closeTrailerModal();
+        });
+        
+        // Когда видео заканчивается - закрываем модальное окно
+        trailerVideo.addEventListener('ended', () => {
+            if (isTrailerModalOpen) {
+                closeTrailerModal();
+            }
+        });
+    }
+
+    if (trailerRetryButton) {
+        trailerRetryButton.addEventListener('click', () => {
+            if (!lastTrailerSource) return;
+            hideTrailerError();
+            updateTrailerLoadingState(true, 'Повторяем воспроизведение…');
+            openTrailerModal(lastTrailerMovieName || 'Трейлер', lastTrailerSource, lastTrailerMimeType);
+        });
     }
 
     function openVoteConfirmation(movie) {
@@ -646,6 +1151,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             closeCustomVoteModal({ fromPopState: true });
         } else if (modalId === 'ban') {
             closeBanModal({ fromPopState: true });
+        } else if (modalId === 'trailer') {
+            closeTrailerModal({ fromPopState: true });
         } else if (modalId === 'user-onboarding') {
             if (shouldRequestUserId) {
                 openUserOnboardingModal({ suggestedId: lastKnownUserId });
@@ -954,7 +1461,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             banBtn.classList.add('poll-ban-button-static');
             banBtn.setAttribute('aria-disabled', 'true');
             banBtn.disabled = true;
-            banBtn.textContent = buildBanLabel(movie);
+            banBtn.textContent = buildBanLabelShort(movie);
         }
     }
 
@@ -1487,6 +1994,143 @@ document.addEventListener('DOMContentLoaded', async () => {
             return `Исключён до ${banUntil.toLocaleDateString('ru-RU')}`;
         }
         return 'Уже исключён';
+    }
+
+    function buildBanLabelShort(movie) {
+        if (!movie) return 'Бан';
+        const banUntil = movie.ban_until ? new Date(movie.ban_until) : null;
+        if (banUntil && !Number.isNaN(banUntil.getTime())) {
+            return `до ${banUntil.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}`;
+        }
+        return 'Бан';
+    }
+
+    // Элементы оверлея подтверждения
+    const holdConfirmOverlay = document.getElementById('hold-confirm-overlay');
+    const holdConfirmCost = document.getElementById('hold-confirm-cost');
+    const holdConfirmProgress = holdConfirmOverlay?.querySelector('.hold-confirm-circle-progress');
+
+    // Глобальное состояние для hold-to-confirm (нужно для отслеживания mouseup на document)
+    let activeHoldState = null;
+
+    // Функция для удержания кнопки (hold-to-confirm) с полноэкранным оверлеем
+    function setupHoldToConfirm(button, onConfirm, holdDuration = 3000, cost = 0) {
+        let holdTimer = null;
+        let isHolding = false;
+
+        const showOverlay = () => {
+            if (!holdConfirmOverlay) return;
+            
+            // Показываем стоимость
+            if (holdConfirmCost) {
+                holdConfirmCost.textContent = cost > 0 ? `−${cost} баллов` : 'Бесплатно';
+            }
+            
+            // Сбрасываем анимацию прогресса
+            if (holdConfirmProgress) {
+                holdConfirmProgress.style.transition = 'none';
+                holdConfirmProgress.style.strokeDashoffset = '339.292';
+                // Force reflow
+                void holdConfirmProgress.offsetWidth;
+            }
+            
+            holdConfirmOverlay.classList.add('active');
+            
+            // Запускаем анимацию прогресса
+            requestAnimationFrame(() => {
+                if (holdConfirmProgress) {
+                    holdConfirmProgress.style.transition = `stroke-dashoffset ${holdDuration}ms linear`;
+                    holdConfirmProgress.style.strokeDashoffset = '0';
+                }
+            });
+        };
+
+        const hideOverlay = () => {
+            if (!holdConfirmOverlay) return;
+            holdConfirmOverlay.classList.remove('active');
+            
+            // Сбрасываем прогресс
+            if (holdConfirmProgress) {
+                holdConfirmProgress.style.transition = 'none';
+                holdConfirmProgress.style.strokeDashoffset = '339.292';
+            }
+        };
+
+        const startHold = (e) => {
+            if (button.disabled) return;
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (isHolding) return;
+            isHolding = true;
+            button.classList.add('holding');
+            showOverlay();
+            
+            // Сохраняем ссылку на cancelHold для глобального обработчика mouseup
+            activeHoldState = { cancelHold };
+            
+            holdTimer = setTimeout(() => {
+                if (isHolding) {
+                    cancelHold();
+                    onConfirm();
+                }
+            }, holdDuration);
+        };
+
+        const cancelHold = () => {
+            if (holdTimer) {
+                clearTimeout(holdTimer);
+                holdTimer = null;
+            }
+            if (!isHolding) return;
+            isHolding = false;
+            button.classList.remove('holding');
+            hideOverlay();
+            activeHoldState = null;
+        };
+
+        // Мышь - только mousedown на кнопке, mouseup обрабатывается глобально
+        button.addEventListener('mousedown', startHold);
+
+        // Тач (мобильные) - touchend/touchcancel на кнопке + глобально
+        button.addEventListener('touchstart', startHold, { passive: false });
+        button.addEventListener('touchend', cancelHold);
+        button.addEventListener('touchcancel', cancelHold);
+
+        // Предотвращаем обычный клик
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+    }
+    
+    // Глобальный обработчик mouseup - отменяет hold при отпускании мыши где угодно
+    document.addEventListener('mouseup', () => {
+        if (activeHoldState && activeHoldState.cancelHold) {
+            activeHoldState.cancelHold();
+        }
+    });
+
+    // Глобальные обработчики для overlay
+    if (holdConfirmOverlay) {
+        // При отпускании на overlay тоже отменяем
+        holdConfirmOverlay.addEventListener('mouseup', () => {
+            if (activeHoldState && activeHoldState.cancelHold) {
+                activeHoldState.cancelHold();
+            }
+        });
+        holdConfirmOverlay.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (activeHoldState && activeHoldState.cancelHold) {
+                activeHoldState.cancelHold();
+            }
+        });
+        holdConfirmOverlay.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            if (activeHoldState && activeHoldState.cancelHold) {
+                activeHoldState.cancelHold();
+            }
+        });
     }
 
     function updateCustomVoteCostLabels(cost = customVoteCost) {

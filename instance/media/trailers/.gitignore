@@ -1,0 +1,13 @@
+# Ignore all video files in this directory
+*.mp4
+*.webm
+*.mkv
+*.avi
+*.mov
+*.flv
+*.wmv
+
+# But keep .gitkeep
+!.gitkeep
+
+

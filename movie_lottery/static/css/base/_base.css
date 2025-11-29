@@ -26,14 +26,22 @@ img {
 }
 
 /* Класс для отключения вертикального скролла */
+html.no-scroll-html,
 body.no-scroll {
     position: fixed;
     width: 100%;
+    height: 100%;
     top: var(--scroll-lock-offset, 0px);
     left: 0;
     padding-right: var(--scroll-lock-padding-right, 0px);
     overflow: hidden;
     touch-action: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Для мобильных - предотвращаем overscroll эффекты */
+body.no-scroll {
+    overscroll-behavior: none;
 }
 
 /* СТИЛИ ДЛЯ СКРОЛЛБАРА */

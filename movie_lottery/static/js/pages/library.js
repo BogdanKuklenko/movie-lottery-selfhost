@@ -44,11 +44,6 @@ function formatDurationShort(seconds) {
 }
 
 const BAN_STATE_POLL_INTERVAL_MS = 30000;
-const trailerConfig = window.appConfig?.trailerUpload || {};
-const TRAILER_ALLOWED_MIME_TYPES = Array.isArray(trailerConfig.allowed_mime_types)
-    ? trailerConfig.allowed_mime_types.map(type => String(type).toLowerCase())
-    : [];
-const TRAILER_MAX_SIZE = Number.parseInt(trailerConfig.max_size, 10) || (100 * 1024 * 1024);
 
 /**
  * Динамически переключает иконку "копировать"/"искать" на карточке.
@@ -94,148 +89,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             modal.close();
         }
     };
-
-    const trailerModal = document.getElementById('trailer-modal');
-    const trailerTitle = trailerModal?.querySelector('.trailer-modal-title');
-    const trailerFileInput = trailerModal?.querySelector('#trailer-file-input');
-    const trailerHint = trailerModal?.querySelector('.trailer-hint');
-    const trailerError = trailerModal?.querySelector('.trailer-error');
-    const trailerSaveBtn = trailerModal?.querySelector('#trailer-save-btn');
-    const trailerCancelBtn = trailerModal?.querySelector('#trailer-cancel-btn');
-    const trailerCloseBtn = trailerModal?.querySelector('.close-button');
-    let trailerTargetCard = null;
-
-    const formatBytes = (bytes) => {
-        if (!bytes || Number.isNaN(bytes)) return '';
-        const megabytes = bytes / (1024 * 1024);
-        return `${Math.max(1, Math.round(megabytes))} МБ`;
-    };
-
-    if (trailerHint) {
-        const readableTypes = TRAILER_ALLOWED_MIME_TYPES.length
-            ? TRAILER_ALLOWED_MIME_TYPES.map(type => (type.split('/')?.[1] || type).toUpperCase()).join(', ')
-            : 'видео';
-        trailerHint.textContent = `Допустимые форматы: ${readableTypes}. Максимальный размер: ${formatBytes(TRAILER_MAX_SIZE) || '100 МБ'}.`;
-    }
-
-    const resetTrailerModal = () => {
-        if (trailerFileInput) trailerFileInput.value = '';
-        if (trailerError) trailerError.style.display = 'none';
-        if (trailerError) trailerError.textContent = '';
-        if (trailerSaveBtn) trailerSaveBtn.disabled = true;
-    };
-
-    const closeTrailerModal = () => {
-        if (!trailerModal) return;
-        trailerModal.style.display = 'none';
-        trailerTargetCard = null;
-        resetTrailerModal();
-    };
-
-    const openTrailerModal = (card) => {
-        if (!trailerModal || !card) return;
-        trailerTargetCard = card;
-        const movieName = card.dataset.movieName || '';
-        if (trailerTitle) {
-            trailerTitle.textContent = `Трейлер для фильма: ${movieName}`;
-        }
-        resetTrailerModal();
-        trailerModal.style.display = 'flex';
-    };
-
-    const validateTrailerFile = (file) => {
-        if (!file) {
-            return { valid: false, message: 'Выберите файл видеофайла.' };
-        }
-
-        if (TRAILER_MAX_SIZE && file.size > TRAILER_MAX_SIZE) {
-            return { valid: false, message: 'Размер файла превышает допустимый лимит.' };
-        }
-
-        const mimetype = (file.type || '').toLowerCase();
-        if (TRAILER_ALLOWED_MIME_TYPES.length && mimetype && !TRAILER_ALLOWED_MIME_TYPES.includes(mimetype)) {
-            return { valid: false, message: 'Недопустимый формат файла. Выберите видео (MP4/WebM и т.п.).' };
-        }
-
-        return { valid: true, message: '' };
-    };
-
-    const handleTrailerInputChange = () => {
-        if (!trailerFileInput || !trailerSaveBtn) return;
-        const file = trailerFileInput.files?.[0];
-        const validation = validateTrailerFile(file);
-
-        if (!validation.valid) {
-            if (trailerError) {
-                trailerError.textContent = validation.message;
-                trailerError.style.display = 'block';
-            }
-            trailerSaveBtn.disabled = true;
-        } else {
-            if (trailerError) trailerError.style.display = 'none';
-            trailerSaveBtn.disabled = false;
-        }
-    };
-
-    const handleTrailerSubmit = async (event) => {
-        event.preventDefault();
-        if (!trailerTargetCard || !trailerFileInput || !trailerSaveBtn) return;
-
-        const file = trailerFileInput.files?.[0];
-        const validation = validateTrailerFile(file);
-        if (!validation.valid) {
-            if (trailerError) {
-                trailerError.textContent = validation.message;
-                trailerError.style.display = 'block';
-            }
-            return;
-        }
-
-        const originalLabel = trailerSaveBtn.textContent;
-        trailerSaveBtn.disabled = true;
-        trailerSaveBtn.textContent = 'Загрузка...';
-
-        try {
-            const response = await movieApi.uploadLocalTrailer(trailerTargetCard.dataset.movieId, file);
-            if (response?.movie) {
-                applyApiMovieDataToCard(trailerTargetCard, response.movie);
-                updateBadgeFilterStats();
-                renderBanStatus(trailerTargetCard);
-            }
-            closeTrailerModal();
-            showToast('Трейлер сохранён.', 'success');
-        } catch (error) {
-            if (trailerError) {
-                trailerError.textContent = error.message || 'Не удалось загрузить трейлер.';
-                trailerError.style.display = 'block';
-            }
-            showToast(error.message || 'Не удалось загрузить трейлер.', 'error');
-        } finally {
-            trailerSaveBtn.textContent = originalLabel;
-            trailerSaveBtn.disabled = false;
-        }
-    };
-
-    if (trailerFileInput) {
-        trailerFileInput.addEventListener('change', handleTrailerInputChange);
-    }
-    if (trailerCancelBtn) {
-        trailerCancelBtn.addEventListener('click', closeTrailerModal);
-    }
-    if (trailerCloseBtn) {
-        trailerCloseBtn.addEventListener('click', closeTrailerModal);
-    }
-    if (trailerModal) {
-        trailerModal.addEventListener('click', (event) => {
-            if (event.target === trailerModal) {
-                closeTrailerModal();
-            }
-        });
-    }
-    const trailerForm = trailerModal?.querySelector('.trailer-form');
-    if (trailerForm) {
-        trailerForm.addEventListener('submit', handleTrailerSubmit);
-    }
 
     // --- Функционал выбора фильмов и создания опросов ---
     const toggleSelectModeBtn = document.getElementById('toggle-select-mode-btn');
@@ -553,7 +406,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const movieSearchName = e.target.dataset.movieSearchName;
                 const searchQuery = `${movieSearchName || movieName}${movieYear ? ' ' + movieYear : ''}`;
                 const encodedQuery = encodeURIComponent(searchQuery);
-                const rutrackerUrl = `https://rutracker.org/forum/tracker.php?nm=${encodedQuery}`;
+                const rutrackerUrl = `https://rutracker.net/forum/tracker.php?nm=${encodedQuery}`;
                 closeModalIfOpen();
                 window.open(rutrackerUrl, '_blank');
                 showToast(`Открыт поиск на RuTracker: "${searchQuery}"`, 'info');
@@ -1103,6 +956,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             updateTrailerVisuals(card);
         }
 
+        if (Object.prototype.hasOwnProperty.call(movieData, 'trailer_view_cost')) {
+            if (movieData.trailer_view_cost != null && movieData.trailer_view_cost !== undefined) {
+                card.dataset.trailerViewCost = movieData.trailer_view_cost.toString();
+            } else {
+                delete card.dataset.trailerViewCost;
+            }
+        }
+
         updateBadgeOnCard(card, movieData.badge || null, movieData, { skipStats: true });
         enforceSelectionRestrictionsForCard(card);
         return previousBadge !== (movieData.badge || '');
@@ -1182,6 +1043,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ban_cost: ds.banCost ? Number.parseInt(ds.banCost, 10) : null,
             ban_cost_per_month: ds.banCostPerMonth ? Number.parseInt(ds.banCostPerMonth, 10) : null,
             has_local_trailer: ds.hasLocalTrailer === 'true',
+            trailer_view_cost: ds.trailerViewCost ? Number.parseInt(ds.trailerViewCost, 10) : null,
         };
     };
 
@@ -1479,6 +1341,39 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } catch (error) {
                     notify(error.message || 'Не удалось удалить торрент с клиента.', 'error');
                 }
+            },
+            onUploadTrailer: async (movieId, file) => {
+                try {
+                    const response = await movieApi.uploadLocalTrailer(movieId, file);
+                    if (response?.movie) {
+                        applyApiMovieDataToCard(card, response.movie);
+                        updateBadgeFilterStats();
+                        renderBanStatus(card);
+                    }
+                    notify('Трейлер сохранён.', 'success');
+                    handleOpenModal(card);
+                } catch (error) {
+                    notify(error.message || 'Не удалось загрузить трейлер.', 'error');
+                    throw error;
+                }
+            },
+            onSaveTrailerViewCost: async (movieId, trailerViewCost) => {
+                try {
+                    const result = await movieApi.updateLibraryMovieTrailerViewCost(movieId, trailerViewCost);
+                    if (result.success) {
+                        if (result.trailer_view_cost !== null && result.trailer_view_cost !== undefined) {
+                            card.dataset.trailerViewCost = String(result.trailer_view_cost);
+                        } else {
+                            delete card.dataset.trailerViewCost;
+                        }
+                        notify(result.message || 'Цена за просмотр трейлера обновлена', 'success');
+                        handleOpenModal(card);
+                    } else {
+                        notify(result.message || 'Не удалось обновить цену за просмотр трейлера', 'error');
+                    }
+                } catch (error) {
+                    notify(error.message || 'Не удалось обновить цену за просмотр трейлера', 'error');
+                }
             }
         };
 
@@ -1522,21 +1417,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Открываем поиск на RuTracker
                 const searchQuery = `${movieSearchName || movieName}${movieYear ? ' ' + movieYear : ''}`;
                 const encodedQuery = encodeURIComponent(searchQuery);
-                const rutrackerUrl = `https://rutracker.org/forum/tracker.php?nm=${encodedQuery}`;
+                const rutrackerUrl = `https://rutracker.net/forum/tracker.php?nm=${encodedQuery}`;
                 window.open(rutrackerUrl, '_blank');
                 showToast(`Открыт поиск на RuTracker: "${searchQuery}"`, 'info');
-            } else if (button.classList.contains('copy-magnet-button')) {
-                // Копируем magnet-ссылку в буфер обмена
-                if (hasMagnet === 'true' && magnetLink) {
-                    navigator.clipboard.writeText(magnetLink).then(() => {
-                        showToast('Magnet-ссылка скопирована в буфер обмена', 'success');
-                    }).catch(() => {
-                        showToast('Не удалось скопировать ссылку', 'error');
-                    });
+                } else if (button.classList.contains('copy-magnet-button')) {
+                    // Копируем magnet-ссылку в буфер обмена
+                    if (hasMagnet === 'true' && magnetLink) {
+                        navigator.clipboard.writeText(magnetLink).then(() => {
+                            showToast('Magnet-ссылка скопирована в буфер обмена', 'success');
+                        }).catch(() => {
+                            showToast('Не удалось скопировать ссылку', 'error');
+                        });
+                    }
                 }
-            } else if (button.classList.contains('trailer-button')) {
-                openTrailerModal(card);
-            }
         } else {
             handleOpenModal(card);
         }
