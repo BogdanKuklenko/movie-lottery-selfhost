@@ -108,6 +108,42 @@ export async function deleteLibraryMovie(movieId) {
 }
 
 /**
+ * Загружает или заменяет трейлер фильма в библиотеке.
+ * @param {string|number} movieId - ID фильма в библиотеке.
+ * @param {File} file - Видео-файл трейлера.
+ * @returns {Promise<object>} - Результат операции и обновлённые данные фильма.
+ */
+export async function uploadLibraryTrailer(movieId, file) {
+    const formData = new FormData();
+    formData.append('trailer', file);
+
+    const response = await fetch(`/api/library/${movieId}/trailer`, {
+        method: 'POST',
+        body: formData,
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Не удалось загрузить трейлер.');
+    }
+    return data;
+}
+
+/**
+ * Удаляет трейлер фильма из библиотеки.
+ * @param {string|number} movieId - ID фильма в библиотеке.
+ * @returns {Promise<object>} - Результат операции и обновлённые данные фильма.
+ */
+export async function deleteLibraryTrailer(movieId) {
+    const response = await fetch(`/api/library/${movieId}/trailer`, { method: 'DELETE' });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Не удалось удалить трейлер.');
+    }
+    return data;
+}
+
+/**
  * Обновляет количество баллов для фильма в библиотеке.
  * @param {string|number} movieId - ID фильма в библиотеке.
  * @param {number} points - Новое значение баллов.

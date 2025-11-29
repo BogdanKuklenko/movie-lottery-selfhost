@@ -37,6 +37,15 @@ function formatDateTime(value) {
     return date.toLocaleString('ru-RU');
 }
 
+function formatBytes(value) {
+    const bytes = Number(value);
+    if (!Number.isFinite(bytes) || bytes <= 0) return '';
+    const sizes = ['Б', 'КБ', 'МБ', 'ГБ'];
+    const idx = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), sizes.length - 1);
+    const num = bytes / 1024 ** idx;
+    return `${num.toFixed(num >= 10 ? 0 : 1)} ${sizes[idx]}`;
+}
+
 function formatBanDuration(seconds) {
     const totalSeconds = Math.max(0, Math.floor(seconds || 0));
     const hours = Math.floor(totalSeconds / 3600);
@@ -192,6 +201,20 @@ function createWinnerCardHTML(movieData, isLibrary) {
 
     const banSectionHTML = isLibrary ? renderBanInfo(movieData) : '';
 
+    const trailerSectionHTML = isLibrary ? `
+        <div class="trailer-section">
+            <h4>Трейлер ${movieData.trailer && movieData.trailer.url ? '<span class="trailer-status success">Готов</span>' : '<span class="trailer-status">Нет файла</span>'}</h4>
+            ${movieData.trailer && movieData.trailer.url ? `
+                <video controls src="${escapeHtml(movieData.trailer.url)}"></video>
+                <div class="trailer-status">${movieData.trailer.uploaded_at ? formatDateTime(movieData.trailer.uploaded_at) : ''}${movieData.trailer.file_size ? ` • ${formatBytes(movieData.trailer.file_size)}` : ''}</div>
+            ` : '<p class="trailer-placeholder">Добавьте трейлер, чтобы показывать его в карточке фильма.</p>'}
+            <div class="trailer-inline-actions">
+                <button type="button" class="secondary-button open-trailer-modal-btn">${movieData.trailer && movieData.trailer.url ? 'Заменить или удалить' : 'Загрузить трейлер'}</button>
+                ${movieData.trailer && movieData.trailer.url ? `<a class="action-button" href="${escapeHtml(movieData.trailer.url)}" target="_blank" rel="noopener">Открыть файл</a>` : ''}
+            </div>
+        </div>
+    ` : '';
+
     return `
         <div class="winner-card">
             <div class="winner-poster">
@@ -224,6 +247,7 @@ function createWinnerCardHTML(movieData, isLibrary) {
                 ${banCostPerMonthSectionHTML}
                 ${banSectionHTML}
                 ${badgeSectionHTML}
+                ${trailerSectionHTML}
 
                 <div class="library-modal-actions">
                     <button class="secondary-button modal-download-btn"${movieData.has_magnet ? '' : ' disabled'}>Скачать</button>
@@ -593,6 +617,11 @@ export class ModalManager {
             removeBadgeBtn.addEventListener('click', async () => {
                 await actions.onRemoveBadge(movieData.id);
             });
+        }
+
+        const openTrailerModalBtn = this.body.querySelector('.open-trailer-modal-btn');
+        if (openTrailerModalBtn && actions.onOpenTrailerModal) {
+            openTrailerModalBtn.addEventListener('click', actions.onOpenTrailerModal);
         }
 
         // Кнопка "Добавить/Удалить из библиотеки"
