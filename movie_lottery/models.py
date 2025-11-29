@@ -49,13 +49,6 @@ class LibraryMovie(db.Model):
     ban_applied_by = db.Column(db.String(120), nullable=True)
     ban_cost = db.Column(db.Integer, nullable=True)
     ban_cost_per_month = db.Column(db.Integer, nullable=True)  # Индивидуальная цена за месяц бана (по умолчанию 1)
-    trailer = db.relationship(
-        'LibraryMovieTrailer',
-        backref='movie',
-        uselist=False,
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-    )
 
     def refresh_ban_status(self):
         """Переводит фильм из бана в watchlist после истечения срока."""
@@ -131,29 +124,6 @@ class PollCreatorToken(db.Model):
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
     )
-
-
-class LibraryMovieTrailer(db.Model):
-    """Хранит метаданные трейлера, связанного с фильмом в библиотеке.
-
-    Выделена отдельная таблица, чтобы не раздувать основную таблицу `library_movie`
-    служебными полями и оставить возможность расширять информацию о трейлерах
-    (качество, длительность, несколько версий) без миграций для основной сущности.
-    """
-
-    __tablename__ = 'library_movie_trailer'
-
-    id = db.Column(db.Integer, primary_key=True)
-    movie_id = db.Column(
-        db.Integer,
-        db.ForeignKey('library_movie.id', ondelete='CASCADE'),
-        nullable=False,
-        unique=True,
-    )
-    file_path = db.Column(db.String(500), nullable=False)
-    file_size = db.Column(db.BigInteger, nullable=True)
-    mime_type = db.Column(db.String(120), nullable=True)
-    uploaded_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
 class PollSettings(db.Model):
