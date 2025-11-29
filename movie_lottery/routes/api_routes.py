@@ -1,16 +1,12 @@
 import calendar
-import os
 import random
 import re
 import secrets
-from uuid import uuid4
 from collections import defaultdict
 from datetime import datetime, time, timezone
-from flask import Blueprint, request, jsonify, current_app, url_for
+from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
-from sqlalchemy.orm import joinedload
-from werkzeug.utils import secure_filename
 
 from .. import db
 from ..models import (
@@ -18,7 +14,6 @@ from ..models import (
     Lottery,
     MovieIdentifier,
     LibraryMovie,
-    LibraryMovieTrailer,
     Poll,
     PollCreatorToken,
     PollMovie,
@@ -90,74 +85,7 @@ def _get_custom_vote_cost():
     return get_custom_vote_cost()
 
 
-def _get_trailer_directory():
-    directory = current_app.config.get('TRAILER_STORAGE_DIR')
-    if not directory:
-        directory = os.path.join(current_app.instance_path, 'trailers')
-    os.makedirs(directory, exist_ok=True)
-    return directory
-
-
-def _resolve_trailer_path(relative_path):
-    base_dir = os.path.realpath(_get_trailer_directory())
-    absolute_path = os.path.realpath(os.path.join(base_dir, relative_path))
-    if not absolute_path.startswith(base_dir):
-        raise ValueError('Unsafe trailer path')
-    return absolute_path
-
-
-def _serialize_trailer(trailer):
-    if not trailer:
-        return None
-
-    return {
-        'url': url_for('main.serve_trailer', filename=trailer.file_path),
-        'file_path': trailer.file_path,
-        'file_size': trailer.file_size,
-        'mime_type': trailer.mime_type,
-        'uploaded_at': trailer.uploaded_at.isoformat() if trailer.uploaded_at else None,
-    }
-
-
-def _cleanup_movie_trailer(movie):
-    """Удаляет файл трейлера и запись в БД для конкретного фильма."""
-    trailer = getattr(movie, 'trailer', None)
-    if not trailer:
-        return
-
-    try:
-        trailer_path = _resolve_trailer_path(trailer.file_path)
-    except Exception:
-        trailer_path = None
-
-    db.session.delete(trailer)
-
-    # Комментарий для ревьюеров: явная очистка файла, чтобы при удалении фильма
-    # не оставались осиротевшие трейлеры на диске.
-    if trailer_path and os.path.exists(trailer_path):
-        try:
-            os.remove(trailer_path)
-        except OSError:
-            current_app.logger.warning('Не удалось удалить файл трейлера %s', trailer_path)
-
-
-def _get_allowed_trailer_extensions():
-    configured = current_app.config.get('TRAILER_ALLOWED_EXTENSIONS')
-    if configured:
-        return {ext.lower() for ext in configured}
-    return {'mp4', 'webm', 'mkv'}
-
-
-def _get_trailer_size_limit_bytes():
-    try:
-        limit_mb = int(current_app.config.get('TRAILER_MAX_SIZE_MB') or 0)
-    except (TypeError, ValueError):
-        limit_mb = 0
-    return max(limit_mb, 0) * 1024 * 1024
-
-
 def _serialize_library_movie(movie):
-    trailer_data = _serialize_trailer(getattr(movie, 'trailer', None))
     return {
         'id': movie.id,
         'kinopoisk_id': movie.kinopoisk_id,
@@ -177,8 +105,6 @@ def _serialize_library_movie(movie):
         'ban_applied_by': movie.ban_applied_by,
         'ban_cost': movie.ban_cost,
         'ban_cost_per_month': movie.ban_cost_per_month,
-        'has_trailer': bool(trailer_data),
-        'trailer': trailer_data,
     }
 
 
@@ -1005,22 +931,14 @@ def get_library_movies():
     _refresh_library_bans()
 
     try:
-        movies = (
-            LibraryMovie.query.options(joinedload(LibraryMovie.trailer))
-            .order_by(LibraryMovie.bumped_at.desc())
-            .all()
-        )
+        movies = LibraryMovie.query.order_by(LibraryMovie.bumped_at.desc()).all()
     except (OperationalError, ProgrammingError) as exc:
         current_app.logger.warning(
             "LibraryMovie.bumped_at unavailable, falling back to added_at sorting. "
             "Run pending migrations. Error: %s",
             exc,
         )
-        movies = (
-            LibraryMovie.query.options(joinedload(LibraryMovie.trailer))
-            .order_by(LibraryMovie.added_at.desc())
-            .all()
-        )
+        movies = LibraryMovie.query.order_by(LibraryMovie.added_at.desc()).all()
 
     kp_ids = [m.kinopoisk_id for m in movies if m.kinopoisk_id]
     identifiers_map = {}
@@ -1089,122 +1007,9 @@ def add_library_movie():
 @api_bp.route('/library/<int:movie_id>', methods=['DELETE'])
 def remove_library_movie(movie_id):
     library_movie = LibraryMovie.query.get_or_404(movie_id)
-
-    # Удаляем трейлер перед удалением фильма, чтобы не оставлять файлы на диске
-    _cleanup_movie_trailer(library_movie)
     db.session.delete(library_movie)
     db.session.commit()
     return jsonify({"success": True, "message": "Фильм удален из библиотеки."})
-
-
-@api_bp.route('/library/<int:movie_id>/trailer', methods=['POST'])
-def upload_library_movie_trailer(movie_id):
-    movie = (
-        LibraryMovie.query.options(joinedload(LibraryMovie.trailer))
-        .get_or_404(movie_id)
-    )
-
-    uploaded_file = request.files.get('trailer')
-    if not uploaded_file or not uploaded_file.filename:
-        return jsonify({"success": False, "message": "Не передан файл трейлера."}), 400
-
-    filename = secure_filename(uploaded_file.filename)
-    extension = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-    allowed_extensions = _get_allowed_trailer_extensions()
-    if extension not in allowed_extensions:
-        return jsonify({
-            "success": False,
-            "message": f"Неверный формат файла. Допустимо: {', '.join(sorted(allowed_extensions))}",
-        }), 400
-
-    size_limit = _get_trailer_size_limit_bytes()
-    request_size = request.content_length or getattr(uploaded_file, 'content_length', None)
-    if size_limit and request_size and request_size > size_limit:
-        return jsonify({
-            "success": False,
-            "message": "Файл слишком большой для загрузки.",
-        }), 400
-
-    storage_dir = _get_trailer_directory()
-    generated_name = f"movie_{movie.id}_{uuid4().hex}.{extension}"
-    destination = os.path.join(storage_dir, generated_name)
-
-    try:
-        uploaded_file.save(destination)
-        file_size = os.path.getsize(destination)
-    except Exception as exc:
-        current_app.logger.warning('Не удалось сохранить трейлер: %s', exc)
-        if os.path.exists(destination):
-            os.remove(destination)
-        return jsonify({"success": False, "message": "Не удалось сохранить трейлер."}), 500
-
-    if size_limit and file_size > size_limit:
-        os.remove(destination)
-        return jsonify({
-            "success": False,
-            "message": "Файл превышает максимальный размер.",
-        }), 400
-
-    old_trailer_path = None
-    if movie.trailer:
-        try:
-            old_trailer_path = _resolve_trailer_path(movie.trailer.file_path)
-        except Exception:
-            old_trailer_path = None
-        db.session.delete(movie.trailer)
-
-    movie.trailer = LibraryMovieTrailer(
-        file_path=generated_name,
-        file_size=file_size,
-        mime_type=uploaded_file.mimetype,
-        uploaded_at=datetime.utcnow(),
-    )
-
-    db.session.commit()
-
-    if old_trailer_path and os.path.exists(old_trailer_path):
-        try:
-            os.remove(old_trailer_path)
-        except OSError:
-            current_app.logger.warning('Не удалось удалить старый файл трейлера %s', old_trailer_path)
-
-    payload = _serialize_library_movie(movie)
-    return jsonify({
-        "success": True,
-        "message": "Трейлер сохранён.",
-        "movie": payload,
-    })
-
-
-@api_bp.route('/library/<int:movie_id>/trailer', methods=['DELETE'])
-def delete_library_movie_trailer(movie_id):
-    movie = (
-        LibraryMovie.query.options(joinedload(LibraryMovie.trailer))
-        .get_or_404(movie_id)
-    )
-
-    if not movie.trailer:
-        return jsonify({"success": True, "message": "Трейлер уже удалён.", "movie": _serialize_library_movie(movie)})
-
-    try:
-        trailer_path = _resolve_trailer_path(movie.trailer.file_path)
-    except Exception:
-        trailer_path = None
-
-    db.session.delete(movie.trailer)
-    db.session.commit()
-
-    if trailer_path and os.path.exists(trailer_path):
-        try:
-            os.remove(trailer_path)
-        except OSError:
-            current_app.logger.warning('Не удалось удалить файл трейлера %s', trailer_path)
-
-    return jsonify({
-        "success": True,
-        "message": "Трейлер удалён.",
-        "movie": _serialize_library_movie(movie),
-    })
 
 
 @api_bp.route('/library/<int:movie_id>/points', methods=['PUT'])
