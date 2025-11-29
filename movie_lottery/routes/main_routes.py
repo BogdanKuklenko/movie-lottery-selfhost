@@ -100,11 +100,18 @@ def library():
         movie.magnet_link = identifier.magnet_link if identifier else ''
         movie.is_on_client = False
         movie.torrent_hash = None
-            
+
+    trailer_config = {
+        'max_size': current_app.config.get('TRAILER_MAX_FILE_SIZE'),
+        'allowed_mime_types': current_app.config.get('TRAILER_ALLOWED_MIME_TYPES') or [],
+        'relative_dir': current_app.config.get('TRAILER_UPLOAD_SUBDIR', 'trailers'),
+    }
+
     return render_template(
         'library.html',
         library_movies=library_movies,
-        background_photos=get_background_photos()
+        background_photos=get_background_photos(),
+        trailer_config=trailer_config,
     )
 
 @main_bp.route('/l/<lottery_id>')

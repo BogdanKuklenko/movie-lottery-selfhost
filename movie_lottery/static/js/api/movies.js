@@ -193,3 +193,26 @@ export async function fetchMagnetSearchStatus(kinopoiskId) {
     }
     return await response.json();
 }
+
+/**
+ * Загружает локальный трейлер для фильма из библиотеки.
+ * @param {number|string} movieId - ID фильма в библиотеке.
+ * @param {File} file - Файл трейлера.
+ * @returns {Promise<object>} - Обновлённые данные фильма.
+ */
+export async function uploadLocalTrailer(movieId, file) {
+    const formData = new FormData();
+    formData.append('trailer', file);
+
+    const response = await fetch(`/api/movies/${movieId}/trailer-local`, {
+        method: 'POST',
+        body: formData,
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(data.message || data.error || 'Не удалось загрузить трейлер.');
+    }
+
+    return data;
+}

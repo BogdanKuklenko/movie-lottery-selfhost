@@ -171,9 +171,11 @@
                     data-ban-applied-by="{{ movie.ban_applied_by or '' }}"
                     data-ban-cost="{{ movie.ban_cost if movie.ban_cost is not none else '' }}"
                     data-ban-cost-per-month="{{ movie.ban_cost_per_month if movie.ban_cost_per_month is not none else '' }}"
+                    data-has-local-trailer="{{ 'true' if movie.has_local_trailer else 'false' }}"
                 >
                     <input type="checkbox" class="movie-checkbox" style="display: none;" data-movie-id="{{ movie.id }}">
                     <div class="torrent-status-indicator"></div>
+                    <div class="trailer-pill"{% if not movie.has_local_trailer %} style="display: none;"{% endif %}>🎞️ Трейлер добавлен</div>
 
                     {% if movie.badge %}
                     <div class="movie-badge" data-badge-type="{{ movie.badge }}">
@@ -225,6 +227,14 @@
                                 <use href="#icon-delete"></use>
                             </svg>
                         </button>
+                        <button
+                            type="button"
+                            class="trailer-button"
+                            title="{{ 'Изменить трейлер' if movie.has_local_trailer else 'Добавить трейлер' }}"
+                            aria-label="{{ 'Изменить трейлер' if movie.has_local_trailer else 'Добавить трейлер' }}"
+                        >
+                            {{ 'Изменить трейлер' if movie.has_local_trailer else 'Добавить трейлер' }}
+                        </button>
                     </div>
                     <div class="date-badge" data-date="{{ movie.added_at.isoformat() }}"></div>
                     <img src="{{ movie.poster or 'https://via.placeholder.com/200x300.png?text=No+Image' }}" alt="{{ movie.name|e }}">
@@ -239,6 +249,25 @@
         <div class="modal-content">
             <span class="close-button">&times;</span>
             <div></div> </div>
+    </div>
+
+    <div id="trailer-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <div class="trailer-modal-body">
+                <h3 class="trailer-modal-title">Трейлер</h3>
+                <form class="trailer-form">
+                    <label class="trailer-label" for="trailer-file-input">Выберите файл трейлера</label>
+                    <input type="file" id="trailer-file-input" accept="video/*">
+                    <p class="trailer-hint">Допустимые форматы: MP4/WebM. Максимальный размер: 100 МБ.</p>
+                    <p class="trailer-error" style="display: none;"></p>
+                    <div class="trailer-actions">
+                        <button type="submit" id="trailer-save-btn" class="cta-button" disabled>Сохранить</button>
+                        <button type="button" id="trailer-cancel-btn" class="secondary-button">Отмена</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
     <div id="badge-selector-modal" class="badge-selector-modal">
@@ -280,6 +309,7 @@
     <script>
         window.appConfig = window.appConfig || {};
         window.appConfig.pollApiBaseUrl = {{ poll_api_base_url|tojson }};
+        window.appConfig.trailerUpload = {{ trailer_config|tojson }};
     </script>
     <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
     <script type="module" src="{{ url_for('static', filename='js/pages/library.js') }}"></script>
