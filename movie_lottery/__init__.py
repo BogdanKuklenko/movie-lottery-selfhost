@@ -1,4 +1,3 @@
-import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -7,6 +6,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from flask_cors import CORS
 import atexit
+import os
 
 from .diagnostic_middleware import start_diagnostics, checkpoint, finish_diagnostics
 
@@ -46,11 +46,19 @@ def create_app():
     checkpoint("Config loaded")
 
     _configure_cors(app)
-    
+
     try:
         os.makedirs(app.instance_path)
     except OSError:
         pass
+
+    # Создаём каталог для трейлеров, чтобы загрузка не падала при первом запуске
+    trailer_dir = app.config.get('TRAILER_STORAGE_DIR')
+    if trailer_dir:
+        try:
+            os.makedirs(trailer_dir, exist_ok=True)
+        except OSError:
+            app.logger.warning('Не удалось создать каталог для трейлеров: %s', trailer_dir)
 
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
     checkpoint("ProxyFix configured")

@@ -58,3 +58,11 @@ class Config:
     # Kinopoisk API key
     KINOPOISK_API_TOKEN = os.environ.get('KINOPOISK_API_TOKEN') or os.environ.get('KINOPOISK_API_KEY')
     KINOPOISK_API_KEY = KINOPOISK_API_TOKEN
+
+    # Trailer upload settings
+    TRAILER_STORAGE_DIR = os.environ.get('TRAILER_STORAGE_DIR') or os.path.join(instance_dir, 'trailers')
+    try:
+        TRAILER_MAX_SIZE_MB = int(os.environ.get('TRAILER_MAX_SIZE_MB', 400))
+    except (TypeError, ValueError):
+        TRAILER_MAX_SIZE_MB = 400
+    TRAILER_ALLOWED_EXTENSIONS = {'mp4', 'webm', 'mkv'}
