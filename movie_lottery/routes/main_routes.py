@@ -1,5 +1,6 @@
-from flask import Blueprint, render_template, current_app, request
+from flask import Blueprint, render_template, current_app, request, send_from_directory, abort, url_for
 from sqlalchemy.exc import OperationalError, ProgrammingError
+from sqlalchemy.orm import joinedload
 
 from .. import db
 from ..models import Lottery, LibraryMovie, MovieIdentifier, Poll
@@ -22,6 +23,14 @@ def inject_poll_settings():
 
 def _get_custom_vote_cost():
     return get_custom_vote_cost()
+
+
+def _build_trailer_url(movie):
+    trailer = getattr(movie, 'trailer', None)
+    if not trailer or not trailer.file_path:
+        return None
+    # Генерируем относительный URL, который отдаст файл строго из каталога трейлеров
+    return url_for('main.serve_trailer', filename=trailer.file_path)
 
 @main_bp.route('/health')
 def health():
@@ -78,14 +87,22 @@ def library():
         db.session.commit()
 
     try:
-        library_movies = LibraryMovie.query.order_by(LibraryMovie.bumped_at.desc()).all()
+        library_movies = (
+            LibraryMovie.query.options(joinedload(LibraryMovie.trailer))
+            .order_by(LibraryMovie.bumped_at.desc())
+            .all()
+        )
     except (OperationalError, ProgrammingError) as exc:
         current_app.logger.warning(
             "LibraryMovie.bumped_at unavailable, falling back to added_at sorting. "
             "Run pending migrations. Error: %s",
             exc,
         )
-        library_movies = LibraryMovie.query.order_by(LibraryMovie.added_at.desc()).all()
+        library_movies = (
+            LibraryMovie.query.options(joinedload(LibraryMovie.trailer))
+            .order_by(LibraryMovie.added_at.desc())
+            .all()
+        )
     
     # Fetch all identifiers in one query to avoid N+1
     kp_ids = [m.kinopoisk_id for m in library_movies if m.kinopoisk_id]
@@ -100,12 +117,32 @@ def library():
         movie.magnet_link = identifier.magnet_link if identifier else ''
         movie.is_on_client = False
         movie.torrent_hash = None
+        movie.has_trailer = bool(getattr(movie, 'trailer', None))
+        movie.trailer_url = _build_trailer_url(movie)
+        movie.trailer_uploaded_at = movie.trailer.uploaded_at.isoformat() if movie.trailer else ''
+        movie.trailer_file_size = movie.trailer.file_size if movie.trailer else None
             
     return render_template(
         'library.html',
         library_movies=library_movies,
         background_photos=get_background_photos()
     )
+
+
+@main_bp.route('/media/trailers/<path:filename>')
+def serve_trailer(filename):
+    trailer_dir = current_app.config.get('TRAILER_STORAGE_DIR')
+    if not trailer_dir:
+        abort(404)
+
+    # send_from_directory сам нормализует путь и не позволит выйти из базового каталога
+    if '..' in filename or filename.startswith('/') or filename.startswith('\\'):
+        abort(400)
+
+    try:
+        return send_from_directory(trailer_dir, filename)
+    except FileNotFoundError:
+        abort(404)
 
 @main_bp.route('/l/<lottery_id>')
 def play_lottery(lottery_id):

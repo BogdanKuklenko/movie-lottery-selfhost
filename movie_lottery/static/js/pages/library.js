@@ -43,6 +43,14 @@ function formatDurationShort(seconds) {
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
+function formatBytes(bytes) {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '';
+    const sizes = ['Б', 'КБ', 'МБ', 'ГБ'];
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), sizes.length - 1);
+    const value = bytes / 1024 ** i;
+    return `${value.toFixed(value >= 10 ? 0 : 1)} ${sizes[i]}`;
+}
+
 const BAN_STATE_POLL_INTERVAL_MS = 30000;
 
 /**
@@ -80,6 +88,14 @@ function toggleDownloadIcon(card, hasMagnet) {
 document.addEventListener('DOMContentLoaded', async () => {
     const gallery = document.querySelector('.library-gallery');
     const modalElement = document.getElementById('library-modal');
+    const trailerModal = document.getElementById('trailer-modal');
+    const trailerFileInput = document.getElementById('trailer-file-input');
+    const trailerUploadBtn = document.getElementById('trailer-upload-btn');
+    const trailerCancelBtn = document.getElementById('trailer-cancel-btn');
+    const trailerDeleteBtn = document.getElementById('trailer-delete-btn');
+    const trailerPlayer = document.getElementById('trailer-player');
+    const trailerMeta = document.getElementById('trailer-meta');
+    const trailerTitle = document.getElementById('trailer-modal-title');
 
     if (!gallery || !modalElement) return;
 
@@ -904,6 +920,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         card.classList.add('is-banned');
     }
 
+    function renderTrailerButton(card) {
+        if (!card) return;
+        const btn = card.querySelector('.trailer-button');
+        if (!btn) return;
+        const hasTrailer = card.dataset.hasTrailer === 'true';
+        btn.title = hasTrailer ? 'Смотреть или заменить трейлер' : 'Загрузить трейлер';
+        btn.classList.toggle('has-trailer', hasTrailer);
+    }
+
+    function updateTrailerDataset(card, trailerData = null) {
+        const hasTrailer = Boolean(trailerData);
+        card.dataset.hasTrailer = hasTrailer ? 'true' : 'false';
+        card.dataset.trailerUrl = trailerData?.url || '';
+        card.dataset.trailerUploadedAt = trailerData?.uploaded_at || '';
+        card.dataset.trailerFileSize = trailerData?.file_size != null ? String(trailerData.file_size) : '';
+        renderTrailerButton(card);
+    }
+
     function applyApiMovieDataToCard(card, movieData) {
         if (!card || !movieData) return false;
         const previousBadge = card.dataset.badge || '';
@@ -931,6 +965,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (Object.prototype.hasOwnProperty.call(movieData, 'torrent_hash')) {
             card.dataset.torrentHash = movieData.torrent_hash || '';
+        }
+
+        if (Object.prototype.hasOwnProperty.call(movieData, 'has_trailer')) {
+            const trailerData = movieData.has_trailer ? movieData.trailer : null;
+            updateTrailerDataset(card, trailerData);
         }
 
         updateBadgeOnCard(card, movieData.badge || null, movieData, { skipStats: true });
@@ -988,6 +1027,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const getMovieDataFromCard = (card) => {
         const ds = card.dataset;
+        const hasTrailer = ds.hasTrailer === 'true';
+        const trailer = hasTrailer ? {
+            url: ds.trailerUrl || '',
+            uploaded_at: ds.trailerUploadedAt || null,
+            file_size: ds.trailerFileSize ? Number.parseInt(ds.trailerFileSize, 10) : null,
+        } : null;
         return {
             id: ds.movieId,
             kinopoisk_id: ds.kinopoiskId,
@@ -1011,6 +1056,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             ban_applied_by: ds.banAppliedBy || '',
             ban_cost: ds.banCost ? Number.parseInt(ds.banCost, 10) : null,
             ban_cost_per_month: ds.banCostPerMonth ? Number.parseInt(ds.banCostPerMonth, 10) : null,
+            has_trailer: hasTrailer,
+            trailer,
         };
     };
 
@@ -1195,6 +1242,139 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
+    let trailerModalCard = null;
+
+    const closeTrailerModal = () => {
+        if (trailerModal) {
+            trailerModal.style.display = 'none';
+        }
+        if (trailerPlayer) {
+            trailerPlayer.pause();
+            trailerPlayer.removeAttribute('src');
+        }
+        trailerModalCard = null;
+    };
+
+    const refreshTrailerModalContent = (card) => {
+        if (!card || !trailerModal) return;
+        const movieTitle = card.dataset.movieName || 'Фильм';
+        if (trailerTitle) {
+            trailerTitle.textContent = `Трейлер: ${movieTitle}`;
+        }
+
+        const hasTrailer = card.dataset.hasTrailer === 'true' && !!card.dataset.trailerUrl;
+        const uploadedAt = card.dataset.trailerUploadedAt ? formatDateTime(card.dataset.trailerUploadedAt) : '';
+        const fileSize = card.dataset.trailerFileSize ? formatBytes(Number(card.dataset.trailerFileSize)) : '';
+
+        if (trailerMeta) {
+            trailerMeta.textContent = hasTrailer
+                ? `Загружен${uploadedAt ? ` ${uploadedAt}` : ''}${fileSize ? ` • ${fileSize}` : ''}`
+                : 'Трейлер не загружен.';
+        }
+
+        if (trailerPlayer) {
+            if (hasTrailer) {
+                trailerPlayer.src = card.dataset.trailerUrl;
+                trailerPlayer.style.display = 'block';
+            } else {
+                trailerPlayer.removeAttribute('src');
+                trailerPlayer.style.display = 'none';
+            }
+        }
+
+        if (trailerDeleteBtn) {
+            trailerDeleteBtn.style.display = hasTrailer ? 'inline-flex' : 'none';
+        }
+    };
+
+    const openTrailerModal = (card) => {
+        trailerModalCard = card;
+        if (!trailerModal) return;
+        if (trailerFileInput) {
+            trailerFileInput.value = '';
+        }
+        if (trailerUploadBtn) {
+            trailerUploadBtn.disabled = true;
+        }
+        refreshTrailerModalContent(card);
+        trailerModal.style.display = 'flex';
+    };
+
+    const trailerModalCloseBtn = trailerModal ? trailerModal.querySelector('.close-button') : null;
+
+    if (trailerModal) {
+        trailerModal.addEventListener('click', (event) => {
+            if (event.target === trailerModal) {
+                closeTrailerModal();
+            }
+        });
+    }
+    if (trailerModalCloseBtn) {
+        trailerModalCloseBtn.addEventListener('click', closeTrailerModal);
+    }
+    if (trailerCancelBtn) {
+        trailerCancelBtn.addEventListener('click', closeTrailerModal);
+    }
+    if (trailerFileInput && trailerUploadBtn) {
+        trailerFileInput.addEventListener('change', () => {
+            trailerUploadBtn.disabled = trailerFileInput.files.length === 0;
+        });
+    }
+
+    const performTrailerUpload = async () => {
+        if (!trailerModalCard || !trailerFileInput || !trailerUploadBtn) return;
+        if (!trailerFileInput.files.length) {
+            notify('Выберите видеофайл трейлера.', 'error');
+            return;
+        }
+
+        const file = trailerFileInput.files[0];
+        trailerUploadBtn.disabled = true;
+        const originalLabel = trailerUploadBtn.textContent;
+        trailerUploadBtn.textContent = 'Загрузка...';
+
+        try {
+            const result = await movieApi.uploadLibraryTrailer(trailerModalCard.dataset.movieId, file);
+            applyApiMovieDataToCard(trailerModalCard, result.movie);
+            refreshTrailerModalContent(trailerModalCard);
+            notify(result.message || 'Трейлер загружен.', 'success');
+        } catch (error) {
+            notify(error.message || 'Не удалось загрузить трейлер.', 'error');
+        } finally {
+            trailerUploadBtn.textContent = originalLabel;
+            trailerUploadBtn.disabled = true;
+            trailerFileInput.value = '';
+        }
+    };
+
+    if (trailerUploadBtn) {
+        trailerUploadBtn.addEventListener('click', performTrailerUpload);
+    }
+
+    if (trailerDeleteBtn) {
+        trailerDeleteBtn.addEventListener('click', async () => {
+            if (!trailerModalCard) return;
+            const confirmation = window.confirm('Удалить трейлер? Файл будет удалён с сервера.');
+            if (!confirmation) return;
+
+            const originalLabel = trailerDeleteBtn.textContent;
+            trailerDeleteBtn.disabled = true;
+            trailerDeleteBtn.textContent = 'Удаление...';
+
+            try {
+                const result = await movieApi.deleteLibraryTrailer(trailerModalCard.dataset.movieId);
+                applyApiMovieDataToCard(trailerModalCard, result.movie);
+                refreshTrailerModalContent(trailerModalCard);
+                notify(result.message || 'Трейлер удалён.', 'success');
+            } catch (error) {
+                notify(error.message || 'Не удалось удалить трейлер.', 'error');
+            } finally {
+                trailerDeleteBtn.disabled = false;
+                trailerDeleteBtn.textContent = originalLabel;
+            }
+        });
+    }
+
     const handleOpenModal = (card) => {
         const movieData = getMovieDataFromCard(card);
         const isModalAlreadyOpen = modalElement.style.display === 'flex';
@@ -1308,7 +1488,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } catch (error) {
                     notify(error.message || 'Не удалось удалить торрент с клиента.', 'error');
                 }
-            }
+            },
+            onOpenTrailerModal: () => openTrailerModal(card),
         };
 
         modal.renderLibraryModal(movieData, actions);
@@ -1363,6 +1544,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         showToast('Не удалось скопировать ссылку', 'error');
                     });
                 }
+            } else if (button.classList.contains('trailer-button')) {
+                openTrailerModal(card);
             }
         } else {
             handleOpenModal(card);
@@ -1373,7 +1556,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         badge.textContent = formatDate(badge.dataset.date);
     });
 
-    document.querySelectorAll('.gallery-item').forEach(card => renderBanStatus(card));
+    document.querySelectorAll('.gallery-item').forEach(card => {
+        renderBanStatus(card);
+        renderTrailerButton(card);
+    });
     enforceSelectionRestrictionsForAll();
     refreshLibraryData({ silent: true });
     setInterval(updateBanTimers, 1000);
