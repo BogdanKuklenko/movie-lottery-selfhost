@@ -1950,6 +1950,9 @@ def get_movies_by_badge(badge_type):
     if len(movies) < 2:
         return jsonify({"error": "Недостаточно доступных фильмов для создания опроса (минимум 2)"}), 422
 
+    # Сохраняем общее количество до ограничения
+    total_count = len(movies)
+    
     # Ограничиваем количество фильмов до 25
     limited = False
     if len(movies) > 25:
@@ -1960,7 +1963,7 @@ def get_movies_by_badge(badge_type):
     
     return jsonify({
         'movies': movies_data,
-        'total': len(movies),
+        'total': total_count,
         'limited': limited
     })
 
