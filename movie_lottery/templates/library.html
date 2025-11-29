@@ -165,13 +165,13 @@
                     data-is-on-client="{{ 'true' if movie.is_on_client else 'false' }}"
                     data-torrent-hash="{{ movie.torrent_hash|e if movie.torrent_hash else '' }}"
                     data-badge="{{ movie.badge or '' }}"
-                    data-ban-until="{{ movie.ban_until.isoformat() if movie.ban_until else '' }}"
-                    data-ban-status="{{ movie.ban_status }}"
-                    data-ban-remaining="{{ movie.ban_remaining_seconds }}"
+                    data-ban-until="{{ movie.ban_until.isoformat() if movie.ban_until and hasattr(movie.ban_until, 'isoformat') else '' }}"
+                    data-ban-status="{{ movie.ban_status if hasattr(movie, 'ban_status') else 'none' }}"
+                    data-ban-remaining="{{ movie.ban_remaining_seconds if hasattr(movie, 'ban_remaining_seconds') else 0 }}"
                     data-ban-applied-by="{{ movie.ban_applied_by or '' }}"
                     data-ban-cost="{{ movie.ban_cost if movie.ban_cost is not none else '' }}"
                     data-ban-cost-per-month="{{ movie.ban_cost_per_month if movie.ban_cost_per_month is not none else '' }}"
-                    data-has-local-trailer="{{ 'true' if movie.has_local_trailer else 'false' }}"
+                    data-has-local-trailer="{{ 'true' if (hasattr(movie, 'has_local_trailer') and movie.has_local_trailer) else 'false' }}"
                 >
                     <input type="checkbox" class="movie-checkbox" style="display: none;" data-movie-id="{{ movie.id }}">
                     <div class="torrent-status-indicator"></div>

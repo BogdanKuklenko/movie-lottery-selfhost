@@ -146,8 +146,12 @@ def _serialize_library_movie(movie):
 
 
 def _refresh_library_bans():
-    if LibraryMovie.refresh_all_bans():
-        db.session.commit()
+    try:
+        if LibraryMovie.refresh_all_bans():
+            db.session.commit()
+    except Exception as exc:
+        current_app.logger.warning("Ошибка при обновлении банов библиотеки: %s", exc)
+        db.session.rollback()
 
 
 def _serialize_poll_settings(settings):

@@ -89,6 +89,7 @@ class LibraryMovie(db.Model):
     @classmethod
     def refresh_all_bans(cls):
         """Пакетно обновляет истёкшие баны."""
+        from . import db
         now = datetime.utcnow()
         try:
             expired = cls.query.filter(
@@ -101,6 +102,11 @@ class LibraryMovie(db.Model):
                 "Skipping ban refresh because column is missing. Run pending migrations. Error: %s",
                 exc,
             )
+            # Откатываем транзакцию после ошибки
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
             return False
 
         changed = False

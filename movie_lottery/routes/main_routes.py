@@ -73,46 +73,79 @@ def history():
 
 @main_bp.route('/library')
 def library():
-    # Обновляем истёкшие баны перед отображением списка
-    if LibraryMovie.refresh_all_bans():
-        db.session.commit()
-
     try:
-        library_movies = LibraryMovie.query.order_by(LibraryMovie.bumped_at.desc()).all()
-    except (OperationalError, ProgrammingError) as exc:
-        current_app.logger.warning(
-            "LibraryMovie.bumped_at unavailable, falling back to added_at sorting. "
-            "Run pending migrations. Error: %s",
-            exc,
+        # Обновляем истёкшие баны перед отображением списка
+        try:
+            if LibraryMovie.refresh_all_bans():
+                db.session.commit()
+        except Exception as ban_exc:
+            current_app.logger.warning("Ошибка при обновлении банов: %s", ban_exc)
+            db.session.rollback()
+
+        try:
+            library_movies = LibraryMovie.query.order_by(LibraryMovie.bumped_at.desc()).all()
+        except (OperationalError, ProgrammingError) as exc:
+            current_app.logger.warning(
+                "LibraryMovie.bumped_at unavailable, falling back to added_at sorting. "
+                "Run pending migrations. Error: %s",
+                exc,
+            )
+            db.session.rollback()
+            library_movies = LibraryMovie.query.order_by(LibraryMovie.added_at.desc()).all()
+        
+        # Fetch all identifiers in one query to avoid N+1
+        kp_ids = [m.kinopoisk_id for m in library_movies if m.kinopoisk_id]
+        identifiers_map = {}
+        if kp_ids:
+            identifiers = MovieIdentifier.query.filter(MovieIdentifier.kinopoisk_id.in_(kp_ids)).all()
+            identifiers_map = {i.kinopoisk_id: i for i in identifiers}
+        
+        # Безопасно устанавливаем дополнительные атрибуты для шаблона
+        for movie in library_movies:
+            identifier = identifiers_map.get(movie.kinopoisk_id)
+            movie.has_magnet = bool(identifier)
+            movie.magnet_link = identifier.magnet_link if identifier else ''
+            movie.is_on_client = False
+            movie.torrent_hash = None
+            
+            # Безопасно вычисляем свойства для шаблона
+            try:
+                # Убеждаемся, что свойства доступны
+                _ = movie.ban_status
+                _ = movie.ban_remaining_seconds
+                _ = movie.has_local_trailer
+            except Exception as prop_exc:
+                current_app.logger.warning(
+                    "Ошибка при доступе к свойствам фильма %s: %s",
+                    movie.id,
+                    prop_exc,
+                )
+
+        trailer_config = {
+            'max_size': current_app.config.get('TRAILER_MAX_FILE_SIZE'),
+            'allowed_mime_types': current_app.config.get('TRAILER_ALLOWED_MIME_TYPES') or [],
+            'relative_dir': current_app.config.get('TRAILER_UPLOAD_SUBDIR', 'trailers'),
+        }
+
+        return render_template(
+            'library.html',
+            library_movies=library_movies,
+            background_photos=get_background_photos(),
+            trailer_config=trailer_config,
         )
-        library_movies = LibraryMovie.query.order_by(LibraryMovie.added_at.desc()).all()
-    
-    # Fetch all identifiers in one query to avoid N+1
-    kp_ids = [m.kinopoisk_id for m in library_movies if m.kinopoisk_id]
-    identifiers_map = {}
-    if kp_ids:
-        identifiers = MovieIdentifier.query.filter(MovieIdentifier.kinopoisk_id.in_(kp_ids)).all()
-        identifiers_map = {i.kinopoisk_id: i for i in identifiers}
-    
-    for movie in library_movies:
-        identifier = identifiers_map.get(movie.kinopoisk_id)
-        movie.has_magnet = bool(identifier)
-        movie.magnet_link = identifier.magnet_link if identifier else ''
-        movie.is_on_client = False
-        movie.torrent_hash = None
-
-    trailer_config = {
-        'max_size': current_app.config.get('TRAILER_MAX_FILE_SIZE'),
-        'allowed_mime_types': current_app.config.get('TRAILER_ALLOWED_MIME_TYPES') or [],
-        'relative_dir': current_app.config.get('TRAILER_UPLOAD_SUBDIR', 'trailers'),
-    }
-
-    return render_template(
-        'library.html',
-        library_movies=library_movies,
-        background_photos=get_background_photos(),
-        trailer_config=trailer_config,
-    )
+    except Exception as exc:
+        current_app.logger.exception("Ошибка при загрузке страницы библиотеки: %s", exc)
+        # Возвращаем пустую страницу с ошибкой вместо 500
+        return render_template(
+            'library.html',
+            library_movies=[],
+            background_photos=get_background_photos(),
+            trailer_config={
+                'max_size': current_app.config.get('TRAILER_MAX_FILE_SIZE'),
+                'allowed_mime_types': current_app.config.get('TRAILER_ALLOWED_MIME_TYPES') or [],
+                'relative_dir': current_app.config.get('TRAILER_UPLOAD_SUBDIR', 'trailers'),
+            },
+        ), 500
 
 @main_bp.route('/l/<lottery_id>')
 def play_lottery(lottery_id):
