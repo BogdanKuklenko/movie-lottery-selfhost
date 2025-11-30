@@ -4,6 +4,7 @@ import { initSlider } from './slider.js';
 import { saveMagnetLink } from '../api/movies.js';
 import { deleteTorrentFromClient } from '../api/torrents.js';
 import { lockScroll, unlockScroll } from '../utils/scrollLock.js';
+import { formatDateTimeShort as formatVladivostokDateTime } from '../utils/timeFormat.js';
 
 // --- Вспомогательные функции для рендеринга ---
 
@@ -32,9 +33,7 @@ function escapeHtml(value) {
 const placeholderPoster = 'https://via.placeholder.com/200x300.png?text=No+Image';
 
 function formatDateTime(value) {
-    if (!value) return '';
-    const date = new Date(value);
-    return date.toLocaleString('ru-RU');
+    return formatVladivostokDateTime(value);
 }
 
 function formatBanDuration(seconds) {

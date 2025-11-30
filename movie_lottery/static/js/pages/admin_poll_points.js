@@ -1,4 +1,5 @@
 import { buildPollApiUrl } from '../utils/polls.js';
+import { formatDateTime as formatVladivostokDateTime } from '../utils/timeFormat.js';
 
 const state = {
     page: 1,
@@ -77,15 +78,7 @@ function escapeHtml(value) {
 }
 
 function formatDateTime(isoString, withTime = true) {
-    if (!isoString) return '—';
-    const date = new Date(isoString);
-    if (Number.isNaN(date.getTime())) return '—';
-    const options = { year: 'numeric', month: 'short', day: '2-digit' };
-    if (withTime) {
-        options.hour = '2-digit';
-        options.minute = '2-digit';
-    }
-    return new Intl.DateTimeFormat('ru-RU', options).format(date);
+    return formatVladivostokDateTime(isoString, withTime) || '—';
 }
 
 function buildVotesMarkup(votes = []) {

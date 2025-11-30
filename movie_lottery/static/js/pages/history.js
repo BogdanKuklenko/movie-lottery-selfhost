@@ -3,11 +3,10 @@
 import { ModalManager } from '../components/modal.js';
 import * as movieApi from '../api/movies.js';
 import { downloadTorrentToClient, deleteTorrentFromClient } from '../api/torrents.js';
+import { formatDate as formatVladivostokDate } from '../utils/timeFormat.js';
 
 function formatDate(isoString) {
-    if (!isoString) return '';
-    const date = new Date(isoString);
-    return date.toLocaleDateString('ru-RU');
+    return formatVladivostokDate(isoString);
 }
 
 /**

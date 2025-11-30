@@ -39,6 +39,7 @@ from ..utils.helpers import (
     prevent_caching,
     rotate_voter_token,
     update_poll_settings,
+    vladivostok_now,
 )
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -177,8 +178,8 @@ def _refresh_library_bans():
 def _serialize_poll_settings(settings):
     return {
         'custom_vote_cost': _get_custom_vote_cost(),
-        'updated_at': settings.updated_at.isoformat() + 'Z' if settings and settings.updated_at else None,
-        'created_at': settings.created_at.isoformat() + 'Z' if settings and settings.created_at else None,
+        'updated_at': settings.updated_at.isoformat() if settings and settings.updated_at else None,
+        'created_at': settings.created_at.isoformat() if settings and settings.created_at else None,
     }
 
 
@@ -194,7 +195,7 @@ def _touch_creator_token(token):
     if not token:
         return
 
-    now = datetime.utcnow()
+    now = vladivostok_now()
     try:
         record = PollCreatorToken.query.filter_by(creator_token=token).first()
     except (ProgrammingError, OperationalError) as exc:
@@ -495,7 +496,7 @@ def register_user_id():
         profile = ensure_voter_profile(desired_token, device_label=device_label)
 
     profile.user_id = user_id
-    profile.updated_at = datetime.utcnow()
+    profile.updated_at = vladivostok_now()
 
     try:
         db.session.commit()
@@ -981,7 +982,7 @@ def get_result_data(lottery_id):
     return jsonify({
         "movies": movies_data,
         "result": result_data,
-        "createdAt": lottery.created_at.isoformat() + "Z",
+        "createdAt": lottery.created_at.isoformat(),
         "play_url": play_url,
         "telegram_share_url": telegram_share_url,
     })
@@ -1104,12 +1105,12 @@ def add_library_movie():
         for key, value in movie_data.items():
             if hasattr(existing_movie, key) and value is not None:
                 setattr(existing_movie, key, value)
-        existing_movie.bumped_at = datetime.utcnow()
+        existing_movie.bumped_at = vladivostok_now()
         message = "Информация о фильме в библиотеке обновлена."
     else:
         new_movie = LibraryMovie(**movie_data)
         if new_movie.added_at is None:
-            now = datetime.utcnow()
+            now = vladivostok_now()
             new_movie.added_at = now
             new_movie.bumped_at = now
         else:
@@ -1180,7 +1181,7 @@ def upload_local_trailer(movie_id):
     library_movie.trailer_file_path = relative_path
     library_movie.trailer_mime_type = mimetype or None
     library_movie.trailer_file_size = file_size if file_size else None
-    library_movie.bumped_at = datetime.utcnow()
+    library_movie.bumped_at = vladivostok_now()
 
     if previous_trailer_path:
         temp_movie = LibraryMovie(trailer_file_path=previous_trailer_path)
@@ -1218,7 +1219,7 @@ def update_library_movie_points(movie_id):
 
     library_movie = LibraryMovie.query.get_or_404(movie_id)
     library_movie.points = points
-    library_movie.bumped_at = datetime.utcnow()
+    library_movie.bumped_at = vladivostok_now()
     db.session.commit()
 
     return jsonify({
@@ -1241,7 +1242,7 @@ def update_library_movie_ban_cost_per_month(movie_id):
     if raw_cost is None:
         library_movie = LibraryMovie.query.get_or_404(movie_id)
         library_movie.ban_cost_per_month = None
-        library_movie.bumped_at = datetime.utcnow()
+        library_movie.bumped_at = vladivostok_now()
         db.session.commit()
         return jsonify({
             "success": True,
@@ -1259,7 +1260,7 @@ def update_library_movie_ban_cost_per_month(movie_id):
 
     library_movie = LibraryMovie.query.get_or_404(movie_id)
     library_movie.ban_cost_per_month = cost
-    library_movie.bumped_at = datetime.utcnow()
+    library_movie.bumped_at = vladivostok_now()
     db.session.commit()
 
     return jsonify({
@@ -1282,7 +1283,7 @@ def update_library_movie_trailer_view_cost(movie_id):
     if raw_cost is None:
         library_movie = LibraryMovie.query.get_or_404(movie_id)
         library_movie.trailer_view_cost = None
-        library_movie.bumped_at = datetime.utcnow()
+        library_movie.bumped_at = vladivostok_now()
         db.session.commit()
         return jsonify({
             "success": True,
@@ -1300,7 +1301,7 @@ def update_library_movie_trailer_view_cost(movie_id):
 
     library_movie = LibraryMovie.query.get_or_404(movie_id)
     library_movie.trailer_view_cost = cost
-    library_movie.bumped_at = datetime.utcnow()
+    library_movie.bumped_at = vladivostok_now()
     db.session.commit()
 
     return jsonify({
@@ -1457,8 +1458,8 @@ def get_poll(poll_id):
     response = prevent_caching(jsonify({
         "poll_id": poll.id,
         "movies": movies_data,
-        "created_at": poll.created_at.isoformat() + "Z",
-        "expires_at": poll.expires_at.isoformat() + "Z",
+        "created_at": poll.created_at.isoformat(),
+        "expires_at": poll.expires_at.isoformat(),
         "has_voted": bool(existing_vote),
         "voted_movie": voted_movie_data,
         "voted_points_delta": voted_points_delta,
@@ -1468,7 +1469,7 @@ def get_poll(poll_id):
         "voter_token": voter_token,
         "user_id": user_id,
         "custom_vote_cost": custom_vote_cost,
-        "custom_vote_cost_updated_at": poll_settings.updated_at.isoformat() + "Z" if poll_settings and poll_settings.updated_at else None,
+        "custom_vote_cost_updated_at": poll_settings.updated_at.isoformat() if poll_settings and poll_settings.updated_at else None,
         "can_vote_custom": can_vote_custom,
         "is_expired": poll.is_expired,
         "closed_by_ban": closed_by_ban,
@@ -1626,7 +1627,7 @@ def ban_poll_movie(poll_id):
     if balance_before < total_cost:
         return jsonify({"error": f"Недостаточно баллов для бана. Требуется {total_cost} баллов ({cost_per_month} × {months} месяцев)"}), 403
 
-    now_utc = datetime.utcnow()
+    now_utc = vladivostok_now()
     base_time = (
         movie.ban_until
         if movie.is_banned and movie.ban_until and movie.ban_until > now_utc
@@ -1640,7 +1641,7 @@ def ban_poll_movie(poll_id):
         library_movie.ban_until = movie.ban_until
         library_movie.ban_applied_by = device_label or 'poll-ban'
         library_movie.ban_cost = total_cost
-        library_movie.bumped_at = datetime.utcnow()
+        library_movie.bumped_at = vladivostok_now()
         library_ban_data = _serialize_library_movie(library_movie)
 
     new_balance = change_voter_points_balance(
@@ -1655,7 +1656,7 @@ def ban_poll_movie(poll_id):
     if len(active_movies_after) == 1:
         forced_winner = active_movies_after[0]
         poll.forced_winner_movie_id = forced_winner.id
-        poll.expires_at = datetime.utcnow()
+        poll.expires_at = vladivostok_now()
         closed_by_ban = True
 
     db.session.commit()
@@ -1865,8 +1866,8 @@ def get_poll_results(poll_id):
         ],
         "custom_vote_cost": _get_custom_vote_cost(),
         "poll_settings": _serialize_poll_settings(poll_settings),
-        "created_at": poll.created_at.isoformat() + "Z",
-        "expires_at": poll.expires_at.isoformat() + "Z",
+        "created_at": poll.created_at.isoformat(),
+        "expires_at": poll.expires_at.isoformat(),
         "closed_by_ban": closed_by_ban,
     }))
 
@@ -1899,8 +1900,8 @@ def get_my_polls():
         
         polls_data.append({
             "poll_id": poll.id,
-            "created_at": poll.created_at.isoformat() + "Z",
-            "expires_at": poll.expires_at.isoformat() + "Z",
+            "created_at": poll.created_at.isoformat(),
+            "expires_at": poll.expires_at.isoformat(),
             "is_expired": poll.is_expired,
             "closed_by_ban": bool(poll.forced_winner_movie_id),
             "total_votes": len(poll.votes),
@@ -1927,7 +1928,7 @@ def get_my_polls():
 @api_bp.route('/polls/cleanup-expired', methods=['POST'])
 def cleanup_expired_polls():
     """Удаление истёкших опросов (можно вызывать по cron или вручную)"""
-    expired_polls = Poll.query.filter(Poll.expires_at <= datetime.utcnow()).all()
+    expired_polls = Poll.query.filter(Poll.expires_at <= vladivostok_now()).all()
     count = len(expired_polls)
     
     for poll in expired_polls:
@@ -2146,7 +2147,7 @@ def set_movie_badge(movie_id):
         ban_until_raw = payload.get('ban_until')
         ban_duration_months = payload.get('ban_duration_months')
 
-        now_utc = datetime.utcnow()
+        now_utc = vladivostok_now()
         base_time = (
             library_movie.ban_until
             if library_movie.badge == 'ban' and library_movie.ban_until and library_movie.ban_until > now_utc
@@ -2181,7 +2182,7 @@ def set_movie_badge(movie_id):
     library_movie.ban_until = ban_until
     library_movie.ban_applied_by = ban_applied_by
     library_movie.ban_cost = ban_cost
-    library_movie.bumped_at = datetime.utcnow()
+    library_movie.bumped_at = vladivostok_now()
     db.session.commit()
 
     return jsonify({
@@ -2203,7 +2204,7 @@ def remove_movie_badge(movie_id):
     library_movie.ban_until = None
     library_movie.ban_applied_by = None
     library_movie.ban_cost = None
-    library_movie.bumped_at = datetime.utcnow()
+    library_movie.bumped_at = vladivostok_now()
     db.session.commit()
 
     return jsonify({
@@ -2421,7 +2422,7 @@ def update_voter_device_label(voter_token):
 
     profile = PollVoterProfile.query.get_or_404(voter_token)
     profile.device_label = normalized_label
-    profile.updated_at = datetime.utcnow()
+    profile.updated_at = vladivostok_now()
     db.session.commit()
 
     earned_total = profile.points_accrued_total or 0
@@ -2451,7 +2452,7 @@ def update_voter_total_points(voter_token):
 
     profile = PollVoterProfile.query.get_or_404(voter_token)
     profile.total_points = new_points
-    profile.updated_at = datetime.utcnow()
+    profile.updated_at = vladivostok_now()
     db.session.commit()
 
     earned_total = profile.points_accrued_total or 0
@@ -2483,7 +2484,7 @@ def update_voter_user_id(voter_token):
 
     profile = PollVoterProfile.query.get_or_404(voter_token)
     profile.user_id = normalized_user_id
-    profile.updated_at = datetime.utcnow()
+    profile.updated_at = vladivostok_now()
     db.session.commit()
 
     earned_total = profile.points_accrued_total or 0
@@ -2513,7 +2514,7 @@ def update_voter_points_accrued_total(voter_token):
 
     profile = PollVoterProfile.query.get_or_404(voter_token)
     profile.points_accrued_total = new_value
-    profile.updated_at = datetime.utcnow()
+    profile.updated_at = vladivostok_now()
     db.session.commit()
 
     earned_total = profile.points_accrued_total or 0

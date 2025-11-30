@@ -4,6 +4,7 @@ import { ModalManager } from '../components/modal.js';
 import * as movieApi from '../api/movies.js';
 import { downloadTorrentToClient, deleteTorrentFromClient } from '../api/torrents.js';
 import { buildPollApiUrl, loadMyPolls } from '../utils/polls.js';
+import { formatDate as formatVladivostokDate, formatDateTimeShort as formatVladivostokDateTime } from '../utils/timeFormat.js';
 
 const escapeHtml = (unsafeValue) => {
     const value = unsafeValue == null ? '' : String(unsafeValue);
@@ -24,15 +25,11 @@ const parseMoviePoints = (value) => {
 };
 
 function formatDate(isoString) {
-    if (!isoString) return '';
-    const date = new Date(isoString);
-    return date.toLocaleDateString('ru-RU');
+    return formatVladivostokDate(isoString);
 }
 
 function formatDateTime(isoString) {
-    if (!isoString) return '';
-    const date = new Date(isoString);
-    return date.toLocaleString('ru-RU');
+    return formatVladivostokDateTime(isoString);
 }
 
 function formatDurationShort(seconds) {
@@ -321,8 +318,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         let pollsHtml = '<h2>Мои опросы</h2>';
         
         allPolls.forEach(poll => {
-            const createdDate = new Date(poll.created_at).toLocaleString('ru-RU');
-            const expiresDate = poll.expires_at ? new Date(poll.expires_at).toLocaleString('ru-RU') : '';
+            const createdDate = formatVladivostokDateTime(poll.created_at);
+            const expiresDate = poll.expires_at ? formatVladivostokDateTime(poll.expires_at) : '';
             const primaryWinner = poll.winners[0] || {};
             const winnerNameAttr = escapeHtml(primaryWinner.name || '');
             const winnerYearAttr = escapeHtml(primaryWinner.year || '');

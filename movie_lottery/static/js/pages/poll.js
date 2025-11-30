@@ -1996,7 +1996,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!movie) return 'Уже исключён';
         const banUntil = movie.ban_until ? new Date(movie.ban_until) : null;
         if (banUntil && !Number.isNaN(banUntil.getTime())) {
-            return `Исключён до ${banUntil.toLocaleDateString('ru-RU')}`;
+            const banUntilStr = banUntil.toLocaleDateString('ru-RU', { timeZone: 'Asia/Vladivostok' });
+            return `Исключён до ${banUntilStr}`;
         }
         return 'Уже исключён';
     }
@@ -2005,7 +2006,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!movie) return 'Бан';
         const banUntil = movie.ban_until ? new Date(movie.ban_until) : null;
         if (banUntil && !Number.isNaN(banUntil.getTime())) {
-            return `до ${banUntil.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}`;
+            return `до ${banUntil.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', timeZone: 'Asia/Vladivostok' })}`;
         }
         return 'Бан';
     }

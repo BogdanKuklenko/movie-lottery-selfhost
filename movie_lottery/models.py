@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from flask import current_app
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from . import db
+from .utils.helpers import vladivostok_now
 
 class MovieIdentifier(db.Model):
     __tablename__ = 'movie_identifier'
@@ -10,7 +11,7 @@ class MovieIdentifier(db.Model):
 
 class Lottery(db.Model):
     id = db.Column(db.String(6), primary_key=True)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=vladivostok_now)
     result_name = db.Column(db.String(200), nullable=True)
     result_poster = db.Column(db.String(500), nullable=True)
     result_year = db.Column(db.String(10), nullable=True)
@@ -44,8 +45,8 @@ class LibraryMovie(db.Model):
     trailer_file_path = db.Column(db.String(500), nullable=True)
     trailer_mime_type = db.Column(db.String(100), nullable=True)
     trailer_file_size = db.Column(db.Integer, nullable=True)
-    added_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    bumped_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    added_at = db.Column(db.DateTime, nullable=False, default=vladivostok_now)
+    bumped_at = db.Column(db.DateTime, nullable=False, default=vladivostok_now)
     badge = db.Column(db.String(20), nullable=True)  # Бейдж: favorite, ban, watchlist, top, watched, new
     points = db.Column(db.Integer, nullable=False, default=1)
     ban_until = db.Column(db.DateTime, nullable=True)
@@ -68,12 +69,12 @@ class LibraryMovie(db.Model):
         if self.badge != 'ban' or not self.ban_until:
             return False
 
-        if datetime.utcnow() >= self.ban_until:
+        if vladivostok_now() >= self.ban_until:
             self.badge = 'watchlist'
             self.ban_until = None
             self.ban_applied_by = None
             self.ban_cost = None
-            self.bumped_at = datetime.utcnow()
+            self.bumped_at = vladivostok_now()
             return True
         return False
 
@@ -83,20 +84,20 @@ class LibraryMovie(db.Model):
             return 'none'
         if not self.ban_until:
             return 'pending'
-        return 'active' if datetime.utcnow() < self.ban_until else 'expired'
+        return 'active' if vladivostok_now() < self.ban_until else 'expired'
 
     @property
     def ban_remaining_seconds(self):
         if self.badge != 'ban' or not self.ban_until:
             return 0
-        remaining = (self.ban_until - datetime.utcnow()).total_seconds()
+        remaining = (self.ban_until - vladivostok_now()).total_seconds()
         return max(0, int(remaining))
 
     @classmethod
     def refresh_all_bans(cls):
         """Пакетно обновляет истёкшие баны."""
         from . import db
-        now = datetime.utcnow()
+        now = vladivostok_now()
         try:
             expired = cls.query.filter(
                 cls.badge == 'ban',
@@ -128,7 +129,7 @@ class BackgroundPhoto(db.Model):
     pos_left = db.Column(db.Float, nullable=False)
     rotation = db.Column(db.Integer, nullable=False)
     z_index = db.Column(db.Integer, nullable=False)
-    added_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    added_at = db.Column(db.DateTime, nullable=False, default=vladivostok_now)
 
 
 class PollCreatorToken(db.Model):
@@ -136,12 +137,12 @@ class PollCreatorToken(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     creator_token = db.Column(db.String(64), nullable=False, unique=True)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=vladivostok_now)
     last_seen = db.Column(
         db.DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=vladivostok_now,
+        onupdate=vladivostok_now,
     )
 
 
@@ -150,18 +151,18 @@ class PollSettings(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, default=1)
     custom_vote_cost = db.Column(db.Integer, nullable=False, default=10)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=vladivostok_now)
     updated_at = db.Column(
         db.DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=vladivostok_now,
+        onupdate=vladivostok_now,
     )
 
 
 class Poll(db.Model):
     id = db.Column(db.String(8), primary_key=True)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=vladivostok_now)
     expires_at = db.Column(db.DateTime, nullable=False)
     creator_token = db.Column(db.String(64), nullable=False)
     forced_winner_movie_id = db.Column(db.Integer, nullable=True)
@@ -171,11 +172,11 @@ class Poll(db.Model):
     def __init__(self, **kwargs):
         super(Poll, self).__init__(**kwargs)
         if not self.expires_at:
-            self.expires_at = datetime.utcnow() + timedelta(hours=24)
+            self.expires_at = vladivostok_now() + timedelta(hours=24)
     
     @property
     def is_expired(self):
-        return datetime.utcnow() > self.expires_at
+        return vladivostok_now() > self.expires_at
 
     @property
     def winners(self):
@@ -233,13 +234,13 @@ class PollMovie(db.Model):
     def ban_status(self):
         if not self.ban_until:
             return 'none'
-        return 'active' if datetime.utcnow() < self.ban_until else 'expired'
+        return 'active' if vladivostok_now() < self.ban_until else 'expired'
 
     @property
     def ban_remaining_seconds(self):
         if not self.ban_until:
             return 0
-        remaining = (self.ban_until - datetime.utcnow()).total_seconds()
+        remaining = (self.ban_until - vladivostok_now()).total_seconds()
         return max(0, int(remaining))
 
     @property
@@ -257,12 +258,12 @@ class PollVoterProfile(db.Model):
         db.Integer, nullable=False, default=0, server_default=db.text('0')
     )
     device_label = db.Column(db.String(255), nullable=True)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=vladivostok_now)
     updated_at = db.Column(
         db.DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=vladivostok_now,
+        onupdate=vladivostok_now,
     )
 
     votes = db.relationship('Vote', back_populates='profile', lazy=True)
@@ -277,7 +278,7 @@ class Vote(db.Model):
         db.ForeignKey('poll_voter_profile.token'),
         nullable=False,
     )  # Токен для идентификации голосующего
-    voted_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    voted_at = db.Column(db.DateTime, nullable=False, default=vladivostok_now)
     points_awarded = db.Column(db.Integer, nullable=False, default=0)
 
     profile = db.relationship('PollVoterProfile', back_populates='votes')

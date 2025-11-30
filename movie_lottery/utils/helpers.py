@@ -1,7 +1,7 @@
 import random
 import secrets
 import string
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from urllib.parse import urljoin, quote_plus
 
 from flask import current_app, url_for
@@ -9,6 +9,16 @@ from sqlalchemy import inspect, text
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from .. import db
+
+# Часовой пояс Владивостока (UTC+10)
+VLADIVOSTOK_TZ = timezone(timedelta(hours=10))
+
+def vladivostok_now():
+    """
+    Возвращает текущее время в часовом поясе Владивостока (UTC+10).
+    Используется вместо datetime.utcnow() для синхронизации времени на сайте.
+    """
+    return datetime.now(VLADIVOSTOK_TZ).replace(tzinfo=None)
 from ..models import (
     BackgroundPhoto,
     Lottery,
@@ -36,7 +46,7 @@ class _FallbackVoterProfile:
     )
 
     def __init__(self, token, device_label=None, user_id=None):
-        now = datetime.utcnow()
+        now = vladivostok_now()
         self.token = token
         self.device_label = device_label
         self.total_points = 0
@@ -575,7 +585,7 @@ def update_poll_settings(*, custom_vote_cost=None):
         updated = True
 
     if updated:
-        settings.updated_at = datetime.utcnow()
+        settings.updated_at = vladivostok_now()
         db.session.commit()
 
     return settings
@@ -630,7 +640,7 @@ def cleanup_expired_polls():
     Эту функцию можно вызывать периодически через scheduler или cron.
     """
     try:
-        expired_polls = Poll.query.filter(Poll.expires_at <= datetime.utcnow()).all()
+        expired_polls = Poll.query.filter(Poll.expires_at <= vladivostok_now()).all()
         count = len(expired_polls)
         
         for poll in expired_polls:
@@ -657,7 +667,7 @@ def ensure_voter_profile(voter_token, device_label=None, user_id=None):
     if normalized_user_id:
         normalized_user_id = normalized_user_id[:128]
 
-    now = datetime.utcnow()
+    now = vladivostok_now()
     try:
         profile = PollVoterProfile.query.get(voter_token)
     except (ProgrammingError, OperationalError) as exc:
@@ -708,7 +718,7 @@ def ensure_voter_profile_for_user(user_id, device_label=None):
         normalized_label = normalized_label[:255]
 
     normalized_user_id = str(user_id).strip()[:128]
-    now = datetime.utcnow()
+    now = vladivostok_now()
 
     try:
         profile = PollVoterProfile.query.filter_by(user_id=normalized_user_id).first()
@@ -755,7 +765,7 @@ def rotate_voter_token(profile, update_votes=False):
     old_token = profile.token
     new_token = secrets.token_hex(16)
     profile.token = new_token
-    profile.updated_at = datetime.utcnow()
+    profile.updated_at = vladivostok_now()
 
     if getattr(profile, '_is_fallback', False):
         return new_token
@@ -784,7 +794,7 @@ def change_voter_points_balance(voter_token, delta, device_label=None, commit=Fa
         if delta > 0:
             profile.points_accrued_total = (profile.points_accrued_total or 0) + delta
         if not getattr(profile, '_is_fallback', False):
-            profile.updated_at = datetime.utcnow()
+            profile.updated_at = vladivostok_now()
 
     if getattr(profile, '_is_fallback', False):
         return profile.total_points or 0

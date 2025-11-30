@@ -15,7 +15,7 @@ max_requests_jitter = 50
 # Timeout settings - увеличены для стриминга видео
 timeout = 600  # 10 минут для больших видео файлов
 graceful_timeout = 120
-keepalive = 5
+keepalive = 65  # Keep-alive соединения живыми 65 сек (больше чем default браузеров ~60s)
 
 # Logging
 loglevel = "info"

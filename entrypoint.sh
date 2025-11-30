@@ -66,7 +66,7 @@ PY
 echo "[entrypoint] Starting app..."
 
 # Общие параметры gunicorn для стриминга видео
-GUNICORN_OPTS="--bind 0.0.0.0:8000 --timeout 600 --graceful-timeout 120 --keep-alive 5 --workers 2 --threads 4 --access-logfile - --error-logfile -"
+GUNICORN_OPTS="--bind 0.0.0.0:8000 --timeout 600 --graceful-timeout 120 --keep-alive 65 --workers 2 --threads 4 --access-logfile - --error-logfile -"
 
 # 1) wsgi.py:app
 if [ -f "wsgi.py" ]; then

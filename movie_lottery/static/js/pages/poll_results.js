@@ -1,6 +1,7 @@
 // movie_lottery/static/js/pages/poll_results.js
 
 import { buildPollApiUrl, loadMyPolls } from '../utils/polls.js';
+import { formatDateTimeShort as formatVladivostokDateTime } from '../utils/timeFormat.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     const descriptionEl = document.getElementById('poll-results-description');
@@ -75,8 +76,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     function renderResults(data) {
         const totalVotes = Number(data.total_votes) || 0;
         const movies = Array.isArray(data.movies) ? data.movies : [];
-        const createdAt = data.created_at ? new Date(data.created_at) : null;
-        const expiresAt = data.expires_at ? new Date(data.expires_at) : null;
+        const createdAt = data.created_at || null;
+        const expiresAt = data.expires_at || null;
 
         descriptionEl.textContent = buildDescription({ totalVotes, moviesCount: movies.length, createdAt, expiresAt });
 
@@ -148,10 +149,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         parts.push(`Фильмов в опросе: ${moviesCount}`);
         parts.push(`Проголосовало: ${totalVotes}`);
         if (createdAt) {
-            parts.push(`Создан: ${createdAt.toLocaleString('ru-RU')}`);
+            const createdDateStr = formatVladivostokDateTime(createdAt);
+            parts.push(`Создан: ${createdDateStr}`);
         }
         if (expiresAt) {
-            parts.push(`Действует до: ${expiresAt.toLocaleString('ru-RU')}`);
+            const expiresDateStr = formatVladivostokDateTime(expiresAt);
+            parts.push(`Действует до: ${expiresDateStr}`);
         }
         return parts.join(' · ');
     }
