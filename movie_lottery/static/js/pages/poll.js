@@ -507,8 +507,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const percent = duration > 0 ? (currentTime / duration) * 100 : 0;
         
         trailerProgress.value = percent;
-        // Обновляем CSS градиент для визуального отображения прогресса
-        trailerProgress.style.background = `linear-gradient(to right, var(--accent-gold) ${percent}%, rgba(255, 255, 255, 0.2) ${percent}%)`;
+        // Обновляем CSS градиент для визуального отображения прогресса (золотой цвет в стиле сайта)
+        // Используем красивый градиент от золотого к более яркому желтому
+        if (percent > 0) {
+            trailerProgress.style.background = `linear-gradient(to right, #ffd700 0%, #ffed4e ${percent}%, rgba(255, 255, 255, 0.15) ${percent}%)`;
+        } else {
+            trailerProgress.style.background = `rgba(255, 255, 255, 0.15)`;
+        }
         
         if (trailerCurrentTime) {
             trailerCurrentTime.textContent = formatTime(currentTime);
@@ -792,7 +797,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Сбрасываем прогресс-бар
         if (trailerProgress) {
             trailerProgress.value = 0;
-            trailerProgress.style.background = 'linear-gradient(to right, var(--accent-gold) 0%, rgba(255, 255, 255, 0.2) 0%)';
+            trailerProgress.style.background = 'rgba(255, 255, 255, 0.15)';
         }
         if (trailerCurrentTime) {
             trailerCurrentTime.textContent = '0:00';

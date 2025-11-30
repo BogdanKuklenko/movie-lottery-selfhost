@@ -1882,17 +1882,24 @@
     -webkit-appearance: none;
     appearance: none;
     width: 100%;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 2px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
     cursor: pointer;
     outline: none;
+    position: relative;
+    transition: background 0.1s ease;
 }
 
-.trailer-progress::-webkit-slider-runnable-track {
-    height: 4px;
+.trailer-progress:hover {
     background: rgba(255, 255, 255, 0.2);
-    border-radius: 2px;
+}
+
+/* Убираем стандартный thumb - используем только прогресс */
+.trailer-progress::-webkit-slider-runnable-track {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
 }
 
 .trailer-progress::-webkit-slider-thumb {
@@ -1902,13 +1909,14 @@
     height: 0;
     background: transparent;
     border: none;
-    margin-top: 0;
+    cursor: pointer;
 }
 
+/* Firefox - убираем стандартный thumb */
 .trailer-progress::-moz-range-track {
-    height: 4px;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 2px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
     border: none;
 }
 
@@ -1917,18 +1925,17 @@
     height: 0;
     background: transparent;
     border: none;
+    cursor: pointer;
 }
 
+/* Firefox прогресс-бар - золотой цвет */
 .trailer-progress::-moz-range-progress {
-    height: 4px;
-    background: var(--accent-gold);
-    border-radius: 2px;
+    height: 6px;
+    background: linear-gradient(90deg, var(--accent-gold), #ffed4e);
+    border-radius: 3px;
 }
 
-/* Chrome/Safari прогресс через градиент (обновляется через JS) */
-.trailer-progress {
-    background: linear-gradient(to right, var(--accent-gold) 0%, var(--accent-gold) 0%, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.2) 100%);
-}
+/* Chrome/Safari прогресс через градиент обновляется через JS в updateProgressBar() */
 
 .trailer-controls-row {
     display: flex;
@@ -2109,7 +2116,7 @@
 
 /* --- Нативный fullscreen режим для видео --- */
 /* Стили для video в нативном fullscreen (используется на iOS и Android) */
-/* object-fit: cover заполняет весь экран (может обрезать края видео) */
+/* object-fit: contain сохраняет пропорции и показывает видео полностью (как в обычном режиме) */
 .trailer-video:fullscreen,
 .trailer-video:-webkit-full-screen,
 .trailer-video:-moz-full-screen,
@@ -2118,7 +2125,7 @@
     height: 100vh !important;
     max-width: none !important;
     max-height: none !important;
-    object-fit: cover;
+    object-fit: contain;
     background: #000;
 }
 
@@ -2149,6 +2156,58 @@
 .trailer-fullscreen-modal:-webkit-full-screen .trailer-video {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
+}
+
+/* Унифицированные стили прогресс-бара для полноэкранного режима */
+.trailer-fullscreen-modal:fullscreen .trailer-progress,
+.trailer-fullscreen-modal:-webkit-full-screen .trailer-progress {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    height: 6px !important;
+    background: rgba(255, 255, 255, 0.15) !important;
+    border-radius: 3px !important;
+    cursor: pointer !important;
+}
+
+.trailer-fullscreen-modal:fullscreen .trailer-progress::-webkit-slider-runnable-track,
+.trailer-fullscreen-modal:-webkit-full-screen .trailer-progress::-webkit-slider-runnable-track {
+    height: 6px !important;
+    background: rgba(255, 255, 255, 0.15) !important;
+    border-radius: 3px !important;
+}
+
+.trailer-fullscreen-modal:fullscreen .trailer-progress::-webkit-slider-thumb,
+.trailer-fullscreen-modal:-webkit-full-screen .trailer-progress::-webkit-slider-thumb {
+    -webkit-appearance: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    cursor: pointer !important;
+}
+
+.trailer-fullscreen-modal:fullscreen .trailer-progress::-moz-range-track,
+.trailer-fullscreen-modal:-webkit-full-screen .trailer-progress::-moz-range-track {
+    height: 6px !important;
+    background: rgba(255, 255, 255, 0.15) !important;
+    border-radius: 3px !important;
+    border: none !important;
+}
+
+.trailer-fullscreen-modal:fullscreen .trailer-progress::-moz-range-thumb,
+.trailer-fullscreen-modal:-webkit-full-screen .trailer-progress::-moz-range-thumb {
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    cursor: pointer !important;
+}
+
+.trailer-fullscreen-modal:fullscreen .trailer-progress::-moz-range-progress,
+.trailer-fullscreen-modal:-webkit-full-screen .trailer-progress::-moz-range-progress {
+    height: 6px !important;
+    background: linear-gradient(90deg, var(--accent-gold), #ffed4e) !important;
+    border-radius: 3px !important;
 }
 

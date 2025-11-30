@@ -27,3 +27,4 @@ def downgrade():
         batch_op.drop_column('trailer_view_cost')
 
 
+

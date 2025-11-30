@@ -1,23 +1,22 @@
 @echo off
 setlocal EnableExtensions
-chcp 65001 >nul
 
-REM === Всегда работаем из папки скрипта ===
+REM === Always work from script directory ===
 cd /d "%~dp0"
-echo [INFO] Папка проекта: %CD%
+echo [INFO] Project directory: %CD%
 echo.
 
-REM === Быстрый подъём Docker (пересоберёт только изменившиеся слои) ===
+REM === Fast Docker build (rebuilds only changed layers) ===
 set COMPOSE_DOCKER_CLI_BUILD=1
 set DOCKER_BUILDKIT=1
 
-REM === Определяем команду docker compose ===
+REM === Detect docker compose command ===
 set "DC="
 docker compose version >nul 2>&1
 if errorlevel 1 (
     docker-compose --version >nul 2>&1
     if errorlevel 1 (
-        echo [DOCKER] Neither "docker compose" nor "docker-compose" found.
+        echo [ERROR] Neither "docker compose" nor "docker-compose" found.
         pause
         exit /b 1
     )
@@ -25,8 +24,29 @@ if errorlevel 1 (
 )
 if "%DC%"=="" set "DC=docker compose"
 
-echo [DOCKER] %DC% up -d --build
-%DC% up -d --build
+REM === Check argument for full rebuild ===
+if "%1"=="--no-cache" (
+    echo [DOCKER] Full rebuild mode without cache
+)
+
+echo [DOCKER] Stopping containers...
+%DC% down
+if errorlevel 1 (
+    echo [WARNING] Some containers may not be running
+)
+
+echo [DOCKER] Building images and starting containers...
+if "%1"=="--no-cache" (
+    %DC% build --no-cache
+    if errorlevel 1 (
+        echo [DOCKER] Build failed.
+        pause
+        exit /b 1
+    )
+    %DC% up -d --force-recreate
+) else (
+    %DC% up -d --build --force-recreate
+)
 if errorlevel 1 (
     echo [DOCKER] Compose failed.
     pause
@@ -34,12 +54,17 @@ if errorlevel 1 (
 )
 
 echo.
-echo [OK] Контейнеры:
+echo [OK] Containers status:
 docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
 echo.
-echo [LOGS] Последние строки логов приложения:
+echo [LOGS] Application logs (last 80 lines):
 docker logs --tail=80 movie_lottery_app
 
-endlocal
+echo.
+echo ========================================
+echo [DONE] Update completed successfully!
+echo ========================================
+pause
 
+endlocal
