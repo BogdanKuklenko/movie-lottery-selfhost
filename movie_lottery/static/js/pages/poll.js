@@ -818,6 +818,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             trailerPlayerWrapper.classList.toggle('is-fullscreen', isVideoFullscreen);
         }
         
+        // Добавляем класс на modal для CSS стилей (работает во всех браузерах)
+        if (trailerPlayerModal) {
+            trailerPlayerModal.classList.toggle('is-native-fullscreen', Boolean(isNativeFullscreen));
+        }
+        
+        // Применяем inline стили для центрирования видео в fullscreen (гарантированно работает)
+        if (trailerVideo && isNativeFullscreen) {
+            trailerVideo.style.cssText = 'position: absolute !important; top: 50% !important; left: 50% !important; transform: translate(-50%, -50%) !important; max-width: 100% !important; max-height: 100% !important; width: auto !important; height: auto !important; margin: 0 !important; padding: 0 !important;';
+            if (trailerPlayerWrapper) {
+                trailerPlayerWrapper.style.cssText = 'position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; display: block !important; background: #000 !important;';
+            }
+        } else if (trailerVideo && !isAnyFullscreen) {
+            // Убираем inline стили при выходе из fullscreen
+            trailerVideo.style.cssText = '';
+            if (trailerPlayerWrapper) {
+                trailerPlayerWrapper.style.cssText = '';
+            }
+        }
+        
         // Обновляем иконки кнопки
         updateFullscreenButtonIcon(isVideoFullscreen);
     }
