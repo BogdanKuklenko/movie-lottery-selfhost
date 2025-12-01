@@ -123,6 +123,96 @@ def _remove_trailer_file(movie, settings):
         current_app.logger.warning('Не удалось удалить старый трейлер %s: %s', absolute_path, exc)
 
 
+def _get_poster_settings():
+    """Возвращает настройки для хранения постеров."""
+    config = current_app.config
+    media_root = config.get('TRAILER_MEDIA_ROOT')
+    upload_dir = config.get('POSTER_UPLOAD_DIR')
+    relative_dir = config.get('POSTER_UPLOAD_SUBDIR', 'posters')
+
+    return {
+        'upload_dir': upload_dir,
+        'media_root': media_root,
+        'relative_dir': relative_dir,
+    }
+
+
+def _download_and_save_poster(poster_url, movie_id):
+    """
+    Скачивает постер по URL и сохраняет локально.
+    Возвращает относительный путь к файлу или None при ошибке.
+    """
+    if not poster_url:
+        return None
+
+    settings = _get_poster_settings()
+    upload_dir = settings.get('upload_dir')
+
+    if not upload_dir:
+        current_app.logger.warning('Директория для постеров не настроена')
+        return None
+
+    # Исправляем URL если нужно
+    fixed_url = _fix_poster_url(poster_url)
+
+    try:
+        import requests
+        response = requests.get(fixed_url, timeout=15, stream=True)
+        response.raise_for_status()
+
+        # Определяем расширение файла
+        content_type = response.headers.get('Content-Type', '').lower()
+        if 'jpeg' in content_type or 'jpg' in content_type:
+            ext = '.jpg'
+        elif 'png' in content_type:
+            ext = '.png'
+        elif 'webp' in content_type:
+            ext = '.webp'
+        else:
+            ext = '.jpg'  # По умолчанию
+
+        filename = f"poster_{movie_id}{ext}"
+        os.makedirs(upload_dir, exist_ok=True)
+        absolute_path = os.path.join(upload_dir, filename)
+
+        with open(absolute_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+
+        relative_path = os.path.join(settings.get('relative_dir', 'posters'), filename)
+        current_app.logger.info('Постер сохранён: %s', relative_path)
+        return relative_path
+
+    except Exception as exc:
+        current_app.logger.warning('Не удалось скачать постер %s: %s', fixed_url, exc)
+        return None
+
+
+def _remove_poster_file(movie):
+    """Удаляет локальный файл постера."""
+    if not movie:
+        return
+
+    try:
+        poster_path = movie.poster_file_path
+    except Exception:
+        return
+
+    if not poster_path:
+        return
+
+    settings = _get_poster_settings()
+    media_root = settings.get('media_root') or ''
+    absolute_path = os.path.join(media_root, poster_path)
+
+    try:
+        if os.path.exists(absolute_path):
+            os.remove(absolute_path)
+            current_app.logger.info('Постер удалён: %s', absolute_path)
+    except OSError as exc:
+        current_app.logger.warning('Не удалось удалить постер %s: %s', absolute_path, exc)
+
+
 def _serialize_library_movie(movie):
     # Безопасно получаем атрибуты трейлера, которые могут отсутствовать в БД
     try:
@@ -142,6 +232,20 @@ def _serialize_library_movie(movie):
         trailer_view_cost = movie.trailer_view_cost
     except Exception:
         trailer_view_cost = None
+
+    # Безопасно получаем локальный постер
+    try:
+        poster_file_path = movie.poster_file_path
+        has_local_poster = bool(poster_file_path)
+    except Exception:
+        poster_file_path = None
+        has_local_poster = False
+
+    # Если есть локальный постер - используем его, иначе внешний URL
+    if has_local_poster:
+        poster_url = f'/api/posters/{movie.id}'
+    else:
+        poster_url = _fix_poster_url(movie.poster)
     
     return {
         'id': movie.id,
@@ -149,7 +253,8 @@ def _serialize_library_movie(movie):
         'name': movie.name,
         'search_name': movie.search_name,
         'year': movie.year,
-        'poster': movie.poster,
+        'poster': poster_url,
+        'has_local_poster': has_local_poster,
         'description': movie.description,
         'rating_kp': movie.rating_kp,
         'genres': movie.genres,
@@ -690,6 +795,19 @@ def _group_votes_by_token(tokens, filters):
     return votes_by_token
 
 
+def _fix_poster_url(poster_url):
+    """Исправляет URL постера с нерабочего домена на рабочий."""
+    if not poster_url:
+        return poster_url
+    # image.openmoviedb.com больше не работает, заменяем на avatars.mds.yandex.net
+    if 'image.openmoviedb.com/kinopoisk-images/' in poster_url:
+        return poster_url.replace(
+            'image.openmoviedb.com/kinopoisk-images/',
+            'avatars.mds.yandex.net/get-kinopoisk-image/'
+        )
+    return poster_url
+
+
 def _serialize_poll_movie(movie):
     if not movie:
         return None
@@ -711,12 +829,28 @@ def _serialize_poll_movie(movie):
         has_trailer = library_movie.has_local_trailer
         trailer_view_cost = library_movie.trailer_view_cost if library_movie.trailer_view_cost is not None else 1
 
+    # Приоритет локальному постеру из библиотеки
+    poster = None
+    if library_movie:
+        try:
+            if library_movie.poster_file_path:
+                poster = f'/api/posters/{library_movie.id}'
+        except Exception:
+            pass
+    
+    # Если нет локального постера - используем внешний URL с исправлением домена
+    if not poster:
+        poster = movie.poster
+        if library_movie and library_movie.poster:
+            poster = library_movie.poster
+        poster = _fix_poster_url(poster)
+
     return {
         "id": movie.id,
         "kinopoisk_id": movie.kinopoisk_id,
         "name": movie.name,
         "search_name": movie.search_name,
-        "poster": movie.poster,
+        "poster": poster,
         "year": movie.year,
         "description": movie.description,
         "rating_kp": movie.rating_kp,
@@ -1105,11 +1239,15 @@ def add_library_movie():
             year=movie_data.get('year')
         ).first()
 
+    poster_url = movie_data.get('poster')
+    movie_for_poster = None
+
     if existing_movie:
         for key, value in movie_data.items():
             if hasattr(existing_movie, key) and value is not None:
                 setattr(existing_movie, key, value)
         existing_movie.bumped_at = vladivostok_now()
+        movie_for_poster = existing_movie
         message = "Информация о фильме в библиотеке обновлена."
     else:
         new_movie = LibraryMovie(**movie_data)
@@ -1120,11 +1258,25 @@ def add_library_movie():
         else:
             new_movie.bumped_at = new_movie.added_at
         db.session.add(new_movie)
+        db.session.flush()  # Получаем ID для нового фильма
+        movie_for_poster = new_movie
         message = "Фильм добавлен в библиотеку."
 
+    # Скачиваем постер локально если его ещё нет
+    if movie_for_poster and poster_url:
+        try:
+            has_local = movie_for_poster.poster_file_path
+        except Exception:
+            has_local = None
+
+        if not has_local:
+            poster_path = _download_and_save_poster(poster_url, movie_for_poster.id)
+            if poster_path:
+                movie_for_poster.poster_file_path = poster_path
+
     # Add poster to background when movie is added to library
-    if poster := movie_data.get('poster'):
-        ensure_background_photo(poster)
+    if poster_url:
+        ensure_background_photo(poster_url)
 
     db.session.commit()
     return jsonify({"success": True, "message": message})
@@ -1133,6 +1285,7 @@ def add_library_movie():
 def remove_library_movie(movie_id):
     library_movie = LibraryMovie.query.get_or_404(movie_id)
     _remove_trailer_file(library_movie, _get_trailer_settings())
+    _remove_poster_file(library_movie)
     db.session.delete(library_movie)
     db.session.commit()
     return jsonify({"success": True, "message": "Фильм удален из библиотеки."})
@@ -1284,6 +1437,84 @@ def batch_apply_faststart():
     return jsonify({
         "success": True,
         "message": f"Обработано: {results['processed']}, пропущено: {results['skipped']}, ошибок: {results['failed']}",
+        "results": results
+    })
+
+
+@api_bp.route('/posters/migrate-all', methods=['POST'])
+def migrate_all_posters():
+    """Скачивает все постеры локально для фильмов без локальных постеров."""
+    movies = LibraryMovie.query.all()
+
+    results = {
+        'total': len(movies),
+        'downloaded': 0,
+        'skipped': 0,
+        'failed': 0,
+        'details': []
+    }
+
+    for movie in movies:
+        # Проверяем, есть ли уже локальный постер
+        try:
+            has_local = bool(movie.poster_file_path)
+        except Exception:
+            has_local = False
+
+        if has_local:
+            results['skipped'] += 1
+            results['details'].append({
+                'movie_id': movie.id,
+                'name': movie.name,
+                'status': 'skipped',
+                'message': 'Постер уже скачан'
+            })
+            continue
+
+        if not movie.poster:
+            results['skipped'] += 1
+            results['details'].append({
+                'movie_id': movie.id,
+                'name': movie.name,
+                'status': 'skipped',
+                'message': 'Нет URL постера'
+            })
+            continue
+
+        poster_path = _download_and_save_poster(movie.poster, movie.id)
+
+        if poster_path:
+            try:
+                movie.poster_file_path = poster_path
+                results['downloaded'] += 1
+                results['details'].append({
+                    'movie_id': movie.id,
+                    'name': movie.name,
+                    'status': 'downloaded',
+                    'message': f'Сохранено: {poster_path}'
+                })
+            except Exception as exc:
+                results['failed'] += 1
+                results['details'].append({
+                    'movie_id': movie.id,
+                    'name': movie.name,
+                    'status': 'failed',
+                    'message': f'Ошибка сохранения: {exc}'
+                })
+        else:
+            results['failed'] += 1
+            results['details'].append({
+                'movie_id': movie.id,
+                'name': movie.name,
+                'status': 'failed',
+                'message': 'Не удалось скачать постер'
+            })
+
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": f"Скачано: {results['downloaded']}, пропущено: {results['skipped']}, ошибок: {results['failed']}",
         "results": results
     })
 
@@ -2249,6 +2480,52 @@ def get_trailer_info(kinopoisk_id):
         "trailer_view_cost": library_movie.trailer_view_cost if library_movie.trailer_view_cost is not None else 1,
         "movie_id": library_movie.id,
     })
+
+
+@api_bp.route('/posters/<int:movie_id>', methods=['GET'])
+def get_poster(movie_id):
+    """Отдача локального постера фильма"""
+    from flask import send_file
+    
+    library_movie = LibraryMovie.query.get_or_404(movie_id)
+    
+    try:
+        poster_path = library_movie.poster_file_path
+    except Exception:
+        poster_path = None
+    
+    if not poster_path:
+        return jsonify({"error": "Постер не найден"}), 404
+
+    settings = _get_poster_settings()
+    media_root = settings.get('media_root') or ''
+    
+    # Нормализуем путь для кроссплатформенности
+    normalized_path = poster_path.replace('\\', '/').replace('/', os.sep)
+    absolute_path = os.path.normpath(os.path.join(media_root, normalized_path))
+    
+    if not os.path.exists(absolute_path):
+        current_app.logger.error('Файл постера не найден: %s', absolute_path)
+        return jsonify({"error": "Файл постера не найден"}), 404
+
+    # Определяем MIME-тип по расширению
+    ext = os.path.splitext(absolute_path)[1].lower()
+    mime_types = {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.webp': 'image/webp',
+    }
+    mime_type = mime_types.get(ext, 'image/jpeg')
+
+    response = send_file(
+        absolute_path,
+        mimetype=mime_type,
+        as_attachment=False,
+    )
+    # Кешируем постеры на долгий срок
+    response.headers['Cache-Control'] = 'public, max-age=31536000'
+    return response
 
 
 # --- Маршруты для управления бейджами ---

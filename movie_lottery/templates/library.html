@@ -153,7 +153,7 @@
                     data-movie-name="{{ movie.name|e }}"
                     data-movie-search-name="{{ (movie.search_name or '')|e }}"
                     data-movie-year="{{ movie.year or '' }}"
-                    data-movie-poster="{{ (movie.poster or '')|e }}"
+                    data-movie-poster="{{ (movie.poster_url or movie.poster or '')|e }}"
                     data-movie-description="{{ (movie.description|default('', true)|replace('\n', ' '))|e }}"
                     data-movie-rating="{{ '%.1f'|format(movie.rating_kp) if movie.rating_kp is not none else '' }}"
                     data-movie-genres="{{ (movie.genres|default('', true))|e }}"
@@ -230,7 +230,7 @@
                         </button>
                     </div>
                     <div class="date-badge" data-date="{{ movie.added_at.isoformat() }}"></div>
-                    <img src="{{ movie.poster or 'https://via.placeholder.com/200x300.png?text=No+Image' }}" alt="{{ movie.name|e }}">
+                    <img src="{{ movie.poster_url or movie.poster or 'https://via.placeholder.com/200x300.png?text=No+Image' }}" alt="{{ movie.name|e }}">
                 </div>
             {% endfor %}
         {% endif %}

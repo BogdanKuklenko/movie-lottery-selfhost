@@ -36,7 +36,8 @@ class LibraryMovie(db.Model):
     kinopoisk_id = db.Column(db.Integer, unique=True, nullable=True)
     name = db.Column(db.String(200), nullable=False)
     search_name = db.Column(db.String(200), nullable=True)
-    poster = db.Column(db.String(500), nullable=True)
+    poster = db.Column(db.String(500), nullable=True)  # Внешний URL (устаревшее)
+    poster_file_path = db.Column(db.String(500), nullable=True)  # Локальный путь к постеру
     year = db.Column(db.String(10), nullable=True)
     description = db.Column(db.Text, nullable=True)
     rating_kp = db.Column(db.Float, nullable=True)
@@ -54,6 +55,14 @@ class LibraryMovie(db.Model):
     ban_cost = db.Column(db.Integer, nullable=True)
     ban_cost_per_month = db.Column(db.Integer, nullable=True)  # Индивидуальная цена за месяц бана (по умолчанию 1)
     trailer_view_cost = db.Column(db.Integer, nullable=True)  # Стоимость просмотра трейлера в баллах (по умолчанию 1)
+
+    @property
+    def has_local_poster(self):
+        """Проверяет, есть ли локальный постер."""
+        try:
+            return bool(self.poster_file_path)
+        except (OperationalError, ProgrammingError):
+            return False
 
     @property
     def has_local_trailer(self):

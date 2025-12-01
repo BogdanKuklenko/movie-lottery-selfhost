@@ -65,6 +65,10 @@ class Config:
     TRAILER_MEDIA_ROOT = os.environ.get('TRAILER_MEDIA_ROOT') or os.path.join(instance_dir, 'media')
     TRAILER_UPLOAD_DIR = os.path.join(TRAILER_MEDIA_ROOT, TRAILER_UPLOAD_SUBDIR)
 
+    # Poster storage settings
+    POSTER_UPLOAD_SUBDIR = os.environ.get('POSTER_UPLOAD_SUBDIR', 'posters')
+    POSTER_UPLOAD_DIR = os.path.join(TRAILER_MEDIA_ROOT, POSTER_UPLOAD_SUBDIR)
+
     raw_mime_types = os.environ.get('TRAILER_ALLOWED_MIME_TYPES', 'video/mp4,video/webm')
     TRAILER_ALLOWED_MIME_TYPES = [mt.strip().lower() for mt in raw_mime_types.split(',') if mt.strip()]
 

@@ -93,6 +93,7 @@ def library():
                     LibraryMovie.name,
                     LibraryMovie.search_name,
                     LibraryMovie.poster,
+                    LibraryMovie.poster_file_path,
                     LibraryMovie.year,
                     LibraryMovie.description,
                     LibraryMovie.rating_kp,
@@ -126,6 +127,7 @@ def library():
                     LibraryMovie.name,
                     LibraryMovie.search_name,
                     LibraryMovie.poster,
+                    LibraryMovie.poster_file_path,
                     LibraryMovie.year,
                     LibraryMovie.description,
                     LibraryMovie.rating_kp,
@@ -157,6 +159,24 @@ def library():
             movie.magnet_link = identifier.magnet_link if identifier else ''
             movie.is_on_client = False
             movie.torrent_hash = None
+            
+            # Вычисляем URL постера (локальный или внешний)
+            try:
+                if movie.poster_file_path:
+                    movie.poster_url = f'/api/posters/{movie.id}'
+                elif movie.poster:
+                    # Исправляем URL с нерабочего домена
+                    poster = movie.poster
+                    if 'image.openmoviedb.com/kinopoisk-images/' in poster:
+                        poster = poster.replace(
+                            'image.openmoviedb.com/kinopoisk-images/',
+                            'avatars.mds.yandex.net/get-kinopoisk-image/'
+                        )
+                    movie.poster_url = poster
+                else:
+                    movie.poster_url = None
+            except Exception:
+                movie.poster_url = movie.poster if hasattr(movie, 'poster') else None
             
             # Безопасно вычисляем свойства для шаблона
             # has_local_trailer уже обрабатывает исключения внутри, возвращая False при ошибке

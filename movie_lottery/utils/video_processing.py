@@ -139,3 +139,4 @@ def apply_faststart(input_path):
             except OSError:
                 pass
 
+
