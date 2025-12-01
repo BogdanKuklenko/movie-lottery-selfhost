@@ -96,6 +96,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const pointsProgressBar = document.getElementById('points-progress-bar');
     const pointsProgressLabel = document.getElementById('points-progress-label');
 
+    // Streak elements
+    const streakIndicator = document.getElementById('streak-indicator');
+    const streakCount = document.getElementById('streak-count');
+    const streakWidget = document.getElementById('streak-widget');
+    const streakDays = document.getElementById('streak-days');
+    const streakProgressBar = document.getElementById('streak-progress-bar');
+    const streakCurrentBonus = document.getElementById('streak-current-bonus');
+    const streakNextBonus = document.getElementById('streak-next-bonus');
+
     const customVoteBtn = document.getElementById('custom-vote-btn');
     const customVoteWarning = document.getElementById('custom-vote-insufficient');
     const customVoteModal = document.getElementById('custom-vote-modal');
@@ -149,6 +158,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let lastTrailerSource = null;
     let lastTrailerMimeType = null;
     let lastTrailerMovieName = null;
+    let currentStreak = null;
     const PLACEHOLDER_POSTER = 'https://via.placeholder.com/200x300.png?text=No+Image';
 
     // Элементы медиаплеера трейлера
@@ -283,6 +293,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         voterToken = pollData.voter_token || voterToken;
         updatePointsBalance(pollData.points_balance, pollData.points_earned_total);
+        updateStreakUI(pollData.streak);
         customVoteCost = Number(pollData.custom_vote_cost) || customVoteCost;
         updateCustomVoteCostLabels(customVoteCost);
         moviesList = Array.isArray(pollData.movies) ? pollData.movies : [];
@@ -651,6 +662,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
+        // Показываем индикатор при буферизации
+        trailerVideo.addEventListener('waiting', () => {
+            if (isTrailerModalOpen) {
+                updateTrailerLoadingState(true, 'Загрузка…');
+            }
+        });
+
+        // Скрываем индикатор когда воспроизведение возобновляется
+        trailerVideo.addEventListener('playing', () => {
+            updateTrailerLoadingState(false);
+        });
+
         // Пауза/воспроизведение ТОЛЬКО по клику на оверлей (не на видео чтобы избежать двойного срабатывания)
         if (trailerTapOverlay) {
             trailerTapOverlay.addEventListener('click', (e) => {
@@ -790,7 +813,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
         
         trailerVideo.oncanplay = () => {
-            updateTrailerLoadingState(false);
+            // Только обновляем длительность, индикатор скроется при событии 'playing'
             updateDurationDisplay();
         };
 
@@ -830,24 +853,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (playPromise && typeof playPromise.then === 'function') {
                 playPromise
                     .then(() => {
-                        updateTrailerLoadingState(false);
+                        // Индикатор скроется при событии 'playing'
                         showControlsTemporarily();
                     })
                 .catch((err) => {
-                    updateTrailerLoadingState(false);
                     const message = (err && err.message ? String(err.message) : '').toLowerCase();
                     const isAutoplayBlocked = message.includes('play()') || message.includes('user didn');
                     if (isAutoplayBlocked) {
                         console.warn('Автовоспроизведение заблокировано - нажмите на видео для запуска');
+                        updateTrailerLoadingState(true, 'Загрузка…');
                         hideTrailerError();
-                        showControls(); // Показываем контролы чтобы пользователь мог нажать play
+                        showControls();
                     } else {
                         console.error('Сбой запуска трейлера:', err);
+                        updateTrailerLoadingState(false);
                         showTrailerError('Не удалось запустить трейлер. Попробуйте ещё раз.');
                     }
                 });
-            } else {
-                updateTrailerLoadingState(false);
             }
         }, 100); // Небольшая задержка для надёжности автостарта
     }
@@ -1550,7 +1572,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         pollClosedByBan = true;
         forcedWinner = winnerMovie || forcedWinner;
         renderWinnerBanner(forcedWinner);
-        pollDescription.textContent = 'Голосование завершено из-за банов.';
+        if (pollDescription) {
+            pollDescription.textContent = 'Голосование завершено из-за банов.';
+        }
         showMessage('Голосование завершено из-за банов.', 'info');
         updateCustomVoteButtonState();
         renderMovies(moviesList);
@@ -1736,10 +1760,118 @@ document.addEventListener('DOMContentLoaded', async () => {
         pointsBalanceStatus.textContent = T.pointsStatusUpdated(totalEarned);
     }
 
+    function updateStreakUI(streakInfo, options = {}) {
+        if (!streakInfo) {
+            // Скрываем streak элементы если нет данных
+            if (streakIndicator) streakIndicator.hidden = true;
+            if (streakWidget) streakWidget.hidden = true;
+            return;
+        }
+
+        const { animate = false, streakContinued = false, streakBroken = false } = options;
+        const streak = streakInfo.current_streak || 0;
+        const maxStreak = streakInfo.max_streak || 0;
+        const bonus = streakInfo.current_bonus || 0;
+        const isActive = streakInfo.streak_active !== false;
+        const nextMilestone = streakInfo.next_milestone || {};
+
+        currentStreak = streakInfo;
+
+        // Обновляем индикатор streak в панели баллов
+        if (streakIndicator && streakCount) {
+            if (streak > 0 && isActive) {
+                streakIndicator.hidden = false;
+                streakCount.textContent = streak;
+                streakIndicator.title = `Серия: ${streak} ${declOfNum(streak, ['день', 'дня', 'дней'])} подряд`;
+            } else {
+                streakIndicator.hidden = true;
+            }
+        }
+
+        // Обновляем виджет streak
+        if (streakWidget) {
+            // Показываем виджет только если есть streak >= 1 или если есть история
+            if ((streak >= 1 && isActive) || maxStreak > 0) {
+                streakWidget.hidden = false;
+
+                // Обновляем количество дней
+                if (streakDays) {
+                    const daysText = streak === 1 ? '1 день' : `${streak} ${declOfNum(streak, ['день', 'дня', 'дней'])}`;
+                    streakDays.textContent = daysText;
+                }
+
+                // Обновляем прогресс-бар (масштаб 0-7 дней)
+                if (streakProgressBar) {
+                    const progress = Math.min(100, (streak / 7) * 100);
+                    streakProgressBar.style.width = `${progress}%`;
+                }
+
+                // Обновляем milestones (подсвечиваем достигнутые)
+                const milestones = streakWidget.querySelectorAll('.streak-milestone');
+                milestones.forEach((milestone) => {
+                    const dayValue = Number(milestone.dataset.day);
+                    milestone.classList.remove('achieved', 'current');
+                    if (streak >= dayValue) {
+                        milestone.classList.add('achieved');
+                    }
+                    if (streak === dayValue) {
+                        milestone.classList.add('current');
+                    }
+                });
+
+                // Обновляем информацию о бонусе
+                if (streakCurrentBonus) {
+                    if (bonus > 0) {
+                        streakCurrentBonus.textContent = `Бонус: +${bonus}`;
+                        streakCurrentBonus.classList.remove('no-bonus');
+                    } else {
+                        streakCurrentBonus.textContent = 'Бонус: +0';
+                        streakCurrentBonus.classList.add('no-bonus');
+                    }
+                }
+
+                // Обновляем информацию о следующем бонусе
+                if (streakNextBonus && nextMilestone) {
+                    if (nextMilestone.next_milestone && nextMilestone.days_remaining > 0) {
+                        streakNextBonus.textContent = `Ещё ${nextMilestone.days_remaining} ${declOfNum(nextMilestone.days_remaining, ['день', 'дня', 'дней'])} до +${nextMilestone.next_bonus}`;
+                    } else if (bonus > 0) {
+                        streakNextBonus.textContent = 'Максимальный бонус достигнут! 🎉';
+                    } else {
+                        streakNextBonus.textContent = '';
+                    }
+                }
+
+                // Анимации
+                if (animate) {
+                    streakWidget.classList.remove('streak-updated', 'streak-milestone-reached');
+                    void streakWidget.offsetWidth; // Force reflow
+
+                    if (streakContinued) {
+                        streakWidget.classList.add('streak-updated');
+                        setTimeout(() => streakWidget.classList.remove('streak-updated'), 600);
+
+                        // Проверяем, достигнут ли milestone
+                        const isMilestone = [2, 3, 5, 7].includes(streak);
+                        if (isMilestone) {
+                            streakWidget.classList.add('streak-milestone-reached');
+                            setTimeout(() => streakWidget.classList.remove('streak-milestone-reached'), 800);
+                        }
+                    }
+                }
+            } else {
+                streakWidget.hidden = true;
+            }
+        }
+    }
+
     function handlePointsAfterVote(result) {
         const awarded = Number(result.points_awarded);
         const newBalance = Number(result.points_balance);
         const earnedTotal = Number(result.points_earned_total);
+        const basePoints = Number(result.base_points) || awarded;
+        const streakBonus = Number(result.streak_bonus) || 0;
+        const streakContinued = Boolean(result.streak_continued);
+        const streakBroken = Boolean(result.streak_broken);
 
         if (!Number.isFinite(awarded) || !Number.isFinite(newBalance)) {
             showToast(T.toastPointsError, 'error');
@@ -1749,9 +1881,33 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         updatePointsBalance(newBalance, earnedTotal);
 
+        // Обновляем streak UI с анимацией
+        if (result.streak) {
+            updateStreakUI(result.streak, { animate: true, streakContinued, streakBroken });
+        }
+
         if (awarded > 0) {
-            showToast(T.toastPointsEarned(awarded), 'success', { duration: 4000 });
+            // Формируем сообщение с учётом streak бонуса
+            let toastMessage;
+            if (streakBonus > 0 && result.streak?.current_streak) {
+                const streakDays = result.streak.current_streak;
+                toastMessage = `+${awarded} баллов (${basePoints} + ${streakBonus} бонус за ${streakDays}-дневную серию!)`;
+            } else {
+                toastMessage = T.toastPointsEarned(awarded);
+            }
+            showToast(toastMessage, 'success', { duration: 5000 });
             playPointsProgress(awarded);
+
+            // Дополнительное уведомление о streak
+            if (streakContinued && result.streak?.current_streak > 1) {
+                setTimeout(() => {
+                    showToast(`🔥 Серия ${result.streak.current_streak} ${declOfNum(result.streak.current_streak, ['день', 'дня', 'дней'])} подряд!`, 'info', { duration: 3000 });
+                }, 1500);
+            } else if (streakBroken) {
+                setTimeout(() => {
+                    showToast('Серия прервана. Начните новую! 💪', 'info', { duration: 3000 });
+                }, 1500);
+            }
         }
 
         if (awarded < 0) {
@@ -2164,7 +2320,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const normalizedDelta = Number(pointsDelta);
         votedMoviePointsDelta = Number.isFinite(normalizedDelta) ? normalizedDelta : null;
         selectedMovie = null;
-        pollDescription.textContent = 'Вы уже проголосовали в этом опросе.';
+        if (pollDescription) {
+            pollDescription.textContent = 'Вы уже проголосовали в этом опросе.';
+        }
         if (pollMessage) {
             pollMessage.style.display = 'none';
             pollMessage.textContent = '';

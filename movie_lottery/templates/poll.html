@@ -35,10 +35,7 @@
                 </span>
             </button>
             <div class="poll-header-text">
-                <h1>Опрос: Какой фильм посмотрим?</h1>
-                <div class="poll-description-row">
-                    <p id="poll-description">Выберите один фильм из списка ниже</p>
-                </div>
+                <h1 class="poll-title">Сделай выбор</h1>
                 <div id="poll-winner-banner" class="poll-winner-banner" aria-live="polite" hidden></div>
             </div>
         </header>
@@ -51,7 +48,13 @@
                             <p class="points-balance-label" id="points-balance-label">Ваши баллы</p>
                             <p class="points-balance-value" id="points-balance-value">—</p>
                         </div>
-                        <span class="points-state-badge" id="points-state-badge">—</span>
+                        <div class="points-header-right">
+                            <div class="streak-indicator" id="streak-indicator" title="Серия голосований подряд" hidden>
+                                <span class="streak-fire">🔥</span>
+                                <span class="streak-count" id="streak-count">0</span>
+                            </div>
+                            <span class="points-state-badge" id="points-state-badge">—</span>
+                        </div>
                     </div>
                     <p class="points-balance-status" id="points-balance-status">Баллы ещё не начислены</p>
                     <div class="points-progress" id="points-progress" hidden>
@@ -80,6 +83,32 @@
                     >
                         Недостаточно баллов для пользовательского голосования.
                     </p>
+                </div>
+            </div>
+            
+            <!-- Виджет серии голосований (Streak) -->
+            <div class="streak-widget" id="streak-widget" hidden>
+                <div class="streak-widget-header">
+                    <span class="streak-widget-title">
+                        <span class="streak-fire-large">🔥</span>
+                        Серия голосований
+                    </span>
+                    <span class="streak-days" id="streak-days">0 дней</span>
+                </div>
+                <div class="streak-progress-container">
+                    <div class="streak-progress-track">
+                        <div class="streak-progress-bar" id="streak-progress-bar"></div>
+                    </div>
+                    <div class="streak-milestones">
+                        <span class="streak-milestone" data-day="2">2</span>
+                        <span class="streak-milestone" data-day="3">3</span>
+                        <span class="streak-milestone" data-day="5">5</span>
+                        <span class="streak-milestone" data-day="7">7</span>
+                    </div>
+                </div>
+                <div class="streak-bonus-info">
+                    <span class="streak-current-bonus" id="streak-current-bonus">Бонус: +0</span>
+                    <span class="streak-next-bonus" id="streak-next-bonus"></span>
                 </div>
             </div>
         </section>

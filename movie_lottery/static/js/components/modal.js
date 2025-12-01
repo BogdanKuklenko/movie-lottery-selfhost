@@ -206,7 +206,17 @@ function createWinnerCardHTML(movieData, isLibrary) {
         <div class="movie-trailer-section">
             <h4>🎬 Трейлер</h4>
             ${movieData.has_local_trailer 
-                ? '<div class="trailer-status trailer-status-ok">✅ Трейлер загружен</div>' 
+                ? `<div class="trailer-status trailer-status-ok">
+                    ✅ Трейлер загружен
+                    <button class="trailer-preview-btn" data-movie-id="${escapeHtml(String(movieData.id))}" type="button">▶ Посмотреть</button>
+                  </div>
+                  <div class="trailer-preview-container" style="display: none;">
+                    <video class="trailer-preview-video" controls preload="metadata">
+                        <source src="/api/trailers/${escapeHtml(String(movieData.id))}/stream" type="video/mp4">
+                        Ваш браузер не поддерживает воспроизведение видео.
+                    </video>
+                    <button class="trailer-preview-close-btn" type="button">✕ Закрыть</button>
+                  </div>` 
                 : '<div class="trailer-status trailer-status-empty">Трейлер не загружен</div>'
             }
             <div class="trailer-upload-form">
@@ -637,6 +647,31 @@ export class ModalManager {
             removeBadgeBtn.addEventListener('click', async () => {
                 await actions.onRemoveBadge(movieData.id);
             });
+        }
+
+        // Предпросмотр трейлера
+        const trailerPreviewBtn = this.body.querySelector('.trailer-preview-btn');
+        const trailerPreviewContainer = this.body.querySelector('.trailer-preview-container');
+        const trailerPreviewVideo = this.body.querySelector('.trailer-preview-video');
+        const trailerPreviewCloseBtn = this.body.querySelector('.trailer-preview-close-btn');
+
+        if (trailerPreviewBtn && trailerPreviewContainer && trailerPreviewVideo) {
+            trailerPreviewBtn.addEventListener('click', () => {
+                trailerPreviewContainer.style.display = 'block';
+                trailerPreviewBtn.style.display = 'none';
+                trailerPreviewVideo.play().catch(() => {
+                    // Автовоспроизведение может быть заблокировано браузером
+                });
+            });
+
+            if (trailerPreviewCloseBtn) {
+                trailerPreviewCloseBtn.addEventListener('click', () => {
+                    trailerPreviewVideo.pause();
+                    trailerPreviewVideo.currentTime = 0;
+                    trailerPreviewContainer.style.display = 'none';
+                    trailerPreviewBtn.style.display = 'inline-block';
+                });
+            }
         }
 
         // Загрузка трейлера

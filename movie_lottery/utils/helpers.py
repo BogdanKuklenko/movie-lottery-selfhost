@@ -42,6 +42,9 @@ class _FallbackVoterProfile:
         'created_at',
         'updated_at',
         'user_id',
+        'voting_streak',
+        'last_vote_date',
+        'max_voting_streak',
         '_is_fallback',
     )
 
@@ -54,6 +57,9 @@ class _FallbackVoterProfile:
         self.created_at = now
         self.updated_at = now
         self.user_id = user_id
+        self.voting_streak = 0
+        self.last_vote_date = None
+        self.max_voting_streak = 0
         self._is_fallback = True
 
 def _is_unique(model, identifier):
@@ -838,5 +844,272 @@ def prevent_caching(response):
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     return response
+
+
+# --- Voting Streak Functions ---
+
+def calculate_streak_bonus(streak_days):
+    """
+    Рассчитать бонус за серию голосований подряд.
+    
+    Прогрессивная шкала:
+    - 2 дня: +1 балл
+    - 3-4 дня: +2 балла
+    - 5-6 дней: +3 балла
+    - 7+ дней: +5 баллов
+    
+    При streak = 1 (первый день или после сброса) бонус не начисляется.
+    """
+    if streak_days < 2:
+        return 0
+    if streak_days == 2:
+        return 1
+    if streak_days <= 4:
+        return 2
+    if streak_days <= 6:
+        return 3
+    return 5
+
+
+def get_next_streak_milestone(current_streak):
+    """
+    Получить информацию о следующем milestone streak.
+    
+    Возвращает dict с:
+    - next_milestone: следующая веха
+    - days_remaining: дней до неё
+    - next_bonus: бонус на следующей вехе
+    """
+    milestones = [2, 3, 5, 7]
+    
+    for milestone in milestones:
+        if current_streak < milestone:
+            return {
+                'next_milestone': milestone,
+                'days_remaining': milestone - current_streak,
+                'next_bonus': calculate_streak_bonus(milestone),
+            }
+    
+    # Уже на максимальном уровне
+    return {
+        'next_milestone': None,
+        'days_remaining': 0,
+        'next_bonus': calculate_streak_bonus(current_streak),
+    }
+
+
+def update_voter_streak(profile):
+    """
+    Обновить streak голосующего при новом голосовании.
+    
+    Возвращает dict с:
+    - previous_streak: предыдущий streak
+    - new_streak: новый streak
+    - streak_bonus: бонус за серию
+    - is_new_streak: True если начата новая серия
+    - streak_continued: True если серия продолжена
+    - streak_broken: True если серия была прервана
+    """
+    if getattr(profile, '_is_fallback', False):
+        return {
+            'previous_streak': 0,
+            'new_streak': 1,
+            'streak_bonus': 0,
+            'is_new_streak': True,
+            'streak_continued': False,
+            'streak_broken': False,
+        }
+    
+    now = vladivostok_now()
+    today = now.date()
+    
+    previous_streak = getattr(profile, 'voting_streak', 0) or 0
+    last_vote_date = getattr(profile, 'last_vote_date', None)
+    
+    is_new_streak = False
+    streak_continued = False
+    streak_broken = False
+    
+    if last_vote_date is None:
+        # Первое голосование
+        new_streak = 1
+        is_new_streak = True
+    elif last_vote_date == today:
+        # Уже голосовал сегодня - streak не меняется
+        new_streak = previous_streak
+    elif last_vote_date == today - timedelta(days=1):
+        # Голосовал вчера - продолжаем streak
+        new_streak = previous_streak + 1
+        streak_continued = True
+    else:
+        # Пропустил день(и) - streak сбрасывается
+        new_streak = 1
+        is_new_streak = True
+        if previous_streak > 0:
+            streak_broken = True
+    
+    # Обновляем профиль
+    try:
+        profile.voting_streak = new_streak
+        profile.last_vote_date = today
+        
+        # Обновляем максимальный streak если нужно
+        max_streak = getattr(profile, 'max_voting_streak', 0) or 0
+        if new_streak > max_streak:
+            profile.max_voting_streak = new_streak
+        
+        profile.updated_at = now
+    except (AttributeError, TypeError):
+        # Колонки streak ещё не существуют в БД
+        pass
+    
+    streak_bonus = calculate_streak_bonus(new_streak)
+    
+    return {
+        'previous_streak': previous_streak,
+        'new_streak': new_streak,
+        'streak_bonus': streak_bonus,
+        'is_new_streak': is_new_streak,
+        'streak_continued': streak_continued,
+        'streak_broken': streak_broken,
+    }
+
+
+def get_voter_streak_info(profile):
+    """
+    Получить полную информацию о streak пользователя.
+    
+    Возвращает dict с:
+    - current_streak: текущий streak
+    - max_streak: максимальный достигнутый streak
+    - current_bonus: текущий бонус за streak
+    - next_milestone: информация о следующем milestone
+    - last_vote_date: дата последнего голосования (ISO string)
+    - streak_active: True если streak активен (голосовал сегодня или вчера)
+    """
+    if getattr(profile, '_is_fallback', False):
+        return {
+            'current_streak': 0,
+            'max_streak': 0,
+            'current_bonus': 0,
+            'next_milestone': get_next_streak_milestone(0),
+            'last_vote_date': None,
+            'streak_active': False,
+        }
+    
+    now = vladivostok_now()
+    today = now.date()
+    
+    current_streak = getattr(profile, 'voting_streak', 0) or 0
+    max_streak = getattr(profile, 'max_voting_streak', 0) or 0
+    last_vote_date = getattr(profile, 'last_vote_date', None)
+    
+    # Проверяем, активен ли streak (голосовал сегодня или вчера)
+    streak_active = False
+    if last_vote_date:
+        days_since_vote = (today - last_vote_date).days
+        streak_active = days_since_vote <= 1
+        
+        # Если пропустил день, streak фактически = 0 для отображения
+        if days_since_vote > 1:
+            current_streak = 0
+    
+    return {
+        'current_streak': current_streak,
+        'max_streak': max_streak,
+        'current_bonus': calculate_streak_bonus(current_streak),
+        'next_milestone': get_next_streak_milestone(current_streak),
+        'last_vote_date': last_vote_date.isoformat() if last_vote_date else None,
+        'streak_active': streak_active,
+    }
+
+
+def ensure_voter_streak_columns():
+    """Добавляет колонки streak в poll_voter_profile, если их ещё нет."""
+    engine = db.engine
+
+    try:
+        inspector = inspect(engine)
+    except Exception:
+        return False
+
+    table_name = 'poll_voter_profile'
+    if table_name not in inspector.get_table_names():
+        return False
+
+    existing_columns = {col['name'] for col in inspector.get_columns(table_name)}
+    missing_columns = []
+
+    if 'voting_streak' not in existing_columns:
+        missing_columns.append('voting_streak')
+    if 'last_vote_date' not in existing_columns:
+        missing_columns.append('last_vote_date')
+    if 'max_voting_streak' not in existing_columns:
+        missing_columns.append('max_voting_streak')
+
+    if not missing_columns:
+        return False
+
+    dialect = engine.dialect.name
+
+    try:
+        with engine.begin() as connection:
+            if 'voting_streak' in missing_columns:
+                if dialect == 'postgresql':
+                    connection.execute(text(
+                        "ALTER TABLE poll_voter_profile "
+                        "ADD COLUMN IF NOT EXISTS voting_streak INTEGER NOT NULL DEFAULT 0"
+                    ))
+                else:
+                    connection.execute(text(
+                        "ALTER TABLE poll_voter_profile ADD COLUMN voting_streak INTEGER DEFAULT 0"
+                    ))
+                connection.execute(text(
+                    "UPDATE poll_voter_profile SET voting_streak = COALESCE(voting_streak, 0)"
+                ))
+
+            if 'last_vote_date' in missing_columns:
+                if dialect == 'postgresql':
+                    connection.execute(text(
+                        "ALTER TABLE poll_voter_profile "
+                        "ADD COLUMN IF NOT EXISTS last_vote_date DATE"
+                    ))
+                else:
+                    connection.execute(text(
+                        "ALTER TABLE poll_voter_profile ADD COLUMN last_vote_date DATE"
+                    ))
+
+            if 'max_voting_streak' in missing_columns:
+                if dialect == 'postgresql':
+                    connection.execute(text(
+                        "ALTER TABLE poll_voter_profile "
+                        "ADD COLUMN IF NOT EXISTS max_voting_streak INTEGER NOT NULL DEFAULT 0"
+                    ))
+                else:
+                    connection.execute(text(
+                        "ALTER TABLE poll_voter_profile ADD COLUMN max_voting_streak INTEGER DEFAULT 0"
+                    ))
+                connection.execute(text(
+                    "UPDATE poll_voter_profile SET max_voting_streak = COALESCE(max_voting_streak, 0)"
+                ))
+
+        logger = getattr(current_app, 'logger', None)
+        message = (
+            'Автоматически добавлены колонки streak в poll_voter_profile: '
+            + ', '.join(missing_columns)
+        )
+        if logger:
+            logger.info(message)
+        else:
+            print(message)
+        return True
+    except Exception as exc:
+        logger = getattr(current_app, 'logger', None)
+        message = 'Не удалось автоматически обновить таблицу poll_voter_profile (streak).'
+        if logger:
+            logger.warning('%s Ошибка: %s', message, exc)
+        else:
+            print(f"{message} Ошибка: {exc}")
+        return False
 
 

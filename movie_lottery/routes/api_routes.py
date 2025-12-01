@@ -27,6 +27,7 @@ from ..utils.kinopoisk import get_movie_data_from_kinopoisk
 from ..utils.helpers import (
     build_external_url,
     build_telegram_share_url,
+    calculate_streak_bonus,
     change_voter_points_balance,
     ensure_background_photo,
     ensure_poll_tables,
@@ -36,9 +37,11 @@ from ..utils.helpers import (
     generate_unique_poll_id,
     get_custom_vote_cost,
     get_poll_settings,
+    get_voter_streak_info,
     prevent_caching,
     rotate_voter_token,
     update_poll_settings,
+    update_voter_streak,
     vladivostok_now,
 )
 
@@ -1436,6 +1439,7 @@ def get_poll(poll_id):
     db.session.commit()
 
     points_earned_total = profile.points_accrued_total or 0
+    streak_info = get_voter_streak_info(profile)
 
     # Проверяем, голосовал ли уже этот пользователь
     existing_vote = Vote.query.filter_by(poll_id=poll_id, voter_token=voter_token).first()
@@ -1475,6 +1479,31 @@ def get_poll(poll_id):
         "closed_by_ban": closed_by_ban,
         "forced_winner": _serialize_poll_movie(poll.winners[0]) if closed_by_ban and poll.winners else None,
         "poll_settings": _serialize_poll_settings(poll_settings),
+        "streak": streak_info,
+    }))
+
+    return _set_voter_cookies(response, voter_token, user_id)
+
+
+@api_bp.route('/polls/streak-info', methods=['GET'])
+def get_streak_info():
+    """Получение информации о streak текущего пользователя"""
+    identity = _resolve_voter_identity()
+    voter_token = identity['voter_token']
+    profile = identity['profile']
+    user_id = identity['user_id']
+    db.session.commit()
+
+    streak_info = get_voter_streak_info(profile)
+    points_balance = profile.total_points or 0
+    points_earned_total = profile.points_accrued_total or 0
+
+    response = prevent_caching(jsonify({
+        "streak": streak_info,
+        "points_balance": points_balance,
+        "points_earned_total": points_earned_total,
+        "voter_token": voter_token,
+        "user_id": user_id,
     }))
 
     return _set_voter_cookies(response, voter_token, user_id)
@@ -1516,14 +1545,22 @@ def vote_in_poll(poll_id):
     voter_token = identity['voter_token']
     device_label = identity['device_label']
     user_id = identity['user_id']
+    profile = identity['profile']
 
     # Проверяем, не голосовал ли уже этот пользователь
     existing_vote = Vote.query.filter_by(poll_id=poll_id, voter_token=voter_token).first()
     if existing_vote:
         return jsonify({"error": "Вы уже проголосовали в этом опросе"}), 400
 
+    # Обновляем streak и получаем бонус
+    streak_result = update_voter_streak(profile)
+    streak_bonus = streak_result.get('streak_bonus', 0)
+
     default_points_per_vote = current_app.config.get('POLL_POINTS_PER_VOTE', 1)
-    points_awarded = _normalize_poll_movie_points(movie.points, default_points_per_vote)
+    base_points = _normalize_poll_movie_points(movie.points, default_points_per_vote)
+    
+    # Общее количество баллов = базовые + streak бонус
+    points_awarded = base_points + streak_bonus
 
     # Создаём новый голос
     new_vote = Vote(
@@ -1545,9 +1582,14 @@ def vote_in_poll(poll_id):
     # Fetch updated profile to get current points_accrued_total
     profile = ensure_voter_profile(voter_token, device_label=device_label)
     points_accrued = profile.points_accrued_total or 0
+    streak_info = get_voter_streak_info(profile)
 
+    # Формируем сообщение с учётом streak
     if points_awarded > 0:
-        success_message = f"Голос учтён! +{points_awarded} баллов к вашему счёту."
+        if streak_bonus > 0:
+            success_message = f"Голос учтён! +{base_points} баллов +{streak_bonus} бонус за серию = {points_awarded} баллов!"
+        else:
+            success_message = f"Голос учтён! +{points_awarded} баллов к вашему счёту."
     else:
         success_message = "Голос учтён! Приятного просмотра!"
 
@@ -1555,10 +1597,15 @@ def vote_in_poll(poll_id):
         "success": True,
         "message": success_message,
         "movie_name": movie.name,
+        "base_points": base_points,
+        "streak_bonus": streak_bonus,
         "points_awarded": points_awarded,
         "points_balance": new_balance,
         "points_earned_total": points_accrued,
         "voted_movie": _serialize_poll_movie(movie),
+        "streak": streak_info,
+        "streak_continued": streak_result.get('streak_continued', False),
+        "streak_broken": streak_result.get('streak_broken', False),
     }))
 
     return _set_voter_cookies(response, voter_token, user_id)
@@ -2337,6 +2384,7 @@ def list_voter_stats():
             filtered_points = sum((vote.get('points_awarded') or 0) for vote in votes)
             last_vote_at = votes[0]['voted_at'] if votes else None
             earned_total = profile.points_accrued_total or 0
+            streak_info = get_voter_streak_info(profile)
             items.append({
                 'voter_token': profile.token,
                 'user_id': profile.user_id,
@@ -2350,6 +2398,7 @@ def list_voter_stats():
                 'last_vote_at': last_vote_at,
                 'votes_count': len(votes),
                 'votes': votes,
+                'streak': streak_info,
             })
 
         payload = {

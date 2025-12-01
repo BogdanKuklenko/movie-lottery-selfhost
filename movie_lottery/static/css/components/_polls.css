@@ -119,10 +119,22 @@
 .poll-header-text {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 4px;
     flex: 1 1 0;
     text-align: center;
     align-items: center;
+}
+
+.poll-title {
+    font-size: 28px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #ffd700 0%, #ff8c00 50%, #ffd700 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: none;
+    letter-spacing: 0.02em;
+    margin: 0;
 }
 
 .logout-button:hover {
@@ -156,7 +168,7 @@
         align-items: flex-start;
         justify-content: center;
         gap: 8px;
-        padding: 52px 12px 0 12px;
+        padding: 40px 12px 0 12px;
     }
 
     .logout-button {
@@ -171,7 +183,6 @@
     }
 
     .poll-header h1,
-    .poll-header .poll-description-row,
     .poll-header .poll-winner-banner {
         flex: 1 1 100%;
         text-align: center;
@@ -185,7 +196,7 @@
 }
 
 .poll-points-panel {
-    margin-top: 16px;
+    margin-top: 12px;
 }
 
 .points-widget {
@@ -367,6 +378,8 @@
     cursor: pointer;
     transition: all 0.3s ease;
     border: 2px solid transparent;
+    display: flex;
+    flex-direction: column;
 }
 
 .poll-movie-card:hover {
@@ -540,6 +553,9 @@
 .poll-movie-info {
     padding: 15px;
     text-align: center;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 .poll-movie-actions {
@@ -582,6 +598,11 @@
     font-size: 16px;
     margin: 0 0 8px 0;
     color: white;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .poll-movie-info p {
@@ -2209,5 +2230,261 @@
     height: 6px !important;
     background: linear-gradient(90deg, var(--accent-gold), #ffed4e) !important;
     border-radius: 3px !important;
+}
+
+/* --- Streak Indicator & Widget --- */
+
+/* Streak indicator в панели баллов */
+.points-header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.streak-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(255, 140, 0, 0.2), rgba(255, 69, 0, 0.15));
+    border: 1px solid rgba(255, 140, 0, 0.4);
+    font-weight: 600;
+    font-size: 13px;
+    color: #ffb347;
+    cursor: help;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.streak-indicator:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(255, 140, 0, 0.3);
+}
+
+.streak-indicator[hidden] {
+    display: none;
+}
+
+.streak-fire {
+    font-size: 14px;
+    animation: streak-fire-pulse 1.5s ease-in-out infinite;
+}
+
+.streak-count {
+    font-weight: 700;
+}
+
+@keyframes streak-fire-pulse {
+    0%, 100% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+    50% {
+        transform: scale(1.15);
+        filter: brightness(1.2);
+    }
+}
+
+/* Streak Widget */
+.streak-widget {
+    margin-top: 16px;
+    padding: 16px 20px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(255, 140, 0, 0.08), rgba(255, 69, 0, 0.05));
+    border: 1px solid rgba(255, 140, 0, 0.2);
+    max-width: 400px;
+}
+
+.streak-widget[hidden] {
+    display: none;
+}
+
+.streak-widget-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.streak-widget-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.streak-fire-large {
+    font-size: 20px;
+    animation: streak-fire-pulse 1.5s ease-in-out infinite;
+}
+
+.streak-days {
+    font-size: 18px;
+    font-weight: 700;
+    color: #ffb347;
+    text-shadow: 0 0 10px rgba(255, 140, 0, 0.3);
+}
+
+/* Streak Progress Bar */
+.streak-progress-container {
+    margin-bottom: 12px;
+}
+
+.streak-progress-track {
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    overflow: hidden;
+    position: relative;
+}
+
+.streak-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #ff8c00, #ff6347, #ff4500);
+    border-radius: 999px;
+    transition: width 0.5s ease;
+    box-shadow: 0 0 10px rgba(255, 140, 0, 0.4);
+}
+
+.streak-milestones {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 6px;
+    padding: 0 2px;
+}
+
+.streak-milestone {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.4);
+    font-weight: 600;
+    transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.streak-milestone.achieved {
+    color: #ffb347;
+    transform: scale(1.1);
+}
+
+.streak-milestone.current {
+    color: #ff8c00;
+    transform: scale(1.2);
+    text-shadow: 0 0 8px rgba(255, 140, 0, 0.5);
+}
+
+/* Streak Bonus Info */
+.streak-bonus-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.streak-current-bonus {
+    font-size: 14px;
+    font-weight: 700;
+    color: #22c55e;
+}
+
+.streak-current-bonus.no-bonus {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.streak-next-bonus {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.streak-next-bonus:empty {
+    display: none;
+}
+
+/* Анимация при обновлении streak */
+.streak-widget.streak-updated {
+    animation: streak-update-glow 0.6s ease;
+}
+
+@keyframes streak-update-glow {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 140, 0, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 20px 5px rgba(255, 140, 0, 0.3);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 140, 0, 0);
+    }
+}
+
+/* Анимация при достижении milestone */
+.streak-widget.streak-milestone-reached {
+    animation: streak-milestone-celebrate 0.8s ease;
+}
+
+@keyframes streak-milestone-celebrate {
+    0% {
+        transform: scale(1);
+    }
+    25% {
+        transform: scale(1.02);
+    }
+    50% {
+        transform: scale(0.98);
+    }
+    75% {
+        transform: scale(1.01);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Адаптивность streak */
+@media (max-width: 768px) {
+    .streak-indicator {
+        padding: 3px 8px;
+        font-size: 12px;
+    }
+
+    .streak-fire {
+        font-size: 12px;
+    }
+
+    .streak-widget {
+        max-width: 100%;
+        padding: 12px 16px;
+    }
+
+    .streak-widget-title {
+        font-size: 13px;
+    }
+
+    .streak-fire-large {
+        font-size: 16px;
+    }
+
+    .streak-days {
+        font-size: 16px;
+    }
+
+    .streak-bonus-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .streak-fire,
+    .streak-fire-large {
+        animation: none;
+    }
+
+    .streak-widget.streak-updated,
+    .streak-widget.streak-milestone-reached {
+        animation: none;
+    }
 }
 

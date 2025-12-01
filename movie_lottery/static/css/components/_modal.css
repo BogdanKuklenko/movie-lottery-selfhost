@@ -263,6 +263,71 @@
     background: rgba(40, 167, 69, 0.2);
     color: #51cf66;
     border: 1px solid rgba(40, 167, 69, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* Кнопка предпросмотра трейлера */
+.trailer-preview-btn {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13px;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+}
+
+.trailer-preview-btn:hover {
+    background: linear-gradient(135deg, #20c997 0%, #28a745 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+}
+
+.trailer-preview-btn:active {
+    transform: translateY(0);
+}
+
+/* Контейнер предпросмотра видео */
+.trailer-preview-container {
+    margin-top: 12px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #000;
+    position: relative;
+}
+
+.trailer-preview-video {
+    width: 100%;
+    max-height: 300px;
+    display: block;
+    background: #000;
+}
+
+.trailer-preview-close-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: background 0.2s ease;
+    z-index: 10;
+}
+
+.trailer-preview-close-btn:hover {
+    background: rgba(220, 53, 69, 0.9);
 }
 
 .trailer-status-empty {

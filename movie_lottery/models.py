@@ -265,6 +265,10 @@ class PollVoterProfile(db.Model):
         default=vladivostok_now,
         onupdate=vladivostok_now,
     )
+    # Streak fields for consecutive voting bonus
+    voting_streak = db.Column(db.Integer, nullable=False, default=0, server_default=db.text('0'))
+    last_vote_date = db.Column(db.Date, nullable=True)
+    max_voting_streak = db.Column(db.Integer, nullable=False, default=0, server_default=db.text('0'))
 
     votes = db.relationship('Vote', back_populates='profile', lazy=True)
 
