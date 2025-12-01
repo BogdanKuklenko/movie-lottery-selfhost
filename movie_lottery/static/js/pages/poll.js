@@ -614,6 +614,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 isVideoFullscreen = true;
                 updateFullscreenButtonIcon(true);
             }
+            
+            // Блокируем ориентацию экрана в горизонтальный режим
+            try {
+                if (screen.orientation && screen.orientation.lock) {
+                    await screen.orientation.lock('landscape');
+                }
+            } catch (orientationError) {
+                // Ориентация может быть недоступна на некоторых устройствах
+                console.log('Screen orientation lock не поддерживается:', orientationError.message);
+            }
         } catch (e) {
             console.log('Fullscreen не поддерживается, используем pseudo-fullscreen:', e.message);
             // Fallback на pseudo-fullscreen при ошибке
@@ -649,6 +659,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 try {
                     trailerVideo.webkitExitFullscreen();
                 } catch (e) {}
+            }
+            
+            // Разблокируем ориентацию экрана
+            try {
+                if (screen.orientation && screen.orientation.unlock) {
+                    screen.orientation.unlock();
+                }
+            } catch (orientationError) {
+                // Ориентация может быть недоступна на некоторых устройствах
             }
             
             isVideoFullscreen = false;
