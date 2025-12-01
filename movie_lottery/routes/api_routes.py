@@ -24,6 +24,7 @@ from ..models import (
     Vote,
 )
 from ..utils.kinopoisk import get_movie_data_from_kinopoisk
+from ..utils.video_processing import apply_faststart
 from ..utils.helpers import (
     build_external_url,
     build_telegram_share_url,
@@ -1180,6 +1181,13 @@ def upload_local_trailer(movie_id):
         current_app.logger.exception('Не удалось сохранить трейлер: %s', exc)
         return jsonify({"success": False, "message": "Не удалось сохранить трейлер на сервере."}), 500
 
+    # Apply faststart optimization for web playback
+    faststart_result = apply_faststart(absolute_path)
+    if faststart_result['success'] and faststart_result['new_size']:
+        file_size = faststart_result['new_size']
+    elif not faststart_result['success']:
+        current_app.logger.warning('Не удалось применить faststart: %s', faststart_result['message'])
+
     relative_path = os.path.join(settings.get('relative_dir', 'trailers'), filename)
     library_movie.trailer_file_path = relative_path
     library_movie.trailer_mime_type = mimetype or None
@@ -1203,6 +1211,81 @@ def upload_local_trailer(movie_id):
     data['torrent_hash'] = None
 
     return jsonify({"success": True, "movie": data})
+
+
+@api_bp.route('/trailers/apply-faststart', methods=['POST'])
+def batch_apply_faststart():
+    """Apply faststart optimization to all existing trailers."""
+    settings = _get_trailer_settings()
+    upload_dir = settings.get('upload_dir')
+
+    if not upload_dir:
+        return jsonify({
+            "success": False,
+            "message": "Директория загрузки трейлеров не настроена."
+        }), 500
+
+    # Find all library movies with trailers
+    movies_with_trailers = LibraryMovie.query.filter(
+        LibraryMovie.trailer_file_path.isnot(None),
+        LibraryMovie.trailer_file_path != ''
+    ).all()
+
+    results = {
+        'total': len(movies_with_trailers),
+        'processed': 0,
+        'skipped': 0,
+        'failed': 0,
+        'details': []
+    }
+
+    for movie in movies_with_trailers:
+        # Construct absolute path from relative path
+        relative_path = movie.trailer_file_path
+        # Remove the relative_dir prefix if present to get just the filename
+        filename = os.path.basename(relative_path)
+        absolute_path = os.path.join(upload_dir, filename)
+
+        if not os.path.exists(absolute_path):
+            results['skipped'] += 1
+            results['details'].append({
+                'movie_id': movie.id,
+                'name': movie.name,
+                'status': 'skipped',
+                'message': 'Файл не найден'
+            })
+            continue
+
+        faststart_result = apply_faststart(absolute_path)
+
+        if faststart_result['success']:
+            # Update file size in DB if changed
+            if faststart_result['new_size']:
+                movie.trailer_file_size = faststart_result['new_size']
+
+            results['processed'] += 1
+            results['details'].append({
+                'movie_id': movie.id,
+                'name': movie.name,
+                'status': 'processed',
+                'message': faststart_result['message']
+            })
+        else:
+            results['failed'] += 1
+            results['details'].append({
+                'movie_id': movie.id,
+                'name': movie.name,
+                'status': 'failed',
+                'message': faststart_result['message']
+            })
+
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": f"Обработано: {results['processed']}, пропущено: {results['skipped']}, ошибок: {results['failed']}",
+        "results": results
+    })
 
 
 @api_bp.route('/library/<int:movie_id>/points', methods=['PUT'])

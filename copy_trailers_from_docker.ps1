@@ -20,3 +20,4 @@ Write-Host "Файлы:" -ForegroundColor Cyan
 Get-ChildItem $localDir -Filter "*.mp4" | Select-Object Name, @{Name="Размер (MB)";Expression={[math]::Round($_.Length/1MB, 2)}} | Format-Table -AutoSize
 
 
+

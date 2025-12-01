@@ -4,9 +4,9 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Системные пакеты для psycopg2 и т.п.
+# Системные пакеты для psycopg2 и т.п. + ffmpeg для обработки видео
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential gcc libpq-dev curl bash ca-certificates \
+    build-essential gcc libpq-dev curl bash ca-certificates ffmpeg \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

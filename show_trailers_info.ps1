@@ -15,3 +15,4 @@ Write-Host "Путь в контейнере: /app/instance/media/trailers/" -Fo
 Write-Host "Docker volume: movie-lottery-refactored_media_data" -ForegroundColor Green
 
 
+

@@ -225,7 +225,7 @@ function createWinnerCardHTML(movieData, isLibrary) {
                     <span class="trailer-upload-text">${movieData.has_local_trailer ? 'Заменить трейлер' : 'Выбрать файл трейлера'}</span>
                 </label>
                 <input type="file" id="modal-trailer-file-input" accept="video/*" style="display: none;">
-                <p class="trailer-upload-hint">Допустимые форматы: MP4, WebM. Максимальный размер: 100 МБ.</p>
+                <p class="trailer-upload-hint">Допустимые форматы: MP4, WebM. Максимальный размер: 200 МБ.</p>
                 <div class="trailer-upload-error" style="display: none;"></div>
                 <div class="trailer-upload-progress" style="display: none;">
                     <div class="trailer-upload-progress-bar"></div>
@@ -687,13 +687,13 @@ export class ModalManager {
                 const progressText = this.body.querySelector('.trailer-upload-progress-text');
 
                 // Валидация файла
-                const maxSize = 100 * 1024 * 1024; // 100 МБ
+                const maxSize = 200 * 1024 * 1024; // 200 МБ
                 const allowedTypes = ['video/mp4', 'video/webm'];
                 const mimetype = (file.type || '').toLowerCase();
 
                 if (file.size > maxSize) {
                     if (errorEl) {
-                        errorEl.textContent = 'Размер файла превышает допустимый лимит (100 МБ).';
+                        errorEl.textContent = 'Размер файла превышает допустимый лимит (200 МБ).';
                         errorEl.style.display = 'block';
                     }
                     trailerFileInput.value = '';

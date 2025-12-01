@@ -75,3 +75,4 @@ def downgrade():
         if 'max_voting_streak' in existing_columns:
             batch_op.drop_column('max_voting_streak')
 
+

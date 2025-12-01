@@ -69,6 +69,6 @@ class Config:
     TRAILER_ALLOWED_MIME_TYPES = [mt.strip().lower() for mt in raw_mime_types.split(',') if mt.strip()]
 
     try:
-        TRAILER_MAX_FILE_SIZE = int(os.environ.get('TRAILER_MAX_FILE_SIZE', 100 * 1024 * 1024))
+        TRAILER_MAX_FILE_SIZE = int(os.environ.get('TRAILER_MAX_FILE_SIZE', 200 * 1024 * 1024))
     except (TypeError, ValueError):
-        TRAILER_MAX_FILE_SIZE = 100 * 1024 * 1024
+        TRAILER_MAX_FILE_SIZE = 200 * 1024 * 1024
