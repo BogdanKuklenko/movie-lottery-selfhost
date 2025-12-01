@@ -592,11 +592,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 updateFullscreenButtonIcon(true);
             } else if (trailerPlayerModal.requestFullscreen) {
                 // Android/Desktop: fullscreen на контейнере - сохраняет кастомные контролы
-                await trailerPlayerModal.requestFullscreen();
+                // navigationUI: "hide" полностью скрывает navigation bar на Android
+                await trailerPlayerModal.requestFullscreen({ navigationUI: "hide" });
                 isVideoFullscreen = true;
                 updateFullscreenButtonIcon(true);
             } else if (trailerPlayerModal.webkitRequestFullscreen) {
-                await trailerPlayerModal.webkitRequestFullscreen();
+                // Safari/старые Chrome - пробуем с опциями, fallback без них
+                try {
+                    await trailerPlayerModal.webkitRequestFullscreen({ navigationUI: "hide" });
+                } catch (e) {
+                    await trailerPlayerModal.webkitRequestFullscreen();
+                }
                 isVideoFullscreen = true;
                 updateFullscreenButtonIcon(true);
             } else if (trailerPlayerModal.mozRequestFullScreen) {
@@ -843,6 +849,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
+        // СРАЗУ открываем модальное окно с индикатором загрузки (без задержки после подтверждения)
+        openTrailerModalLoading(movie.name);
+
         try {
             const response = await fetch(buildPollApiUrl(`/api/polls/${pollId}/watch-trailer`), {
                 method: 'POST',
@@ -863,13 +872,104 @@ document.addEventListener('DOMContentLoaded', async () => {
                 showToast(`−${result.cost_deducted} баллов за просмотр трейлера`, 'info');
             }
 
-            // Открываем плеер с трейлером
-            openTrailerModal(movie.name, result.trailer_url, result.trailer_mime_type);
+            // Загружаем и воспроизводим трейлер
+            loadAndPlayTrailer(result.trailer_url, result.trailer_mime_type);
 
         } catch (error) {
             console.error('Ошибка при загрузке трейлера:', error);
-            showToast(error.message || 'Не удалось загрузить трейлер', 'error');
+            showTrailerError(error.message || 'Не удалось загрузить трейлер');
         }
+    }
+
+    // Открывает модальное окно плеера сразу с индикатором загрузки
+    function openTrailerModalLoading(movieName) {
+        if (!trailerPlayerModal || !trailerVideo) return;
+
+        if (trailerPlayerTitle) {
+            trailerPlayerTitle.textContent = movieName;
+        }
+
+        lastTrailerMovieName = movieName;
+
+        // Сбрасываем видео
+        trailerVideo.pause();
+        trailerVideo.removeAttribute('src');
+        trailerVideo.innerHTML = '';
+
+        hideTrailerError();
+        updateTrailerLoadingState(true, 'Загружаем трейлер…');
+
+        // Сбрасываем прогресс-бар
+        if (trailerProgress) {
+            trailerProgress.value = 0;
+            trailerProgress.style.background = 'rgba(255, 255, 255, 0.15)';
+        }
+        if (trailerCurrentTime) {
+            trailerCurrentTime.textContent = '0:00';
+        }
+        if (trailerDuration) {
+            trailerDuration.textContent = '0:00';
+        }
+
+        // Открываем модальное окно
+        trailerPlayerModal.style.display = 'flex';
+        if (!isTrailerModalOpen) {
+            lockScroll();
+            isTrailerModalOpen = true;
+            pushModalHistory('trailer');
+        }
+
+        showControls();
+    }
+
+    // Загружает и воспроизводит трейлер (после получения URL от сервера)
+    function loadAndPlayTrailer(trailerUrl, mimeType) {
+        if (!trailerVideo) return;
+
+        lastTrailerSource = trailerUrl;
+        lastTrailerMimeType = mimeType || 'video/mp4';
+
+        trailerVideo.src = trailerUrl;
+        
+        trailerVideo.onerror = () => {
+            console.error('Ошибка загрузки видео:', trailerUrl);
+            showTrailerError('Не удалось загрузить трейлер');
+        };
+        
+        trailerVideo.oncanplay = () => {
+            updateDurationDisplay();
+        };
+
+        trailerVideo.autoplay = true;
+        trailerVideo.load();
+
+        // Автостарт воспроизведения
+        setTimeout(() => {
+            if (!trailerVideo.paused) return;
+            
+            const playPromise = trailerVideo.play();
+
+            if (playPromise && typeof playPromise.then === 'function') {
+                playPromise
+                    .then(() => {
+                        showControlsTemporarily();
+                    })
+                .catch((err) => {
+                    const message = (err && err.message ? String(err.message) : '').toLowerCase();
+                    const isAutoplayBlocked = message.includes('play()') || message.includes('user didn');
+                    if (isAutoplayBlocked) {
+                        console.warn('Автовоспроизведение заблокировано - нажмите на видео для запуска');
+                        updateTrailerLoadingState(true, 'Загрузка…');
+                        hideTrailerError();
+                        showControls();
+                    } else {
+                        console.error('Сбой запуска трейлера:', err);
+                        updateTrailerLoadingState(false);
+                        showTrailerError('Не удалось запустить трейлер. Попробуйте ещё раз.');
+                    }
+                });
+            }
+        }, 50);
     }
 
     function openTrailerModal(movieName, trailerUrl, mimeType) {
@@ -2292,14 +2392,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         };
 
-        const hideOverlay = () => {
+        const hideOverlay = (instant = false) => {
             if (!holdConfirmOverlay) return;
+            
+            if (instant) {
+                // Мгновенное скрытие при подтверждении
+                holdConfirmOverlay.classList.add('confirmed');
+            }
             holdConfirmOverlay.classList.remove('active');
             
             // Сбрасываем прогресс
             if (holdConfirmProgress) {
                 holdConfirmProgress.style.transition = 'none';
                 holdConfirmProgress.style.strokeDashoffset = '339.292';
+            }
+            
+            // Убираем класс confirmed после скрытия
+            if (instant) {
+                // Небольшая задержка для завершения скрытия, затем сброс
+                requestAnimationFrame(() => {
+                    holdConfirmOverlay.classList.remove('confirmed');
+                });
             }
         };
 
@@ -2318,7 +2431,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             holdTimer = setTimeout(() => {
                 if (isHolding) {
-                    cancelHold();
+                    // Мгновенно скрываем оверлей и сразу вызываем onConfirm
+                    isHolding = false;
+                    button.classList.remove('holding');
+                    hideOverlay(true); // instant = true
+                    activeHoldState = null;
+                    holdTimer = null;
                     onConfirm();
                 }
             }, holdDuration);
@@ -2332,7 +2450,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!isHolding) return;
             isHolding = false;
             button.classList.remove('holding');
-            hideOverlay();
+            hideOverlay(false); // плавное скрытие при отмене
             activeHoldState = null;
         };
 

@@ -1601,6 +1601,13 @@
     visibility: visible;
 }
 
+/* Мгновенное скрытие при успешном подтверждении (без анимации) */
+.hold-confirm-overlay.confirmed {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    transition: none !important;
+}
+
 .hold-confirm-circle {
     position: relative;
     width: 120px;
@@ -2160,18 +2167,41 @@
     padding: 0;
 }
 
+/* ::backdrop - заполняет ВСЮ область за fullscreen элементом черным цветом */
+/* Это критически важно для Android - закрашивает область под navigation bar */
+.trailer-fullscreen-modal::backdrop {
+    background: #000 !important;
+}
+
+.trailer-fullscreen-modal::-webkit-backdrop {
+    background: #000 !important;
+}
+
+/* Fallback: черный фон на html и body когда плеер в fullscreen */
+/* Использует :has() для современных браузеров */
+html:has(.trailer-fullscreen-modal:fullscreen),
+body:has(.trailer-fullscreen-modal:fullscreen) {
+    background: #000 !important;
+}
+
+html:has(.trailer-fullscreen-modal:-webkit-full-screen),
+body:has(.trailer-fullscreen-modal:-webkit-full-screen) {
+    background: #000 !important;
+}
+
 /* Стили для элементов внутри fullscreen контейнера */
 .trailer-fullscreen-modal:fullscreen .trailer-fullscreen-content,
 .trailer-fullscreen-modal:-webkit-full-screen .trailer-fullscreen-content,
 .trailer-fullscreen-modal:-moz-full-screen .trailer-fullscreen-content,
 .trailer-fullscreen-modal:-ms-fullscreen .trailer-fullscreen-content {
-    /* Убираем только боковые отступы для устранения белой полосы */
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-    width: 100vw;
-    height: 100vh;
+    /* Убираем все отступы для устранения белой полосы на Android */
+    padding: 0 !important;
+    /* Используем 100% вместо vh для корректной работы в fullscreen на Android */
+    width: 100%;
+    height: 100%;
     display: flex;
     flex-direction: column;
+    background: #000;
 }
 
 .trailer-fullscreen-modal:fullscreen .trailer-player-wrapper,
