@@ -123,9 +123,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         const percent = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
         const position = index + 1;
         const winnerClass = movie.is_winner ? 'poll-results-item-winner' : '';
+        const isBanned = movie.ban_status === 'active';
+        const bannedClass = isBanned ? 'poll-results-item-banned' : '';
+
+        let banBadgeHtml = '';
+        if (isBanned) {
+            let banText = 'Забанен';
+            if (movie.ban_until) {
+                const banUntilDate = formatVladivostokDateTime(movie.ban_until);
+                banText = `Забанен до ${banUntilDate}`;
+            }
+            banBadgeHtml = `<span class="poll-results-ban-badge">${escapeHtml(banText)}</span>`;
+        }
 
         return `
-            <div class="poll-results-item ${winnerClass}">
+            <div class="poll-results-item ${winnerClass} ${bannedClass}">
                 <div class="poll-results-position">${position}</div>
                 <div class="poll-results-poster">
                     <img src="${poster}" alt="${escapeHtml(movie.name)}">
@@ -133,6 +145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div class="poll-results-info">
                     <div class="poll-results-title">
                         <h3>${escapeHtml(movie.name)}</h3>
+                        ${banBadgeHtml}
                         <span class="poll-results-votes">${votes}&nbsp;гол. · ${percent}%</span>
                     </div>
                     <div class="poll-results-bar">

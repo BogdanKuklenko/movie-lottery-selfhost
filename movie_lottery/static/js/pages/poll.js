@@ -173,13 +173,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const trailerErrorText = document.getElementById('trailer-player-error-text');
     const trailerRetryButton = document.getElementById('trailer-retry-button');
     
-    // Кастомные контролы плеера
-    const trailerTapOverlay = document.getElementById('trailer-tap-overlay');
-    const trailerCustomControls = document.getElementById('trailer-custom-controls');
-    const trailerProgress = document.getElementById('trailer-progress');
-    const trailerCurrentTime = document.getElementById('trailer-current-time');
-    const trailerDuration = document.getElementById('trailer-duration');
-    const trailerFullscreenBtn = document.getElementById('trailer-fullscreen-btn');
+    // Video.js плеер
+    let trailerPlayer = null;
 
     const RECENT_USER_IDS_KEY = 'pollRecentUserIds';
 
@@ -483,8 +478,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     function hideTrailerError() {
         if (!trailerPlayerError) return;
         trailerPlayerError.style.display = 'none';
-        if (trailerVideo) {
-            trailerVideo.style.display = 'block';
+        // Показываем Video.js контейнер
+        const vjsContainer = trailerPlayerWrapper?.querySelector('.video-js');
+        if (vjsContainer) {
+            vjsContainer.style.display = 'block';
         }
     }
 
@@ -494,363 +491,160 @@ document.addEventListener('DOMContentLoaded', async () => {
             trailerErrorText.textContent = message;
         }
         trailerPlayerError.style.display = 'block';
-        if (trailerVideo) {
-            trailerVideo.style.display = 'none';
+        // Скрываем Video.js контейнер при ошибке
+        const vjsContainer = trailerPlayerWrapper?.querySelector('.video-js');
+        if (vjsContainer) {
+            vjsContainer.style.display = 'none';
         }
         updateTrailerLoadingState(false);
     }
 
-    // --- Кастомные контролы плеера ---
-    let controlsHideTimeout = null;
-    let isVideoFullscreen = false;
-
-    function formatTime(seconds) {
-        if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    }
-
-    function updateProgressBar() {
-        if (!trailerVideo || !trailerProgress) return;
-        const duration = trailerVideo.duration || 0;
-        const currentTime = trailerVideo.currentTime || 0;
-        const percent = duration > 0 ? (currentTime / duration) * 100 : 0;
+    // --- Video.js инициализация ---
+    function initVideoJsPlayer() {
+        if (trailerPlayer || !trailerVideo || typeof videojs === 'undefined') return;
         
-        trailerProgress.value = percent;
-        // Обновляем CSS градиент для визуального отображения прогресса (золотой цвет в стиле сайта)
-        // Используем красивый градиент от золотого к более яркому желтому
-        if (percent > 0) {
-            trailerProgress.style.background = `linear-gradient(to right, #ffd700 0%, #ffed4e ${percent}%, rgba(255, 255, 255, 0.15) ${percent}%)`;
-        } else {
-            trailerProgress.style.background = `rgba(255, 255, 255, 0.15)`;
-        }
-        
-        if (trailerCurrentTime) {
-            trailerCurrentTime.textContent = formatTime(currentTime);
-        }
-    }
-
-    function updateDurationDisplay() {
-        if (!trailerVideo || !trailerDuration) return;
-        trailerDuration.textContent = formatTime(trailerVideo.duration || 0);
-    }
-
-    function seekVideo(percent) {
-        if (!trailerVideo || !trailerVideo.duration) return;
-        trailerVideo.currentTime = (percent / 100) * trailerVideo.duration;
-    }
-
-    function toggleVideoPlayPause() {
-        if (!trailerVideo) return;
-        if (trailerVideo.paused) {
-            trailerVideo.play().catch(() => {});
-        } else {
-            trailerVideo.pause();
-        }
-        showControlsTemporarily();
-    }
-
-    function showControlsTemporarily() {
-        if (trailerPlayerWrapper) {
-            trailerPlayerWrapper.classList.remove('controls-hidden');
-        }
-        clearTimeout(controlsHideTimeout);
-        // Скрываем контролы через 3 секунды если видео воспроизводится
-        if (trailerVideo && !trailerVideo.paused) {
-            controlsHideTimeout = setTimeout(() => {
-                if (trailerPlayerWrapper && trailerVideo && !trailerVideo.paused) {
-                    trailerPlayerWrapper.classList.add('controls-hidden');
-                }
-            }, 3000);
-        }
-    }
-
-    function showControls() {
-        if (trailerPlayerWrapper) {
-            trailerPlayerWrapper.classList.remove('controls-hidden');
-        }
-        clearTimeout(controlsHideTimeout);
-    }
-
-    // Определяем iOS устройства для специфичной обработки fullscreen
-    function isIOSDevice() {
-        return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    }
-
-    // Fullscreen с поддержкой разных платформ:
-    // - iOS: нативный fullscreen на video элементе (единственный способ)
-    // - Android/Desktop: fullscreen на контейнере модального окна (сохраняет кастомные контролы)
-    async function enterVideoFullscreen() {
-        if (!trailerVideo || !trailerPlayerModal) return;
-        
-        try {
-            if (isIOSDevice() && trailerVideo.webkitEnterFullscreen) {
-                // iOS: используем нативный fullscreen на video
-                await trailerVideo.webkitEnterFullscreen();
-                isVideoFullscreen = true;
-                updateFullscreenButtonIcon(true);
-            } else if (trailerPlayerModal.requestFullscreen) {
-                // Android/Desktop: fullscreen на контейнере - сохраняет кастомные контролы
-                // navigationUI: "hide" полностью скрывает navigation bar на Android
-                await trailerPlayerModal.requestFullscreen({ navigationUI: "hide" });
-                isVideoFullscreen = true;
-                updateFullscreenButtonIcon(true);
-            } else if (trailerPlayerModal.webkitRequestFullscreen) {
-                // Safari/старые Chrome - пробуем с опциями, fallback без них
-                try {
-                    await trailerPlayerModal.webkitRequestFullscreen({ navigationUI: "hide" });
-                } catch (e) {
-                    await trailerPlayerModal.webkitRequestFullscreen();
-                }
-                isVideoFullscreen = true;
-                updateFullscreenButtonIcon(true);
-            } else if (trailerPlayerModal.mozRequestFullScreen) {
-                await trailerPlayerModal.mozRequestFullScreen();
-                isVideoFullscreen = true;
-                updateFullscreenButtonIcon(true);
-            } else if (trailerPlayerModal.msRequestFullscreen) {
-                await trailerPlayerModal.msRequestFullscreen();
-                isVideoFullscreen = true;
-                updateFullscreenButtonIcon(true);
-            } else {
-                // Fallback: pseudo-fullscreen когда Fullscreen API недоступен
-                trailerPlayerModal.classList.add('pseudo-fullscreen');
-                document.body.classList.add('trailer-pseudo-fullscreen-active');
-                isVideoFullscreen = true;
-                updateFullscreenButtonIcon(true);
-            }
-            
-            // Блокируем ориентацию экрана в горизонтальный режим
-            try {
-                if (screen.orientation && screen.orientation.lock) {
-                    await screen.orientation.lock('landscape');
-                }
-            } catch (orientationError) {
-                // Ориентация может быть недоступна на некоторых устройствах
-                console.log('Screen orientation lock не поддерживается:', orientationError.message);
-            }
-        } catch (e) {
-            console.log('Fullscreen не поддерживается, используем pseudo-fullscreen:', e.message);
-            // Fallback на pseudo-fullscreen при ошибке
-            trailerPlayerModal.classList.add('pseudo-fullscreen');
-            document.body.classList.add('trailer-pseudo-fullscreen-active');
-            isVideoFullscreen = true;
-            updateFullscreenButtonIcon(true);
-        }
-    }
-
-    async function exitVideoFullscreen() {
-        try {
-            // Убираем pseudo-fullscreen класс если он был добавлен
-            if (trailerPlayerModal) {
-                trailerPlayerModal.classList.remove('pseudo-fullscreen');
-            }
-            document.body.classList.remove('trailer-pseudo-fullscreen-active');
-            
-            // Выходим из нативного fullscreen
-            if (document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement) {
-                const exitFS = document.exitFullscreen ||
-                               document.webkitExitFullscreen ||
-                               document.mozCancelFullScreen ||
-                               document.msExitFullscreen;
-                
-                if (exitFS) {
-                    await exitFS.call(document);
-                }
-            }
-            
-            // iOS Safari - выход из нативного fullscreen видео
-            if (trailerVideo && trailerVideo.webkitExitFullscreen) {
-                try {
-                    trailerVideo.webkitExitFullscreen();
-                } catch (e) {}
-            }
-            
-            // Разблокируем ориентацию экрана
-            try {
-                if (screen.orientation && screen.orientation.unlock) {
-                    screen.orientation.unlock();
-                }
-            } catch (orientationError) {
-                // Ориентация может быть недоступна на некоторых устройствах
-            }
-            
-            isVideoFullscreen = false;
-            updateFullscreenButtonIcon(false);
-        } catch (e) {
-            // Даже при ошибке сбрасываем состояние
-            isVideoFullscreen = false;
-            updateFullscreenButtonIcon(false);
-        }
-    }
-
-    function toggleVideoFullscreen() {
-        const isNativeFullscreen = document.fullscreenElement || 
-                                   document.webkitFullscreenElement ||
-                                   document.mozFullScreenElement ||
-                                   document.msFullscreenElement;
-        const isPseudoFullscreen = trailerPlayerModal?.classList.contains('pseudo-fullscreen');
-        
-        if (isNativeFullscreen || isPseudoFullscreen) {
-            exitVideoFullscreen();
-        } else {
-            enterVideoFullscreen();
-        }
-    }
-
-    function updateFullscreenButtonIcon(isFullscreen) {
-        if (trailerFullscreenBtn) {
-            const enterIcon = trailerFullscreenBtn.querySelector('.fullscreen-enter-icon');
-            const exitIcon = trailerFullscreenBtn.querySelector('.fullscreen-exit-icon');
-            if (enterIcon) enterIcon.style.display = isFullscreen ? 'none' : 'block';
-            if (exitIcon) exitIcon.style.display = isFullscreen ? 'block' : 'none';
-        }
-    }
-
-    // Инициализация событий кастомных контролов
-    function initCustomControls() {
-        if (!trailerVideo) return;
-
-        // Обновление прогресс-бара при воспроизведении
-        trailerVideo.addEventListener('timeupdate', updateProgressBar);
-        trailerVideo.addEventListener('loadedmetadata', () => {
-            updateDurationDisplay();
-            updateProgressBar();
-            // Автостарт после загрузки метаданных
-            if (isTrailerModalOpen && trailerVideo.paused) {
-                trailerVideo.play().catch(() => {});
-            }
+        // Русская локализация (до создания плеера)
+        videojs.addLanguage('ru', {
+            'Play': 'Воспроизвести',
+            'Pause': 'Пауза',
+            'Mute': 'Без звука',
+            'Unmute': 'Со звуком',
+            'Fullscreen': 'Полный экран',
+            'Exit Fullscreen': 'Выйти из полного экрана',
+            'Non-Fullscreen': 'Выйти из полного экрана',
+            'Current Time': 'Текущее время',
+            'Duration': 'Длительность',
+            'Remaining Time': 'Оставшееся время',
+            'Progress Bar': 'Прогресс',
+            'Volume Level': 'Уровень громкости',
+            'Picture-in-Picture': 'Картинка в картинке',
+            'Close': 'Закрыть'
         });
-        trailerVideo.addEventListener('durationchange', () => {
-            updateDurationDisplay();
-            // Автостарт когда длительность известна
-            if (isTrailerModalOpen && trailerVideo.paused && trailerVideo.duration > 0) {
-                trailerVideo.play().catch(() => {});
-            }
-        });
-        
-        // Автостарт когда видео готово к воспроизведению
-        trailerVideo.addEventListener('canplay', () => {
-            if (isTrailerModalOpen && trailerVideo.paused) {
-                trailerVideo.play().catch(() => {});
+
+        trailerPlayer = videojs('trailer-video', {
+            controls: true,
+            autoplay: false,
+            preload: 'auto',
+            fill: true,  // Заполняем родительский контейнер
+            playsinline: true,
+            responsive: true,
+            language: 'ru',
+            html5: {
+                vhs: {
+                    overrideNative: true
+                },
+                nativeAudioTracks: false,
+                nativeVideoTracks: false
+            },
+            controlBar: {
+                volumePanel: {
+                    inline: false  // Вертикальная панель громкости
+                },
+                children: [
+                    'playToggle',
+                    'volumePanel',
+                    'currentTimeDisplay',
+                    'timeDivider',
+                    'durationDisplay',
+                    'progressControl',
+                    'fullscreenToggle'
+                ]
+            },
+            userActions: {
+                doubleClick: false,
+                hotkeys: true  // Включаем горячие клавиши
             }
         });
 
-        // Автостарт когда данные загружены
-        trailerVideo.addEventListener('loadeddata', () => {
-            if (isTrailerModalOpen && trailerVideo.paused) {
-                trailerVideo.play().catch(() => {});
-            }
-        });
+        // События плеера
+        // При буферизации используем только стандартный спиннер Video.js (vjs-loading-spinner)
+        // Наш кастомный спиннер показываем только при первоначальной загрузке
 
-        // Показываем индикатор при буферизации
-        trailerVideo.addEventListener('waiting', () => {
-            if (isTrailerModalOpen) {
-                updateTrailerLoadingState(true, 'Загрузка…');
-            }
-        });
-
-        // Скрываем индикатор когда воспроизведение возобновляется
-        trailerVideo.addEventListener('playing', () => {
+        trailerPlayer.on('playing', () => {
             updateTrailerLoadingState(false);
         });
 
-        // Пауза/воспроизведение ТОЛЬКО по клику на оверлей (не на видео чтобы избежать двойного срабатывания)
-        if (trailerTapOverlay) {
-            trailerTapOverlay.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                toggleVideoPlayPause();
-            });
-        }
+        trailerPlayer.on('canplay', () => {
+            updateTrailerLoadingState(false);
+        });
 
-        // Также обрабатываем клик на индикаторе загрузки (он перекрывает overlay)
-        if (trailerLoadingIndicator) {
-            trailerLoadingIndicator.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                toggleVideoPlayPause();
-            });
-        }
+        trailerPlayer.on('error', () => {
+            console.error('Video.js ошибка воспроизведения');
+            showTrailerError('Не удалось загрузить трейлер');
+        });
 
-        // Показываем контролы при движении мыши
-        if (trailerPlayerWrapper) {
-            trailerPlayerWrapper.addEventListener('mousemove', showControlsTemporarily);
-            trailerPlayerWrapper.addEventListener('touchstart', showControlsTemporarily, { passive: true });
-        }
-
-        // Показываем контролы когда видео на паузе
-        trailerVideo.addEventListener('pause', showControls);
-        trailerVideo.addEventListener('play', showControlsTemporarily);
-
-        // Прогресс-бар - перемотка
-        if (trailerProgress) {
-            trailerProgress.addEventListener('input', (e) => {
-                seekVideo(parseFloat(e.target.value));
-            });
-            trailerProgress.addEventListener('change', (e) => {
-                seekVideo(parseFloat(e.target.value));
-            });
-        }
-
-        // Кнопка fullscreen
-        if (trailerFullscreenBtn) {
-            trailerFullscreenBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                toggleVideoFullscreen();
-            });
-        }
-
-        // Отслеживаем изменение fullscreen состояния
-        document.addEventListener('fullscreenchange', handleFullscreenStateChange);
-        document.addEventListener('webkitfullscreenchange', handleFullscreenStateChange);
+        // Обработка fullscreen для поворота экрана на мобильных
+        trailerPlayer.on('fullscreenchange', handleVideoFullscreenChange);
     }
 
-    function handleFullscreenStateChange() {
-        const isNativeFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
-        const isPseudoFullscreen = trailerPlayerModal?.classList.contains('pseudo-fullscreen');
-        const isAnyFullscreen = isNativeFullscreen || isPseudoFullscreen;
-        
-        isVideoFullscreen = Boolean(isAnyFullscreen);
-        
-        if (trailerPlayerWrapper) {
-            trailerPlayerWrapper.classList.toggle('is-fullscreen', isVideoFullscreen);
-        }
-        
-        // Добавляем класс на modal для CSS стилей (работает во всех браузерах)
-        if (trailerPlayerModal) {
-            trailerPlayerModal.classList.toggle('is-native-fullscreen', Boolean(isNativeFullscreen));
-        }
-        
-        // Применяем inline стили для центрирования видео в fullscreen (гарантированно работает)
-        if (trailerVideo && isNativeFullscreen) {
-            trailerVideo.style.cssText = 'position: absolute !important; top: 50% !important; left: 50% !important; transform: translate(-50%, -50%) !important; max-width: 100% !important; max-height: 100% !important; width: auto !important; height: auto !important; margin: 0 !important; padding: 0 !important;';
-            if (trailerPlayerWrapper) {
-                trailerPlayerWrapper.style.cssText = 'position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; display: block !important; background: #000 !important;';
-            }
-        } else if (trailerVideo && !isAnyFullscreen) {
-            // Убираем inline стили при выходе из fullscreen
-            trailerVideo.style.cssText = '';
-            if (trailerPlayerWrapper) {
-                trailerPlayerWrapper.style.cssText = '';
-            }
-        }
-        
-        // Обновляем иконки кнопки
-        updateFullscreenButtonIcon(isVideoFullscreen);
+    // Определяем мобильное устройство
+    function isMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+               (window.innerWidth <= 768 && 'ontouchstart' in window);
     }
 
-    // Инициализируем кастомные контролы
-    initCustomControls();
+    // Блокируем ориентацию экрана в landscape при fullscreen на мобильных
+    async function lockScreenOrientation() {
+        if (!isMobileDevice()) return;
+        
+        try {
+            if (screen.orientation && screen.orientation.lock) {
+                await screen.orientation.lock('landscape');
+                console.log('[Video.js] Screen orientation locked to landscape');
+            }
+        } catch (e) {
+            // Screen Orientation API может быть недоступен или заблокирован
+            console.log('[Video.js] Screen orientation lock not supported:', e.message);
+        }
+    }
+
+    // Разблокируем ориентацию экрана
+    function unlockScreenOrientation() {
+        try {
+            if (screen.orientation && screen.orientation.unlock) {
+                screen.orientation.unlock();
+                console.log('[Video.js] Screen orientation unlocked');
+            }
+        } catch (e) {
+            // Игнорируем ошибки разблокировки
+        }
+    }
+
+    // Обработчик изменения fullscreen состояния Video.js
+    function handleVideoFullscreenChange() {
+        if (!trailerPlayer) return;
+        
+        const isFullscreen = trailerPlayer.isFullscreen();
+        
+        if (isFullscreen) {
+            // Входим в fullscreen - блокируем в landscape
+            lockScreenOrientation();
+            // Добавляем класс для стилей
+            if (trailerPlayerModal) {
+                trailerPlayerModal.classList.add('is-native-fullscreen');
+            }
+        } else {
+            // Выходим из fullscreen - разблокируем ориентацию
+            unlockScreenOrientation();
+            // Убираем класс
+            if (trailerPlayerModal) {
+                trailerPlayerModal.classList.remove('is-native-fullscreen');
+            }
+        }
+    }
+
+    // Инициализируем Video.js при загрузке страницы
+    if (typeof videojs !== 'undefined') {
+        initVideoJsPlayer();
+    } else {
+        // Ждём загрузки Video.js
+        window.addEventListener('load', initVideoJsPlayer);
+    }
 
     function resetTrailerPlayerSource() {
-        if (trailerVideo) {
-            trailerVideo.pause();
-            trailerVideo.removeAttribute('src');
-            trailerVideo.load();
-            trailerVideo.onerror = null;
-            trailerVideo.oncanplay = null;
+        if (trailerPlayer) {
+            trailerPlayer.pause();
+            trailerPlayer.reset();
         }
     }
 
@@ -902,7 +696,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Открывает модальное окно плеера сразу с индикатором загрузки
     function openTrailerModalLoading(movieName) {
-        if (!trailerPlayerModal || !trailerVideo) return;
+        if (!trailerPlayerModal) return;
 
         if (trailerPlayerTitle) {
             trailerPlayerTitle.textContent = movieName;
@@ -910,24 +704,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         lastTrailerMovieName = movieName;
 
-        // Сбрасываем видео
-        trailerVideo.pause();
-        trailerVideo.removeAttribute('src');
-        trailerVideo.innerHTML = '';
+        // Сбрасываем Video.js плеер
+        if (trailerPlayer) {
+            trailerPlayer.pause();
+            trailerPlayer.reset();
+        }
 
         hideTrailerError();
         updateTrailerLoadingState(true, 'Загружаем трейлер…');
 
-        // Сбрасываем прогресс-бар
-        if (trailerProgress) {
-            trailerProgress.value = 0;
-            trailerProgress.style.background = 'rgba(255, 255, 255, 0.15)';
-        }
-        if (trailerCurrentTime) {
-            trailerCurrentTime.textContent = '0:00';
-        }
-        if (trailerDuration) {
-            trailerDuration.textContent = '0:00';
+        // Показываем Video.js контейнер
+        const vjsContainer = trailerPlayerWrapper?.querySelector('.video-js');
+        if (vjsContainer) {
+            vjsContainer.style.display = 'block';
         }
 
         // Открываем модальное окно
@@ -937,62 +726,51 @@ document.addEventListener('DOMContentLoaded', async () => {
             isTrailerModalOpen = true;
             pushModalHistory('trailer');
         }
-
-        showControls();
     }
 
     // Загружает и воспроизводит трейлер (после получения URL от сервера)
     function loadAndPlayTrailer(trailerUrl, mimeType) {
-        if (!trailerVideo) return;
+        if (!trailerPlayer) {
+            // Инициализируем плеер если ещё не инициализирован
+            initVideoJsPlayer();
+            if (!trailerPlayer) {
+                showTrailerError('Плеер недоступен');
+                return;
+            }
+        }
 
         lastTrailerSource = trailerUrl;
         lastTrailerMimeType = mimeType || 'video/mp4';
 
-        trailerVideo.src = trailerUrl;
-        
-        trailerVideo.onerror = () => {
-            console.error('Ошибка загрузки видео:', trailerUrl);
-            showTrailerError('Не удалось загрузить трейлер');
-        };
-        
-        trailerVideo.oncanplay = () => {
-            updateDurationDisplay();
-        };
-
-        trailerVideo.autoplay = true;
-        trailerVideo.load();
+        // Устанавливаем источник через Video.js API
+        trailerPlayer.src({
+            src: trailerUrl,
+            type: lastTrailerMimeType
+        });
 
         // Автостарт воспроизведения
-        setTimeout(() => {
-            if (!trailerVideo.paused) return;
+        trailerPlayer.ready(() => {
+            const playPromise = trailerPlayer.play();
             
-            const playPromise = trailerVideo.play();
-
-            if (playPromise && typeof playPromise.then === 'function') {
-                playPromise
-                    .then(() => {
-                        showControlsTemporarily();
-                    })
-                .catch((err) => {
+            if (playPromise && typeof playPromise.catch === 'function') {
+                playPromise.catch((err) => {
                     const message = (err && err.message ? String(err.message) : '').toLowerCase();
-                    const isAutoplayBlocked = message.includes('play()') || message.includes('user didn');
+                    const isAutoplayBlocked = message.includes('play()') || message.includes('user didn') || message.includes('interact');
                     if (isAutoplayBlocked) {
                         console.warn('Автовоспроизведение заблокировано - нажмите на видео для запуска');
-                        updateTrailerLoadingState(true, 'Загрузка…');
-                        hideTrailerError();
-                        showControls();
+                        updateTrailerLoadingState(false);
+                        // Video.js покажет кнопку play
                     } else {
                         console.error('Сбой запуска трейлера:', err);
-                        updateTrailerLoadingState(false);
                         showTrailerError('Не удалось запустить трейлер. Попробуйте ещё раз.');
                     }
                 });
             }
-        }, 50);
+        });
     }
 
     function openTrailerModal(movieName, trailerUrl, mimeType) {
-        if (!trailerPlayerModal || !trailerVideo) return;
+        if (!trailerPlayerModal) return;
 
         if (trailerPlayerTitle) {
             trailerPlayerTitle.textContent = movieName;
@@ -1005,32 +783,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         hideTrailerError();
         updateTrailerLoadingState(true, 'Загружаем трейлер…');
 
-        // Используем нативный video плеер (без Plyr)
-        trailerVideo.pause();
-        trailerVideo.removeAttribute('src');
-        trailerVideo.innerHTML = '';
-        trailerVideo.src = trailerUrl;
-        
-        trailerVideo.onerror = () => {
-            console.error('Ошибка загрузки видео:', trailerUrl);
-            showTrailerError('Не удалось загрузить трейлер');
-        };
-        
-        trailerVideo.oncanplay = () => {
-            // Только обновляем длительность, индикатор скроется при событии 'playing'
-            updateDurationDisplay();
-        };
-
-        // Сбрасываем прогресс-бар
-        if (trailerProgress) {
-            trailerProgress.value = 0;
-            trailerProgress.style.background = 'rgba(255, 255, 255, 0.15)';
-        }
-        if (trailerCurrentTime) {
-            trailerCurrentTime.textContent = '0:00';
-        }
-        if (trailerDuration) {
-            trailerDuration.textContent = '0:00';
+        // Показываем Video.js контейнер
+        const vjsContainer = trailerPlayerWrapper?.querySelector('.video-js');
+        if (vjsContainer) {
+            vjsContainer.style.display = 'block';
         }
 
         // Открываем модальное окно
@@ -1041,61 +797,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             pushModalHistory('trailer');
         }
 
-        // Показываем контролы
-        showControls();
-
-        // Устанавливаем autoplay атрибут
-        trailerVideo.autoplay = true;
-        trailerVideo.load();
-
-        // Автостарт воспроизведения с небольшой задержкой для надёжности
-        setTimeout(() => {
-            if (!trailerVideo.paused) return; // Уже играет
-            
-            const playPromise = trailerVideo.play();
-
-            if (playPromise && typeof playPromise.then === 'function') {
-                playPromise
-                    .then(() => {
-                        // Индикатор скроется при событии 'playing'
-                        showControlsTemporarily();
-                    })
-                .catch((err) => {
-                    const message = (err && err.message ? String(err.message) : '').toLowerCase();
-                    const isAutoplayBlocked = message.includes('play()') || message.includes('user didn');
-                    if (isAutoplayBlocked) {
-                        console.warn('Автовоспроизведение заблокировано - нажмите на видео для запуска');
-                        updateTrailerLoadingState(true, 'Загрузка…');
-                        hideTrailerError();
-                        showControls();
-                    } else {
-                        console.error('Сбой запуска трейлера:', err);
-                        updateTrailerLoadingState(false);
-                        showTrailerError('Не удалось запустить трейлер. Попробуйте ещё раз.');
-                    }
-                });
-            }
-        }, 100); // Небольшая задержка для надёжности автостарта
-    }
-
-    // Определяем мобильное устройство
-    function isMobileDevice() {
-        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-               (window.innerWidth <= 768 && 'ontouchstart' in window);
+        // Загружаем и воспроизводим через Video.js
+        loadAndPlayTrailer(trailerUrl, mimeType);
     }
 
     function closeTrailerModal(options = {}) {
         const { fromPopState = false } = options;
         const wasTracked = modalHistoryStack.includes('trailer');
         
-        // Выходим из fullscreen если активен
-        exitVideoFullscreen();
+        // Выходим из fullscreen Video.js если активен
+        if (trailerPlayer && trailerPlayer.isFullscreen()) {
+            trailerPlayer.exitFullscreen();
+        }
         
-        // Останавливаем скрытие контролов
-        clearTimeout(controlsHideTimeout);
+        // Разблокируем ориентацию экрана
+        unlockScreenOrientation();
         
         if (trailerPlayerModal) {
             trailerPlayerModal.style.display = 'none';
+            trailerPlayerModal.classList.remove('is-native-fullscreen');
         }
         
         resetTrailerPlayerSource();
@@ -1127,18 +847,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // На iOS обрабатываем выход из fullscreen видео
-    if (trailerVideo) {
-        trailerVideo.addEventListener('webkitendfullscreen', () => {
-            closeTrailerModal();
-        });
-        
-        // Когда видео заканчивается - закрываем модальное окно
-        trailerVideo.addEventListener('ended', () => {
-            if (isTrailerModalOpen) {
-                closeTrailerModal();
+    // Video.js события для закрытия модального окна
+    function setupPlayerEndedHandler() {
+        if (trailerPlayer) {
+            trailerPlayer.on('ended', () => {
+                if (isTrailerModalOpen) {
+                    closeTrailerModal();
+                }
+            });
+        }
+    }
+    
+    // Инициализируем обработчик когда плеер готов
+    if (trailerPlayer) {
+        setupPlayerEndedHandler();
+    } else {
+        // Ждём инициализации плеера
+        const checkPlayer = setInterval(() => {
+            if (trailerPlayer) {
+                setupPlayerEndedHandler();
+                clearInterval(checkPlayer);
             }
-        });
+        }, 100);
+        // Отменяем проверку через 5 секунд
+        setTimeout(() => clearInterval(checkPlayer), 5000);
     }
 
     if (trailerRetryButton) {
@@ -1146,7 +878,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!lastTrailerSource) return;
             hideTrailerError();
             updateTrailerLoadingState(true, 'Повторяем воспроизведение…');
-            openTrailerModal(lastTrailerMovieName || 'Трейлер', lastTrailerSource, lastTrailerMimeType);
+            loadAndPlayTrailer(lastTrailerSource, lastTrailerMimeType);
         });
     }
 
@@ -2853,6 +2585,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const disabled = Boolean(hasVoteFlag || isInsufficient || canVoteCustom === false || pollClosedByBan);
 
         customVoteBtn.disabled = disabled;
+        // Показываем кнопку, если пользователь ещё не голосовал и опрос не закрыт
+        customVoteBtn.hidden = Boolean(hasVoteFlag || pollClosedByBan);
         if (customVoteWarning) {
             customVoteWarning.textContent = buildCustomVoteInsufficientMessage();
             customVoteWarning.hidden = !isInsufficient;

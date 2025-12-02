@@ -1,6 +1,6 @@
 // F:\GPT\movie-lottery V2\movie_lottery\static\js\pages\library.js
 
-import { ModalManager } from '../components/modal.js';
+import { ModalManager, setModalCustomBadges } from '../components/modal.js';
 import * as movieApi from '../api/movies.js';
 import { downloadTorrentToClient, deleteTorrentFromClient } from '../api/torrents.js';
 import { buildPollApiUrl, loadMyPolls } from '../utils/polls.js';
@@ -339,6 +339,26 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
             `).join('');
 
+            const bannedMovies = poll.banned_movies || [];
+            const bannedHtml = bannedMovies.length > 0 ? `
+                <div class="poll-banned-movies">
+                    <p class="poll-banned-title">Забаненные фильмы:</p>
+                    ${bannedMovies.map(m => {
+                        const banUntilText = m.ban_until ? ` до ${formatVladivostokDateTime(m.ban_until)}` : '';
+                        return `
+                            <div class="poll-banned-item">
+                                <img src="${m.poster || 'https://via.placeholder.com/40x60.png?text=No'}" alt="${escapeHtml(m.name)}">
+                                <div class="poll-banned-info">
+                                    <span class="poll-banned-name">${escapeHtml(m.name)}</span>
+                                    ${m.year ? `<span class="poll-banned-year">${escapeHtml(m.year)}</span>` : ''}
+                                    <span class="poll-banned-badge">Забанен${banUntilText}</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            ` : '';
+
             pollsHtml += `
                 <div class="poll-result-item">
                     <div class="poll-result-header">
@@ -355,6 +375,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         ${poll.winners.length > 1 ? '<p><strong>Победители (равное количество голосов):</strong></p>' : '<p><strong>Победитель:</strong></p>'}
                         ${winnersHtml}
                     </div>
+                    ${bannedHtml}
                     ${poll.winners.length > 1 ? `
                         <button class="secondary-button create-poll-from-winners" data-winners='${JSON.stringify(poll.winners)}'>
                             Создать опрос из победителей
@@ -474,7 +495,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             const stats = await response.json();
             
-            // Обновляем счетчики и состояние кнопок
+            // Обновляем счетчики и состояние кнопок (стандартные бейджи)
             badgePollOptions.forEach(option => {
                 const badgeType = option.dataset.badge;
                 const count = stats[badgeType] || 0;
@@ -486,6 +507,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Активируем только если фильмов >= 2
                 option.disabled = count < 2;
             });
+
+            // Обновляем счетчики для кастомных бейджей в меню опросов
+            const customPollContainer = document.getElementById('badge-poll-custom-badges');
+            if (customPollContainer) {
+                customPollContainer.querySelectorAll('.badge-poll-option-custom').forEach(option => {
+                    const badgeType = option.dataset.badge;
+                    const count = stats[badgeType] || 0;
+                    const countElement = option.querySelector('.badge-count');
+                    if (countElement) {
+                        countElement.textContent = `(${count})`;
+                    }
+                    option.disabled = count < 2;
+                });
+            }
         } catch (error) {
             console.error('Ошибка загрузки статистики бейджей:', error);
         }
@@ -626,7 +661,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             const noBadgeCount = totalMovies - moviesWithBadges;
             
-            // Обновляем счетчики
+            // Обновляем счетчики (стандартные фильтры)
             badgeFilters.forEach(filter => {
                 const badgeType = filter.dataset.badge;
                 const countElement = filter.querySelector('.badge-filter-count');
@@ -643,6 +678,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                     countElement.textContent = `(${count})`;
                 }
             });
+
+            // Обновляем счетчики для кастомных фильтров
+            const customFiltersContainer = document.getElementById('badge-filters-custom-container');
+            if (customFiltersContainer) {
+                customFiltersContainer.querySelectorAll('.badge-filter').forEach(filter => {
+                    const badgeType = filter.dataset.badge;
+                    const countElement = filter.querySelector('.badge-filter-count');
+                    if (countElement) {
+                        const count = stats[badgeType] || 0;
+                        countElement.textContent = `(${count})`;
+                    }
+                });
+            }
         } catch (error) {
             console.error('Ошибка загрузки статистики фильтров:', error);
         }
@@ -1051,7 +1099,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cancelBadgeBtn = badgeModal.querySelector('.cancel-badge-btn');
     let currentBadgeCard = null;
 
-    const badgeIcons = {
+    const standardBadgeIcons = {
         'favorite': '⭐',
         'ban': '⛔',
         'watchlist': '👁️',
@@ -1060,17 +1108,357 @@ document.addEventListener('DOMContentLoaded', async () => {
         'new': '🔥'
     };
 
+    // Хранилище кастомных бейджей
+    let customBadges = [];
+
+    // Получение иконки бейджа (включая кастомные)
+    function getBadgeIcon(badgeType) {
+        if (!badgeType) return '';
+        if (standardBadgeIcons[badgeType]) {
+            return standardBadgeIcons[badgeType];
+        }
+        // Проверяем кастомные бейджи
+        if (badgeType.startsWith('custom_')) {
+            const customBadge = customBadges.find(b => b.badge_key === badgeType);
+            return customBadge ? customBadge.emoji : '🏷️';
+        }
+        return '';
+    }
+
+    // Получение названия бейджа (включая кастомные)
+    function getBadgeName(badgeType) {
+        const standardNames = {
+            'favorite': 'Любимое',
+            'ban': 'Бан',
+            'watchlist': 'Хочу посмотреть',
+            'top': 'Топ',
+            'watched': 'Просмотрено',
+            'new': 'Новинка'
+        };
+        if (!badgeType) return '';
+        if (standardNames[badgeType]) {
+            return standardNames[badgeType];
+        }
+        if (badgeType.startsWith('custom_')) {
+            const customBadge = customBadges.find(b => b.badge_key === badgeType);
+            return customBadge ? customBadge.name : 'Кастомный';
+        }
+        return '';
+    }
+
+    // Загрузка кастомных бейджей
+    async function loadCustomBadges() {
+        try {
+            const response = await fetch('/api/custom-badges');
+            if (!response.ok) throw new Error('Не удалось загрузить кастомные бейджи');
+            const data = await response.json();
+            customBadges = data.badges || [];
+            // Обновляем кастомные бейджи в модальном окне
+            setModalCustomBadges(customBadges);
+            renderCustomBadgesUI();
+            updateAllCustomBadgeIcons();
+        } catch (error) {
+            console.error('Ошибка загрузки кастомных бейджей:', error);
+        }
+    }
+
+    // Обновление иконок кастомных бейджей на всех карточках
+    function updateAllCustomBadgeIcons() {
+        document.querySelectorAll('.library-card').forEach(card => {
+            const badge = card.dataset.badge;
+            if (badge && badge.startsWith('custom_')) {
+                const badgeElement = card.querySelector('.movie-badge');
+                if (badgeElement) {
+                    badgeElement.textContent = getBadgeIcon(badge);
+                }
+            }
+        });
+    }
+
+    // Рендеринг UI для кастомных бейджей
+    function renderCustomBadgesUI() {
+        renderCustomBadgesInSelector();
+        renderCustomBadgesInFilters();
+        renderCustomBadgesInPollMenu();
+    }
+
+    // Рендеринг кастомных бейджей в селекторе
+    function renderCustomBadgesInSelector() {
+        const container = document.getElementById('badge-options-custom');
+        if (!container) return;
+
+        container.innerHTML = customBadges.map(badge => `
+            <div class="badge-option badge-option-custom" data-badge="${badge.badge_key}">
+                <span class="badge-icon">${badge.emoji}</span>
+                <span class="badge-label">${badge.name}</span>
+                <button type="button" class="badge-delete-btn" data-badge-id="${badge.id}" title="Удалить бейдж">×</button>
+            </div>
+        `).join('');
+
+        // Добавляем обработчики для кастомных опций
+        container.querySelectorAll('.badge-option-custom').forEach(option => {
+            option.addEventListener('click', async (e) => {
+                // Игнорируем клик по кнопке удаления
+                if (e.target.classList.contains('badge-delete-btn')) return;
+                
+                if (!currentBadgeCard) return;
+                const badgeType = option.dataset.badge;
+                const movieId = currentBadgeCard.dataset.movieId;
+
+                try {
+                    const result = await setBadge(movieId, badgeType);
+                    updateBadgeOnCard(currentBadgeCard, badgeType, result);
+                    showToast('Бейдж установлен', 'success');
+                    closeBadgeSelector();
+                    loadBadgeStats();
+                } catch (error) {
+                    // Ошибка уже обработана в setBadge
+                }
+            });
+        });
+
+        // Добавляем обработчики для кнопок удаления
+        container.querySelectorAll('.badge-delete-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const badgeId = btn.dataset.badgeId;
+                if (!confirm('Удалить этот бейдж? Он будет снят со всех фильмов.')) return;
+
+                try {
+                    const response = await fetch(`/api/custom-badges/${badgeId}`, { method: 'DELETE' });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.message || 'Не удалось удалить бейдж');
+                    
+                    showToast('Бейдж удалён', 'success');
+                    await loadCustomBadges();
+                    updateBadgeFilterStats();
+                    loadBadgeStats();
+                } catch (error) {
+                    showToast(error.message, 'error');
+                }
+            });
+        });
+    }
+
+    // Рендеринг кастомных бейджей в панели фильтров
+    function renderCustomBadgesInFilters() {
+        const container = document.getElementById('badge-filters-custom-container');
+        if (!container) return;
+
+        container.innerHTML = customBadges.map(badge => `
+            <button class="badge-filter" data-badge="${badge.badge_key}">
+                <span class="badge-filter-icon">${badge.emoji}</span>
+                <span class="badge-filter-name">${badge.name}</span>
+                <span class="badge-filter-count">(0)</span>
+            </button>
+        `).join('');
+
+        // Добавляем обработчики для кастомных фильтров
+        container.querySelectorAll('.badge-filter').forEach(filter => {
+            filter.addEventListener('click', () => {
+                const badgeType = filter.dataset.badge;
+                badgeFilters.forEach(f => f.classList.remove('active'));
+                container.querySelectorAll('.badge-filter').forEach(f => f.classList.remove('active'));
+                filter.classList.add('active');
+                currentFilter = badgeType;
+                applyBadgeFilter(currentFilter);
+            });
+        });
+    }
+
+    // Рендеринг кастомных бейджей в меню опросов
+    function renderCustomBadgesInPollMenu() {
+        const container = document.getElementById('badge-poll-custom-badges');
+        if (!container) return;
+
+        container.innerHTML = customBadges.map(badge => `
+            <button class="badge-poll-option badge-poll-option-custom" data-badge="${badge.badge_key}" disabled>
+                <span class="badge-icon">${badge.emoji}</span>
+                <span class="badge-name">${badge.name}</span>
+                <span class="badge-count">(0)</span>
+            </button>
+        `).join('');
+
+        // Добавляем обработчики для кастомных опций опроса
+        container.querySelectorAll('.badge-poll-option-custom').forEach(option => {
+            option.addEventListener('click', async (e) => {
+                e.preventDefault();
+                if (option.disabled) return;
+
+                const badgeType = option.dataset.badge;
+                const badgeName = option.querySelector('.badge-name').textContent;
+                const badgeIcon = option.querySelector('.badge-icon').textContent;
+
+                badgePollDropdown.classList.remove('active');
+
+                const confirmHtml = `
+                    <h2>Создать опрос по бейджу</h2>
+                    <div style="text-align: center; margin: 20px 0;">
+                        <span style="font-size: 48px;">${badgeIcon}</span>
+                        <h3 style="margin: 10px 0;">${badgeName}</h3>
+                    </div>
+                    <p>Вы действительно хотите создать опрос со всеми фильмами, имеющими бейдж "${badgeName}"?</p>
+                    <p style="font-size: 14px; color: #adb5bd; margin-top: 10px;">
+                        Опрос будет доступен друзьям по ссылке в течение 24 часов.
+                    </p>
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button class="secondary-button" id="cancel-badge-poll-custom" style="flex: 1; padding: 15px; margin: 0;">Отмена</button>
+                        <button class="cta-button" id="confirm-badge-poll-custom" style="flex: 1; padding: 15px; margin: 0;">Создать опрос</button>
+                    </div>
+                `;
+
+                modal.open();
+                modal.renderCustomContent(confirmHtml);
+
+                const confirmBtn = document.getElementById('confirm-badge-poll-custom');
+                const cancelBtn = document.getElementById('cancel-badge-poll-custom');
+
+                cancelBtn.addEventListener('click', () => modal.close());
+
+                confirmBtn.addEventListener('click', async () => {
+                    confirmBtn.disabled = true;
+                    confirmBtn.textContent = 'Создание...';
+
+                    try {
+                        const response = await fetch(`/api/library/badges/${badgeType}/movies`);
+                        const data = await response.json();
+
+                        if (!response.ok) {
+                            throw new Error(data.error || 'Не удалось получить фильмы');
+                        }
+
+                        const pollResponse = await fetch(buildPollApiUrl('/polls'), {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ movies: data.movies })
+                        });
+
+                        const pollData = await pollResponse.json();
+                        if (!pollResponse.ok) {
+                            throw new Error(pollData.error || 'Не удалось создать опрос');
+                        }
+
+                        showToast('Опрос успешно создан!', 'success');
+                        await refreshMyPolls();
+                        modal.close();
+                    } catch (error) {
+                        showToast(error.message, 'error');
+                        confirmBtn.disabled = false;
+                        confirmBtn.textContent = 'Создать опрос';
+                    }
+                });
+            });
+        });
+    }
+
+    // Инициализация формы создания бейджа
+    function initBadgeCreateForm() {
+        const toggleBtn = document.getElementById('badge-create-toggle-btn');
+        const form = document.getElementById('badge-create-form');
+        const emojiInput = document.getElementById('badge-create-emoji');
+        const nameInput = document.getElementById('badge-create-name');
+        const submitBtn = document.getElementById('badge-create-submit-btn');
+        const cancelBtn = document.getElementById('badge-create-cancel-btn');
+
+        if (!toggleBtn || !form) return;
+
+        toggleBtn.addEventListener('click', () => {
+            const isVisible = form.style.display !== 'none';
+            form.style.display = isVisible ? 'none' : 'flex';
+            toggleBtn.style.display = isVisible ? 'block' : 'none';
+            if (!isVisible) {
+                emojiInput.value = '';
+                nameInput.value = '';
+                emojiInput.focus();
+            }
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            form.style.display = 'none';
+            toggleBtn.style.display = 'block';
+        });
+
+        submitBtn.addEventListener('click', async () => {
+            const emoji = emojiInput.value.trim();
+            const name = nameInput.value.trim();
+
+            if (!emoji) {
+                showToast('Введите эмодзи', 'error');
+                emojiInput.focus();
+                return;
+            }
+            if (!name) {
+                showToast('Введите название', 'error');
+                nameInput.focus();
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Создание...';
+
+            try {
+                const response = await fetch('/api/custom-badges', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ emoji, name })
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || 'Не удалось создать бейдж');
+
+                showToast('Бейдж создан', 'success');
+                form.style.display = 'none';
+                toggleBtn.style.display = 'block';
+                await loadCustomBadges();
+                updateBadgeFilterStats();
+            } catch (error) {
+                showToast(error.message, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Создать';
+            }
+        });
+
+        // Enter для создания
+        nameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                submitBtn.click();
+            }
+        });
+    }
+
+    // Инициализация формы создания бейджа
+    initBadgeCreateForm();
+
+    // Загружаем кастомные бейджи при старте
+    loadCustomBadges();
+
+    // Для обратной совместимости
+    const badgeIcons = standardBadgeIcons;
+
     function openBadgeSelector(card) {
         currentBadgeCard = card;
         const currentBadge = card.dataset.badge;
 
-        // Снимаем выделение со всех опций
+        // Снимаем выделение со всех опций (включая кастомные)
         badgeOptions.forEach(opt => opt.classList.remove('selected'));
+        const customOptionsContainer = document.getElementById('badge-options-custom');
+        if (customOptionsContainer) {
+            customOptionsContainer.querySelectorAll('.badge-option-custom').forEach(opt => opt.classList.remove('selected'));
+        }
 
         // Выделяем текущий бейдж, если есть
         if (currentBadge) {
+            // Проверяем стандартные бейджи
             const selectedOption = Array.from(badgeOptions).find(opt => opt.dataset.badge === currentBadge);
-            if (selectedOption) selectedOption.classList.add('selected');
+            if (selectedOption) {
+                selectedOption.classList.add('selected');
+            } else if (customOptionsContainer) {
+                // Проверяем кастомные бейджи
+                const customOption = customOptionsContainer.querySelector(`[data-badge="${currentBadge}"]`);
+                if (customOption) customOption.classList.add('selected');
+            }
         }
 
         badgeModal.classList.add('active');
@@ -1149,7 +1537,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 card.appendChild(badgeElement);
             }
             badgeElement.dataset.badgeType = badgeType;
-            badgeElement.textContent = badgeIcons[badgeType] || '';
+            badgeElement.textContent = getBadgeIcon(badgeType);
         } else if (badgeElement) {
             badgeElement.remove();
         }

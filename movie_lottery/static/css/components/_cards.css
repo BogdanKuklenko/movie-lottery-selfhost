@@ -567,3 +567,190 @@
     font-size: 13px;
     font-weight: 600;
 }
+
+/* Кастомные бейджи в селекторе */
+.badge-options-custom {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.badge-options-custom:empty {
+    display: none;
+}
+
+.badge-option-custom {
+    position: relative;
+}
+
+.badge-option-custom .badge-delete-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 22px;
+    height: 22px;
+    background: rgba(220, 53, 69, 0.9);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.badge-option-custom:hover .badge-delete-btn {
+    opacity: 1;
+}
+
+.badge-option-custom .badge-delete-btn:hover {
+    background: #dc3545;
+    transform: scale(1.1);
+}
+
+/* Форма создания бейджа */
+.badge-create-section {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.badge-create-toggle-btn {
+    width: 100%;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px dashed rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: #adb5bd;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.badge-create-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--primary-color);
+    color: #f8f9fa;
+}
+
+.badge-create-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.badge-create-inputs {
+    display: flex;
+    gap: 10px;
+}
+
+.badge-create-emoji-input {
+    width: 60px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #f8f9fa;
+    font-size: 20px;
+    text-align: center;
+}
+
+.badge-create-emoji-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.badge-create-emoji-input::placeholder {
+    font-size: 20px;
+}
+
+.badge-create-name-input {
+    flex: 1;
+    padding: 10px 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #f8f9fa;
+    font-size: 14px;
+}
+
+.badge-create-name-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.badge-create-name-input::placeholder {
+    color: #6c757d;
+}
+
+.badge-create-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.badge-create-submit-btn {
+    flex: 1;
+    padding: 10px;
+    background: var(--primary-color);
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.badge-create-submit-btn:hover:not(:disabled) {
+    opacity: 0.9;
+}
+
+.badge-create-submit-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.badge-create-cancel-btn {
+    padding: 10px 20px;
+    background: rgba(108, 117, 125, 0.2);
+    border: 1px solid rgba(108, 117, 125, 0.5);
+    border-radius: 6px;
+    color: #adb5bd;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.badge-create-cancel-btn:hover {
+    background: rgba(108, 117, 125, 0.3);
+}
+
+/* Контейнер кастомных фильтров */
+.badge-filters-custom-container {
+    display: contents;
+}
+
+/* Контейнер кастомных бейджей в меню опросов */
+.badge-poll-custom-badges {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding-top: 10px;
+    margin-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.badge-poll-custom-badges:empty {
+    display: none;
+}
+
+/* Стили для кастомных бейджей в inline режиме модального окна */
+.badge-option-inline.badge-option-custom {
+    position: relative;
+}

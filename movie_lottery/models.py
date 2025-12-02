@@ -48,7 +48,7 @@ class LibraryMovie(db.Model):
     trailer_file_size = db.Column(db.Integer, nullable=True)
     added_at = db.Column(db.DateTime, nullable=False, default=vladivostok_now)
     bumped_at = db.Column(db.DateTime, nullable=False, default=vladivostok_now)
-    badge = db.Column(db.String(20), nullable=True)  # Бейдж: favorite, ban, watchlist, top, watched, new
+    badge = db.Column(db.String(30), nullable=True)  # Бейдж: favorite, ban, watchlist, top, watched, new или custom_ID
     points = db.Column(db.Integer, nullable=False, default=1)
     ban_until = db.Column(db.DateTime, nullable=True)
     ban_applied_by = db.Column(db.String(120), nullable=True)
@@ -130,6 +130,15 @@ class LibraryMovie(db.Model):
             changed = movie.refresh_ban_status() or changed
 
         return changed
+
+class CustomBadge(db.Model):
+    """Кастомный бейдж, созданный пользователем."""
+    __tablename__ = 'custom_badge'
+    id = db.Column(db.Integer, primary_key=True)
+    emoji = db.Column(db.String(10), nullable=False)
+    name = db.Column(db.String(50), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=vladivostok_now)
+
 
 class BackgroundPhoto(db.Model):
     id = db.Column(db.Integer, primary_key=True)

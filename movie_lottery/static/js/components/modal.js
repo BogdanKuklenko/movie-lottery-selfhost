@@ -12,6 +12,63 @@ import { formatDateTimeShort as formatVladivostokDateTime } from '../utils/timeF
 const modalStack = [];
 let ignoreNextPopState = false;
 
+// Хранилище кастомных бейджей для модального окна
+let modalCustomBadges = [];
+
+/**
+ * Обновляет список кастомных бейджей для использования в модальном окне
+ * @param {Array} badges - Массив кастомных бейджей
+ */
+export function setModalCustomBadges(badges) {
+    modalCustomBadges = badges || [];
+}
+
+/**
+ * Получает иконку бейджа (включая кастомные)
+ * @param {string} badgeType - Тип бейджа
+ * @returns {string} - Эмодзи бейджа
+ */
+function getModalBadgeIcon(badgeType) {
+    const standardIcons = {
+        'favorite': '⭐',
+        'ban': '⛔',
+        'watchlist': '👁️',
+        'top': '🏆',
+        'watched': '✅',
+        'new': '🔥'
+    };
+    if (!badgeType) return '';
+    if (standardIcons[badgeType]) return standardIcons[badgeType];
+    if (badgeType.startsWith('custom_')) {
+        const customBadge = modalCustomBadges.find(b => b.badge_key === badgeType);
+        return customBadge ? customBadge.emoji : '🏷️';
+    }
+    return '';
+}
+
+/**
+ * Получает название бейджа (включая кастомные)
+ * @param {string} badgeType - Тип бейджа
+ * @returns {string} - Название бейджа
+ */
+function getModalBadgeName(badgeType) {
+    const standardNames = {
+        'favorite': 'Любимое',
+        'ban': 'Бан',
+        'watchlist': 'Хочу посмотреть',
+        'top': 'Топ',
+        'watched': 'Просмотрено',
+        'new': 'Новинка'
+    };
+    if (!badgeType) return '';
+    if (standardNames[badgeType]) return standardNames[badgeType];
+    if (badgeType.startsWith('custom_')) {
+        const customBadge = modalCustomBadges.find(b => b.badge_key === badgeType);
+        return customBadge ? customBadge.name : 'Кастомный';
+    }
+    return '';
+}
+
 function consumeIgnoreFlag() {
     if (ignoreNextPopState) {
         ignoreNextPopState = false;
@@ -122,26 +179,16 @@ function createWinnerCardHTML(movieData, isLibrary) {
         : `<button class="secondary-button add-library-modal-btn">Добавить в библиотеку</button>`;
 
     // Секция выбора бейджа (только для библиотеки)
-    const badgeIcons = {
-        'favorite': '⭐',
-        'ban': '⛔',
-        'watchlist': '👁️',
-        'top': '🏆',
-        'watched': '✅',
-        'new': '🔥'
-    };
-    
-    const badgeLabels = {
-        'favorite': 'Любимое',
-        'ban': 'Бан',
-        'watchlist': 'Хочу посмотреть',
-        'top': 'Топ',
-        'watched': 'Просмотрено',
-        'new': 'Новинка'
-    };
-
     const badgeTypes = ['favorite', 'ban', 'watchlist', 'top', 'watched', 'new'];
     const currentBadge = movieData.badge || null;
+
+    // Генерируем HTML для кастомных бейджей
+    const customBadgesHTML = modalCustomBadges.map(badge => `
+        <div class="badge-option-inline badge-option-custom ${currentBadge === badge.badge_key ? 'selected' : ''}" data-badge="${badge.badge_key}">
+            <span class="badge-icon">${escapeHtml(badge.emoji)}</span>
+            <span class="badge-label">${escapeHtml(badge.name)}</span>
+        </div>
+    `).join('');
 
     const badgeSectionHTML = isLibrary ? `
         <div class="movie-badge-section">
@@ -149,10 +196,11 @@ function createWinnerCardHTML(movieData, isLibrary) {
             <div class="badge-options-inline">
                 ${badgeTypes.map(type => `
                     <div class="badge-option-inline ${currentBadge === type ? 'selected' : ''}" data-badge="${type}">
-                        <span class="badge-icon">${badgeIcons[type]}</span>
-                        <span class="badge-label">${badgeLabels[type]}</span>
+                        <span class="badge-icon">${getModalBadgeIcon(type)}</span>
+                        <span class="badge-label">${getModalBadgeName(type)}</span>
                     </div>
                 `).join('')}
+                ${customBadgesHTML}
             </div>
             ${currentBadge ? '<button class="secondary-button modal-remove-badge-btn" style="margin-top: 10px;">Убрать бейдж</button>' : ''}
         </div>

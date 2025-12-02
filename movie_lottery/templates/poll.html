@@ -271,7 +271,7 @@
 
     <!-- Модальное окно просмотра трейлера (полноэкранный режим) -->
     <div id="trailer-player-modal" class="modal-overlay trailer-fullscreen-modal" style="display: none;">
-        <div class="trailer-player-content trailer-fullscreen-content">
+        <div class="trailer-fullscreen-content">
             <div class="trailer-player-header">
                 <h2 id="trailer-player-title" class="trailer-player-title">Трейлер</h2>
                 <button class="trailer-player-close" type="button" aria-label="Закрыть" title="Закрыть">×</button>
@@ -287,41 +287,14 @@
                     <span class="trailer-loading-spinner" aria-hidden="true"></span>
                     <p id="trailer-player-loading-text">Загружаем трейлер…</p>
                 </div>
-                <video 
+                <video-js 
                     id="trailer-video" 
-                    class="trailer-video" 
-                    preload="auto" 
-                    autoplay
-                    playsinline 
+                    class="vjs-big-play-centered"
+                    preload="auto"
+                    playsinline
                     webkit-playsinline
-                    x-webkit-airplay="allow"
-                    disablepictureinpicture
                 >
-                    Ваш браузер не поддерживает воспроизведение видео.
-                </video>
-                <!-- Оверлей паузы по клику -->
-                <div id="trailer-tap-overlay" class="trailer-tap-overlay"></div>
-                <!-- Кастомные контролы -->
-                <div id="trailer-custom-controls" class="trailer-custom-controls">
-                    <div class="trailer-progress-container">
-                        <input type="range" id="trailer-progress" class="trailer-progress" value="0" min="0" max="100" step="0.1">
-                    </div>
-                    <div class="trailer-controls-row">
-                        <div class="trailer-time">
-                            <span id="trailer-current-time">0:00</span>
-                            <span class="trailer-time-separator">/</span>
-                            <span id="trailer-duration">0:00</span>
-                        </div>
-                        <button id="trailer-fullscreen-btn" class="trailer-fullscreen-btn" type="button" aria-label="Полный экран" title="Полный экран">
-                            <svg class="fullscreen-enter-icon" viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
-                                <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
-                            </svg>
-                            <svg class="fullscreen-exit-icon" viewBox="0 0 24 24" fill="currentColor" width="24" height="24" style="display:none;">
-                                <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
+                </video-js>
             </div>
             <div id="trailer-player-error" class="trailer-player-error" style="display: none;">
                 <span class="trailer-error-icon">⚠️</span>
@@ -388,7 +361,8 @@
         window.appConfig.pollApiBaseUrl = {{ poll_api_base_url|tojson }};
     </script>
     <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
-    <script src="https://cdn.jsdelivr.net/npm/plyr@3.7.8/dist/plyr.polyfilled.min.js" defer></script>
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet">
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
     <script type="module" src="{{ url_for('static', filename='js/pages/poll.js') }}"></script>
     
     <script>

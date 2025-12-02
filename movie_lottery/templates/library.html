@@ -58,6 +58,7 @@
                             <span class="badge-count">(0)</span>
                         </button>
                     </div>
+                    <div class="badge-poll-custom-badges" id="badge-poll-custom-badges"></div>
                 </div>
             </div>
             <button id="toggle-select-mode-btn" class="nav-button">Выбрать фильмы</button>
@@ -110,6 +111,7 @@
                 <span class="badge-filter-name">Без бейджа</span>
                 <span class="badge-filter-count">(0)</span>
             </button>
+            <span class="badge-filters-custom-container" id="badge-filters-custom-container"></span>
         </div>
     </div>
     
@@ -186,6 +188,7 @@
                         {% elif movie.badge == 'top' %}🏆
                         {% elif movie.badge == 'watched' %}✅
                         {% elif movie.badge == 'new' %}🔥
+                        {% elif movie.badge.startswith('custom_') %}🏷️
                         {% endif %}
                     </div>
                     {% endif %}
@@ -272,6 +275,20 @@
                 <div class="badge-option" data-badge="new">
                     <span class="badge-icon">🔥</span>
                     <span class="badge-label">Новинка</span>
+                </div>
+            </div>
+            <div class="badge-options-custom" id="badge-options-custom"></div>
+            <div class="badge-create-section">
+                <button type="button" class="badge-create-toggle-btn" id="badge-create-toggle-btn">+ Добавить свой бейдж</button>
+                <div class="badge-create-form" id="badge-create-form" style="display: none;">
+                    <div class="badge-create-inputs">
+                        <input type="text" id="badge-create-emoji" class="badge-create-emoji-input" placeholder="😀" maxlength="10">
+                        <input type="text" id="badge-create-name" class="badge-create-name-input" placeholder="Название бейджа" maxlength="50">
+                    </div>
+                    <div class="badge-create-actions">
+                        <button type="button" class="badge-create-submit-btn" id="badge-create-submit-btn">Создать</button>
+                        <button type="button" class="badge-create-cancel-btn" id="badge-create-cancel-btn">Отмена</button>
+                    </div>
                 </div>
             </div>
             <div class="badge-selector-actions">

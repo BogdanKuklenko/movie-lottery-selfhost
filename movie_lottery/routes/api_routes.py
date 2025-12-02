@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 
 from .. import db
 from ..models import (
+    CustomBadge,
     Movie,
     Lottery,
     MovieIdentifier,
@@ -2259,6 +2260,19 @@ def get_my_polls():
         vote_counts = poll.get_vote_counts()
         winners = poll.winners
         
+        # Собираем список забаненных фильмов
+        banned_movies = [
+            {
+                "id": m.id,
+                "name": m.name,
+                "year": m.year,
+                "poster": m.poster,
+                "ban_until": m.ban_until.isoformat() if m.ban_until else None,
+            }
+            for m in poll.movies
+            if m.ban_status == 'active'
+        ]
+        
         polls_data.append({
             "poll_id": poll.id,
             "created_at": poll.created_at.isoformat(),
@@ -2279,6 +2293,7 @@ def get_my_polls():
                 }
                 for w in winners
             ],
+            "banned_movies": banned_movies,
             "poll_url": build_external_url('main.view_poll', poll_id=poll.id),
             "results_url": build_external_url('main.view_poll_results', poll_id=poll.id)
         })
@@ -2543,7 +2558,18 @@ def set_movie_badge(movie_id):
     badge_type = payload.get('badge')
     allowed_badges = ['favorite', 'ban', 'watchlist', 'top', 'watched', 'new']
 
-    if badge_type and badge_type not in allowed_badges:
+    # Поддержка кастомных бейджей в формате custom_ID
+    is_custom_badge = False
+    if badge_type and badge_type.startswith('custom_'):
+        try:
+            custom_id = int(badge_type.split('_')[1])
+            custom_badge = CustomBadge.query.get(custom_id)
+            if not custom_badge:
+                return jsonify({"success": False, "message": "Кастомный бейдж не найден"}), 404
+            is_custom_badge = True
+        except (ValueError, IndexError):
+            return jsonify({"success": False, "message": "Некорректный формат кастомного бейджа"}), 400
+    elif badge_type and badge_type not in allowed_badges:
         return jsonify({"success": False, "message": "Недопустимый тип бейджа"}), 400
 
     ban_until = None
@@ -2639,9 +2665,15 @@ def get_badge_stats():
     
     stats = {badge: count for badge, count in badge_stats}
     
-    # Добавляем все типы бейджей с нулевыми значениями для отсутствующих
+    # Добавляем все типы стандартных бейджей с нулевыми значениями для отсутствующих
     all_badges = ['favorite', 'ban', 'watchlist', 'top', 'watched', 'new']
     result = {badge: stats.get(badge, 0) for badge in all_badges}
+
+    # Добавляем статистику для кастомных бейджей
+    custom_badges = CustomBadge.query.all()
+    for custom_badge in custom_badges:
+        badge_key = f"custom_{custom_badge.id}"
+        result[badge_key] = stats.get(badge_key, 0)
 
     return jsonify(result)
 
@@ -2650,7 +2682,18 @@ def get_movies_by_badge(badge_type):
     """Получение списка фильмов с определённым бейджем для создания опроса"""
     allowed_badges = ['favorite', 'ban', 'watchlist', 'top', 'watched', 'new']
 
-    if badge_type not in allowed_badges:
+    # Поддержка кастомных бейджей в формате custom_ID
+    is_custom_badge = False
+    if badge_type.startswith('custom_'):
+        try:
+            custom_id = int(badge_type.split('_')[1])
+            custom_badge = CustomBadge.query.get(custom_id)
+            if not custom_badge:
+                return jsonify({"error": "Кастомный бейдж не найден"}), 404
+            is_custom_badge = True
+        except (ValueError, IndexError):
+            return jsonify({"error": "Некорректный формат кастомного бейджа"}), 400
+    elif badge_type not in allowed_badges:
         return jsonify({"error": "Недопустимый тип бейджа"}), 400
 
     _refresh_library_bans()
@@ -2939,3 +2982,128 @@ def update_voter_points_accrued_total(voter_token):
     }
 
     return prevent_caching(jsonify(payload))
+
+
+# --- Маршруты для управления кастомными бейджами ---
+
+@api_bp.route('/custom-badges', methods=['GET'])
+def get_custom_badges():
+    """Получение списка всех кастомных бейджей"""
+    badges = CustomBadge.query.order_by(CustomBadge.created_at.desc()).all()
+    return jsonify({
+        "success": True,
+        "badges": [
+            {
+                "id": badge.id,
+                "emoji": badge.emoji,
+                "name": badge.name,
+                "badge_key": f"custom_{badge.id}",
+                "created_at": badge.created_at.isoformat() if badge.created_at else None,
+            }
+            for badge in badges
+        ]
+    })
+
+
+@api_bp.route('/custom-badges', methods=['POST'])
+def create_custom_badge():
+    """Создание нового кастомного бейджа"""
+    payload = _get_json_payload()
+    if payload is None:
+        return jsonify({"success": False, "message": "Некорректный JSON-запрос"}), 400
+
+    emoji = (payload.get('emoji') or '').strip()
+    name = (payload.get('name') or '').strip()
+
+    if not emoji:
+        return jsonify({"success": False, "message": "Эмодзи обязателен"}), 400
+
+    if len(emoji) > 10:
+        return jsonify({"success": False, "message": "Эмодзи слишком длинный (максимум 10 символов)"}), 400
+
+    if not name:
+        return jsonify({"success": False, "message": "Название обязательно"}), 400
+
+    if len(name) > 50:
+        return jsonify({"success": False, "message": "Название слишком длинное (максимум 50 символов)"}), 400
+
+    badge = CustomBadge(emoji=emoji, name=name)
+    db.session.add(badge)
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": "Кастомный бейдж создан",
+        "badge": {
+            "id": badge.id,
+            "emoji": badge.emoji,
+            "name": badge.name,
+            "badge_key": f"custom_{badge.id}",
+            "created_at": badge.created_at.isoformat() if badge.created_at else None,
+        }
+    }), 201
+
+
+@api_bp.route('/custom-badges/<int:badge_id>', methods=['DELETE'])
+def delete_custom_badge(badge_id):
+    """Удаление кастомного бейджа"""
+    badge = CustomBadge.query.get_or_404(badge_id)
+
+    # Сбрасываем бейдж у всех фильмов с этим кастомным бейджем
+    badge_key = f"custom_{badge_id}"
+    movies_with_badge = LibraryMovie.query.filter_by(badge=badge_key).all()
+    for movie in movies_with_badge:
+        movie.badge = None
+        movie.bumped_at = vladivostok_now()
+
+    db.session.delete(badge)
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": "Кастомный бейдж удалён",
+        "affected_movies": len(movies_with_badge)
+    })
+
+
+@api_bp.route('/custom-badges/<int:badge_id>', methods=['PUT'])
+def update_custom_badge(badge_id):
+    """Обновление кастомного бейджа"""
+    badge = CustomBadge.query.get_or_404(badge_id)
+
+    payload = _get_json_payload()
+    if payload is None:
+        return jsonify({"success": False, "message": "Некорректный JSON-запрос"}), 400
+
+    emoji = payload.get('emoji')
+    name = payload.get('name')
+
+    if emoji is not None:
+        emoji = emoji.strip()
+        if not emoji:
+            return jsonify({"success": False, "message": "Эмодзи не может быть пустым"}), 400
+        if len(emoji) > 10:
+            return jsonify({"success": False, "message": "Эмодзи слишком длинный (максимум 10 символов)"}), 400
+        badge.emoji = emoji
+
+    if name is not None:
+        name = name.strip()
+        if not name:
+            return jsonify({"success": False, "message": "Название не может быть пустым"}), 400
+        if len(name) > 50:
+            return jsonify({"success": False, "message": "Название слишком длинное (максимум 50 символов)"}), 400
+        badge.name = name
+
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": "Кастомный бейдж обновлён",
+        "badge": {
+            "id": badge.id,
+            "emoji": badge.emoji,
+            "name": badge.name,
+            "badge_key": f"custom_{badge.id}",
+            "created_at": badge.created_at.isoformat() if badge.created_at else None,
+        }
+    })
