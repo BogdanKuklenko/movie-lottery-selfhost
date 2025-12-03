@@ -140,6 +140,70 @@ class CustomBadge(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=vladivostok_now)
 
 
+class MovieSchedule(db.Model):
+    """Таймер/расписание для фильма в календаре."""
+    __tablename__ = 'movie_schedule'
+    id = db.Column(db.Integer, primary_key=True)
+    library_movie_id = db.Column(
+        db.Integer,
+        db.ForeignKey('library_movie.id', ondelete='CASCADE'),
+        nullable=False
+    )
+    scheduled_date = db.Column(db.DateTime, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default='pending')  # pending, confirmed
+    postponed_until = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=vladivostok_now)
+
+    library_movie = db.relationship(
+        'LibraryMovie',
+        backref=db.backref('schedules', lazy=True, cascade='all, delete-orphan')
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint('library_movie_id', 'scheduled_date', name='unique_movie_schedule_date'),
+    )
+
+    @property
+    def is_due(self):
+        """Проверяет, наступило ли время уведомления."""
+        if self.status != 'pending':
+            return False
+        now = vladivostok_now()
+        check_time = self.postponed_until if self.postponed_until else self.scheduled_date
+        return now >= check_time
+
+    @classmethod
+    def cleanup_expired(cls):
+        """Удаляет истёкшие pending таймеры (прошло более 24 часов после даты)."""
+        from . import db
+        now = vladivostok_now()
+        # Удаляем таймеры, которые просрочены более чем на 24 часа и всё ещё pending
+        threshold = now - timedelta(hours=24)
+        try:
+            expired = cls.query.filter(
+                cls.status == 'pending',
+                db.or_(
+                    db.and_(cls.postponed_until.isnot(None), cls.postponed_until < threshold),
+                    db.and_(cls.postponed_until.is_(None), cls.scheduled_date < threshold)
+                )
+            ).all()
+            count = len(expired)
+            for schedule in expired:
+                db.session.delete(schedule)
+            if count > 0:
+                db.session.commit()
+            return count
+        except (OperationalError, ProgrammingError) as exc:
+            current_app.logger.warning(
+                "Skipping schedule cleanup: %s", exc
+            )
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            return 0
+
+
 class BackgroundPhoto(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     poster_url = db.Column(db.String(500), unique=True, nullable=False)

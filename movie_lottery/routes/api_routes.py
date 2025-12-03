@@ -6,7 +6,7 @@ import re
 import secrets
 import uuid
 from collections import defaultdict
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
@@ -342,6 +342,7 @@ def _set_creator_cookie(response, token):
         max_age=POLL_CREATOR_COOKIE_MAX_AGE,
         samesite='Lax',
         secure=request.is_secure,
+        httponly=True,
     )
     return response
 
@@ -398,9 +399,11 @@ def _set_voter_cookies(response, voter_token, user_id=None):
         max_age=VOTER_COOKIE_MAX_AGE,
         samesite='Lax',
         secure=request.is_secure,
+        httponly=True,
     )
 
     if user_id:
+        # user_id cookie остаётся доступным для JS (используется для отображения)
         response.set_cookie(
             VOTER_USER_ID_COOKIE,
             user_id,
@@ -676,6 +679,7 @@ def logout_with_user_id():
         max_age=0,
         samesite='Lax',
         secure=request.is_secure,
+        httponly=True,
     )
     response.set_cookie(
         VOTER_USER_ID_COOKIE,
@@ -2416,6 +2420,12 @@ def stream_trailer(movie_id):
     normalized_file_path = library_movie.trailer_file_path.replace('\\', '/').replace('/', os.sep)
     trailer_path = os.path.normpath(os.path.join(media_root, normalized_file_path))
     
+    # Защита от path traversal: проверяем, что путь не выходит за пределы media_root
+    normalized_media_root = os.path.normpath(media_root)
+    if not trailer_path.startswith(normalized_media_root + os.sep) and trailer_path != normalized_media_root:
+        current_app.logger.warning('Path traversal attempt detected: %s', trailer_path)
+        return jsonify({"error": "Недопустимый путь к файлу"}), 400
+    
     current_app.logger.debug('Streaming trailer: media_root=%s, file_path=%s, full_path=%s', 
                              media_root, library_movie.trailer_file_path, trailer_path)
 
@@ -2518,6 +2528,12 @@ def get_poster(movie_id):
     # Нормализуем путь для кроссплатформенности
     normalized_path = poster_path.replace('\\', '/').replace('/', os.sep)
     absolute_path = os.path.normpath(os.path.join(media_root, normalized_path))
+    
+    # Защита от path traversal: проверяем, что путь не выходит за пределы media_root
+    normalized_media_root = os.path.normpath(media_root)
+    if not absolute_path.startswith(normalized_media_root + os.sep) and absolute_path != normalized_media_root:
+        current_app.logger.warning('Path traversal attempt detected for poster: %s', absolute_path)
+        return jsonify({"error": "Недопустимый путь к файлу"}), 400
     
     if not os.path.exists(absolute_path):
         current_app.logger.error('Файл постера не найден: %s', absolute_path)
@@ -2711,6 +2727,9 @@ def get_movies_by_badge(badge_type):
 
     # Сохраняем общее количество до ограничения
     total_count = len(movies)
+    
+    # Перемешиваем фильмы для рандомного порядка в опросе
+    random.shuffle(movies)
     
     # Ограничиваем количество фильмов до 25
     limited = False
@@ -3106,4 +3125,239 @@ def update_custom_badge(badge_id):
             "badge_key": f"custom_{badge.id}",
             "created_at": badge.created_at.isoformat() if badge.created_at else None,
         }
+    })
+
+
+# --- Маршруты для управления расписаниями/таймерами фильмов ---
+
+from ..models import MovieSchedule
+
+
+def _serialize_schedule(schedule):
+    """Сериализует расписание для JSON-ответа."""
+    movie = schedule.library_movie
+    poster_url = None
+    if movie:
+        if movie.poster_file_path:
+            poster_url = f"/api/posters/{movie.id}"
+        else:
+            poster_url = movie.poster
+    
+    return {
+        "id": schedule.id,
+        "library_movie_id": schedule.library_movie_id,
+        "scheduled_date": schedule.scheduled_date.isoformat() if schedule.scheduled_date else None,
+        "status": schedule.status,
+        "postponed_until": schedule.postponed_until.isoformat() if schedule.postponed_until else None,
+        "created_at": schedule.created_at.isoformat() if schedule.created_at else None,
+        "is_due": schedule.is_due,
+        "movie": {
+            "id": movie.id,
+            "name": movie.name,
+            "year": movie.year,
+            "poster": poster_url,
+            "poster_url": poster_url,
+        } if movie else None,
+    }
+
+
+@api_bp.route('/schedules', methods=['GET'])
+def get_all_schedules():
+    """Получение всех активных расписаний для календаря."""
+    try:
+        # Получаем год и месяц из query params для фильтрации
+        year = request.args.get('year', type=int)
+        month = request.args.get('month', type=int)
+        
+        query = MovieSchedule.query.join(LibraryMovie)
+        
+        if year and month:
+            # Фильтруем по месяцу
+            start_date = datetime(year, month, 1)
+            if month == 12:
+                end_date = datetime(year + 1, 1, 1)
+            else:
+                end_date = datetime(year, month + 1, 1)
+            query = query.filter(
+                MovieSchedule.scheduled_date >= start_date,
+                MovieSchedule.scheduled_date < end_date
+            )
+        
+        schedules = query.order_by(MovieSchedule.scheduled_date.asc()).all()
+        
+        return jsonify({
+            "success": True,
+            "schedules": [_serialize_schedule(s) for s in schedules]
+        })
+    except (OperationalError, ProgrammingError) as exc:
+        current_app.logger.warning("Ошибка получения расписаний: %s", exc)
+        db.session.rollback()
+        return jsonify({"success": True, "schedules": []})
+
+
+@api_bp.route('/schedules/notifications', methods=['GET'])
+def get_schedule_notifications():
+    """Получение таймеров, требующих уведомления (наступила дата, статус pending)."""
+    try:
+        now = vladivostok_now()
+        
+        # Получаем все pending расписания, у которых наступила дата
+        schedules = MovieSchedule.query.join(LibraryMovie).filter(
+            MovieSchedule.status == 'pending',
+            db.or_(
+                db.and_(
+                    MovieSchedule.postponed_until.isnot(None),
+                    MovieSchedule.postponed_until <= now
+                ),
+                db.and_(
+                    MovieSchedule.postponed_until.is_(None),
+                    MovieSchedule.scheduled_date <= now
+                )
+            )
+        ).order_by(MovieSchedule.scheduled_date.asc()).all()
+        
+        return jsonify({
+            "success": True,
+            "notifications": [_serialize_schedule(s) for s in schedules]
+        })
+    except (OperationalError, ProgrammingError) as exc:
+        current_app.logger.warning("Ошибка получения уведомлений: %s", exc)
+        db.session.rollback()
+        return jsonify({"success": True, "notifications": []})
+
+
+@api_bp.route('/library/<int:movie_id>/schedule', methods=['POST'])
+def add_movie_schedule(movie_id):
+    """Добавление таймера для фильма."""
+    library_movie = LibraryMovie.query.get_or_404(movie_id)
+    
+    payload = _get_json_payload()
+    if payload is None:
+        return jsonify({"success": False, "message": "Некорректный JSON-запрос"}), 400
+    
+    scheduled_date_raw = payload.get('scheduled_date')
+    if not scheduled_date_raw:
+        return jsonify({"success": False, "message": "Дата обязательна"}), 400
+    
+    # Парсим дату
+    try:
+        if 'T' in scheduled_date_raw:
+            scheduled_date = datetime.fromisoformat(scheduled_date_raw.replace('Z', '+00:00'))
+        else:
+            # Если передана только дата без времени, устанавливаем время 12:00
+            scheduled_date = datetime.strptime(scheduled_date_raw, '%Y-%m-%d')
+            scheduled_date = scheduled_date.replace(hour=12, minute=0, second=0)
+    except (ValueError, TypeError) as e:
+        current_app.logger.warning("Ошибка парсинга даты %s: %s", scheduled_date_raw, e)
+        return jsonify({"success": False, "message": "Некорректный формат даты"}), 400
+    
+    # Проверяем, что дата в будущем
+    now = vladivostok_now()
+    if scheduled_date < now:
+        return jsonify({"success": False, "message": "Дата должна быть в будущем"}), 400
+    
+    # Проверяем уникальность (фильм + дата)
+    # Нормализуем дату до дня для проверки уникальности
+    date_only = scheduled_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    next_day = date_only + timedelta(days=1)
+    
+    existing = MovieSchedule.query.filter(
+        MovieSchedule.library_movie_id == movie_id,
+        MovieSchedule.scheduled_date >= date_only,
+        MovieSchedule.scheduled_date < next_day
+    ).first()
+    
+    if existing:
+        return jsonify({"success": False, "message": "Таймер на эту дату уже существует"}), 409
+    
+    schedule = MovieSchedule(
+        library_movie_id=movie_id,
+        scheduled_date=scheduled_date,
+        status='pending',
+        created_at=vladivostok_now()
+    )
+    
+    db.session.add(schedule)
+    db.session.commit()
+    
+    return jsonify({
+        "success": True,
+        "message": "Таймер добавлен",
+        "schedule": _serialize_schedule(schedule)
+    }), 201
+
+
+@api_bp.route('/library/<int:movie_id>/schedules', methods=['GET'])
+def get_movie_schedules(movie_id):
+    """Получение всех таймеров для конкретного фильма."""
+    library_movie = LibraryMovie.query.get_or_404(movie_id)
+    
+    schedules = MovieSchedule.query.filter_by(
+        library_movie_id=movie_id
+    ).order_by(MovieSchedule.scheduled_date.asc()).all()
+    
+    return jsonify({
+        "success": True,
+        "schedules": [_serialize_schedule(s) for s in schedules]
+    })
+
+
+@api_bp.route('/schedules/<int:schedule_id>', methods=['DELETE'])
+def delete_schedule(schedule_id):
+    """Удаление таймера."""
+    schedule = MovieSchedule.query.get_or_404(schedule_id)
+    
+    db.session.delete(schedule)
+    db.session.commit()
+    
+    return jsonify({
+        "success": True,
+        "message": "Таймер удалён"
+    })
+
+
+@api_bp.route('/schedules/<int:schedule_id>/confirm', methods=['PUT'])
+def confirm_schedule(schedule_id):
+    """Подтверждение просмотра (меняет статус на confirmed)."""
+    schedule = MovieSchedule.query.get_or_404(schedule_id)
+    
+    schedule.status = 'confirmed'
+    db.session.commit()
+    
+    return jsonify({
+        "success": True,
+        "message": "Просмотр подтверждён",
+        "schedule": _serialize_schedule(schedule)
+    })
+
+
+@api_bp.route('/schedules/<int:schedule_id>/postpone', methods=['PUT'])
+def postpone_schedule(schedule_id):
+    """Откладывание уведомления на указанное время."""
+    schedule = MovieSchedule.query.get_or_404(schedule_id)
+    
+    payload = _get_json_payload()
+    if payload is None:
+        return jsonify({"success": False, "message": "Некорректный JSON-запрос"}), 400
+    
+    minutes = payload.get('minutes', 60)
+    try:
+        minutes = int(minutes)
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "message": "minutes должен быть числом"}), 400
+    
+    if minutes <= 0:
+        return jsonify({"success": False, "message": "minutes должен быть положительным"}), 400
+    
+    # Максимум можно отложить на 7 дней
+    if minutes > 7 * 24 * 60:
+        return jsonify({"success": False, "message": "Максимум можно отложить на 7 дней"}), 400
+    
+    schedule.postponed_until = vladivostok_now() + timedelta(minutes=minutes)
+    db.session.commit()
+    
+    return jsonify({
+        "success": True,
+        "message": f"Уведомление отложено на {minutes} минут",
+        "schedule": _serialize_schedule(schedule)
     })

@@ -1,7 +1,7 @@
-import os
-from flask import Flask
 import atexit
 import os
+
+from flask import Flask
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -109,19 +109,26 @@ def create_app():
 
     register_cli(app)
     
-    # Запускаем планировщик для очистки истёкших опросов
+    # Запускаем планировщик для очистки истёкших опросов и таймеров
     # В продакшене (Gunicorn) или в режиме разработки, но не в reloader процессе
     if not scheduler.running:
         # В режиме разработки запускаем только в основном процессе (не в reloader)
         # В продакшене (без reloader) всегда запускаем
         if os.environ.get('WERKZEUG_RUN_MAIN') != 'false' and not os.environ.get('FLASK_DEBUG_RELOADER'):
             from .utils.helpers import cleanup_expired_polls
+            from .models import MovieSchedule
             
             def cleanup_job():
                 with app.app_context():
                     count = cleanup_expired_polls()
                     if count > 0:
-                        app.logger.info(f"Удалено истёкших опросов: {count}")
+                        app.logger.info("Удалено истёкших опросов: %d", count)
+            
+            def cleanup_schedules_job():
+                with app.app_context():
+                    count = MovieSchedule.cleanup_expired()
+                    if count > 0:
+                        app.logger.info("Удалено истёкших таймеров: %d", count)
             
             scheduler.add_job(
                 func=cleanup_job,
@@ -130,6 +137,15 @@ def create_app():
                 name='Cleanup expired polls',
                 replace_existing=True
             )
+            
+            scheduler.add_job(
+                func=cleanup_schedules_job,
+                trigger=IntervalTrigger(hours=1),  # Запускаем каждый час
+                id='cleanup_schedules',
+                name='Cleanup expired movie schedules',
+                replace_existing=True
+            )
+            
             scheduler.start()
             checkpoint("Scheduler started")
             

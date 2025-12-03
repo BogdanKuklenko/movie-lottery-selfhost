@@ -87,6 +87,190 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
+    // --- Система уведомлений о запланированных фильмах ---
+    const POSTPONE_OPTIONS = [
+        { label: '1 час', minutes: 60 },
+        { label: '3 часа', minutes: 180 },
+        { label: '1 день', minutes: 1440 },
+        { label: '3 дня', minutes: 4320 },
+        { label: '1 неделя', minutes: 10080 }
+    ];
+
+    async function checkScheduleNotifications() {
+        try {
+            const response = await fetch('/api/schedules/notifications');
+            const data = await response.json();
+            
+            if (data.success && data.notifications && data.notifications.length > 0) {
+                // Показываем уведомления по очереди
+                showScheduleNotification(data.notifications, 0);
+            }
+        } catch (error) {
+            console.error('Ошибка проверки уведомлений:', error);
+        }
+    }
+
+    function showScheduleNotification(notifications, index) {
+        if (index >= notifications.length) return;
+        
+        const notification = notifications[index];
+        const movie = notification.movie;
+        if (!movie) {
+            showScheduleNotification(notifications, index + 1);
+            return;
+        }
+        
+        const posterUrl = movie.poster_url || movie.poster || 'https://via.placeholder.com/150x225.png?text=?';
+        const movieTitle = movie.name + (movie.year ? ` (${movie.year})` : '');
+        const scheduledDate = new Date(notification.scheduled_date).toLocaleDateString('ru-RU', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+        
+        const postponeOptions = POSTPONE_OPTIONS.map(opt => 
+            `<option value="${opt.minutes}">${opt.label}</option>`
+        ).join('');
+        
+        const notificationHtml = `
+            <div class="schedule-notification">
+                <h2>🎬 Время смотреть!</h2>
+                <div class="notification-movie">
+                    <img src="${escapeHtml(posterUrl)}" alt="${escapeHtml(movie.name)}" class="notification-poster">
+                    <div class="notification-info">
+                        <h3>${escapeHtml(movieTitle)}</h3>
+                        <p class="notification-date">Запланировано на: ${scheduledDate}</p>
+                    </div>
+                </div>
+                <div class="notification-actions">
+                    <div class="postpone-group">
+                        <select id="postpone-select" class="postpone-select">
+                            ${postponeOptions}
+                        </select>
+                        <button type="button" class="secondary-button postpone-btn" data-schedule-id="${notification.id}">
+                            Отложить
+                        </button>
+                    </div>
+                    <button type="button" class="cta-button confirm-btn" data-schedule-id="${notification.id}">
+                        ✅ Просмотрено
+                    </button>
+                    <button type="button" class="danger-button-small dismiss-btn" data-schedule-id="${notification.id}">
+                        Удалить
+                    </button>
+                </div>
+                ${notifications.length > 1 ? `<p class="notification-counter">Уведомление ${index + 1} из ${notifications.length}</p>` : ''}
+            </div>
+        `;
+        
+        modal.open();
+        modal.renderCustomContent(notificationHtml);
+        
+        const modalBody = modal.body;
+        
+        // Обработчик "Отложить"
+        const postponeBtn = modalBody.querySelector('.postpone-btn');
+        const postponeSelect = modalBody.querySelector('#postpone-select');
+        if (postponeBtn && postponeSelect) {
+            postponeBtn.addEventListener('click', async () => {
+                const minutes = parseInt(postponeSelect.value, 10);
+                const scheduleId = postponeBtn.dataset.scheduleId;
+                
+                postponeBtn.disabled = true;
+                postponeBtn.textContent = 'Откладываем...';
+                
+                try {
+                    const resp = await fetch(`/api/schedules/${scheduleId}/postpone`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ minutes })
+                    });
+                    const result = await resp.json();
+                    
+                    if (resp.ok) {
+                        showToast(result.message || 'Уведомление отложено', 'success');
+                        modal.close();
+                        // Показываем следующее уведомление
+                        setTimeout(() => showScheduleNotification(notifications, index + 1), 300);
+                    } else {
+                        showToast(result.message || 'Ошибка', 'error');
+                        postponeBtn.disabled = false;
+                        postponeBtn.textContent = 'Отложить';
+                    }
+                } catch (error) {
+                    showToast('Ошибка при откладывании', 'error');
+                    postponeBtn.disabled = false;
+                    postponeBtn.textContent = 'Отложить';
+                }
+            });
+        }
+        
+        // Обработчик "Просмотрено"
+        const confirmBtn = modalBody.querySelector('.confirm-btn');
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', async () => {
+                const scheduleId = confirmBtn.dataset.scheduleId;
+                
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Подтверждаем...';
+                
+                try {
+                    const resp = await fetch(`/api/schedules/${scheduleId}/confirm`, {
+                        method: 'PUT'
+                    });
+                    const result = await resp.json();
+                    
+                    if (resp.ok) {
+                        showToast('Просмотр подтверждён! 🎉', 'success');
+                        modal.close();
+                        // Показываем следующее уведомление
+                        setTimeout(() => showScheduleNotification(notifications, index + 1), 300);
+                    } else {
+                        showToast(result.message || 'Ошибка', 'error');
+                        confirmBtn.disabled = false;
+                        confirmBtn.textContent = '✅ Просмотрено';
+                    }
+                } catch (error) {
+                    showToast('Ошибка при подтверждении', 'error');
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = '✅ Просмотрено';
+                }
+            });
+        }
+        
+        // Обработчик "Удалить"
+        const dismissBtn = modalBody.querySelector('.dismiss-btn');
+        if (dismissBtn) {
+            dismissBtn.addEventListener('click', async () => {
+                const scheduleId = dismissBtn.dataset.scheduleId;
+                
+                dismissBtn.disabled = true;
+                
+                try {
+                    const resp = await fetch(`/api/schedules/${scheduleId}`, {
+                        method: 'DELETE'
+                    });
+                    const result = await resp.json();
+                    
+                    if (resp.ok) {
+                        showToast('Таймер удалён', 'info');
+                        modal.close();
+                        // Показываем следующее уведомление
+                        setTimeout(() => showScheduleNotification(notifications, index + 1), 300);
+                    } else {
+                        showToast(result.message || 'Ошибка', 'error');
+                        dismissBtn.disabled = false;
+                    }
+                } catch (error) {
+                    showToast('Ошибка при удалении', 'error');
+                    dismissBtn.disabled = false;
+                }
+            });
+        }
+    }
+
+    // Проверяем уведомления при загрузке страницы
+    checkScheduleNotifications();
+
     // --- Функционал выбора фильмов и создания опросов ---
     const toggleSelectModeBtn = document.getElementById('toggle-select-mode-btn');
     const selectionPanel = document.getElementById('selection-panel');
@@ -277,23 +461,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         modalBody.querySelectorAll('.copy-btn').forEach((button) => {
-            button.addEventListener('click', () => {
+            button.addEventListener('click', async () => {
                 const targetId = button.getAttribute('data-copy-target');
                 const input = modalBody.querySelector(`#${targetId}`);
-                if (!input) return;
+                if (!input || !input.value) return;
 
-                input.select();
-                input.setSelectionRange(0, input.value.length);
-
-                const copied = document.execCommand('copy');
-                if (copied) {
+                try {
+                    // Современный способ копирования через Clipboard API
+                    await navigator.clipboard.writeText(input.value);
                     showToast('Ссылка скопирована!', 'success');
-                } else if (navigator.clipboard && input.value) {
-                    navigator.clipboard.writeText(input.value).then(() => {
+                } catch {
+                    // Fallback для старых браузеров
+                    input.select();
+                    input.setSelectionRange(0, input.value.length);
+                    try {
+                        document.execCommand('copy');
                         showToast('Ссылка скопирована!', 'success');
-                    }).catch(() => {
+                    } catch {
                         showToast('Не удалось скопировать ссылку', 'error');
-                    });
+                    }
                 }
             });
         });
@@ -1758,6 +1944,45 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 } catch (error) {
                     notify(error.message || 'Не удалось обновить цену за просмотр трейлера', 'error');
+                }
+            },
+            // Расписание/таймеры
+            onLoadSchedules: async (movieId) => {
+                // Загрузка выполняется в ModalManager
+                return true;
+            },
+            onAddSchedule: async (movieId, date) => {
+                try {
+                    const response = await fetch(`/api/library/${movieId}/schedule`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ scheduled_date: date })
+                    });
+                    const result = await response.json();
+                    if (!response.ok) {
+                        throw new Error(result.message || 'Не удалось добавить таймер');
+                    }
+                    notify(result.message || 'Таймер добавлен', 'success');
+                    return result;
+                } catch (error) {
+                    notify(error.message || 'Не удалось добавить таймер', 'error');
+                    throw error;
+                }
+            },
+            onRemoveSchedule: async (scheduleId) => {
+                try {
+                    const response = await fetch(`/api/schedules/${scheduleId}`, {
+                        method: 'DELETE'
+                    });
+                    const result = await response.json();
+                    if (!response.ok) {
+                        throw new Error(result.message || 'Не удалось удалить таймер');
+                    }
+                    notify(result.message || 'Таймер удалён', 'success');
+                    return result;
+                } catch (error) {
+                    notify(error.message || 'Не удалось удалить таймер', 'error');
+                    throw error;
                 }
             }
         };

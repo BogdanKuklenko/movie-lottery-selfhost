@@ -207,6 +207,15 @@ def library():
             },
         ), 500
 
+@main_bp.route('/calendar')
+def calendar():
+    """Страница календаря с запланированными фильмами."""
+    return render_template(
+        'calendar.html',
+        background_photos=get_background_photos(),
+    )
+
+
 @main_bp.route('/l/<lottery_id>')
 def play_lottery(lottery_id):
     lottery = Lottery.query.get_or_404(lottery_id)

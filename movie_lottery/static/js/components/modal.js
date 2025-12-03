@@ -239,6 +239,20 @@ function createWinnerCardHTML(movieData, isLibrary) {
 
     const banSectionHTML = isLibrary ? renderBanInfo(movieData) : '';
 
+    // Секция расписания/таймеров (только для библиотеки)
+    const scheduleSectionHTML = isLibrary ? `
+        <div class="movie-schedule-section">
+            <h4>📅 Запланировать просмотр</h4>
+            <div class="schedule-form">
+                <input type="date" id="schedule-date-input" class="schedule-date-input" min="${new Date().toISOString().split('T')[0]}">
+                <button class="action-button add-schedule-btn" type="button">Добавить</button>
+            </div>
+            <div class="schedule-list" id="schedule-list" data-movie-id="${movieData.id}">
+                <p class="schedule-loading">Загрузка...</p>
+            </div>
+        </div>
+    ` : '';
+
     // Секция загрузки трейлера (только для библиотеки)
     const parsedTrailerViewCost = movieData.trailer_view_cost;
     // Если значение null, undefined, используем 1 по умолчанию
@@ -322,6 +336,7 @@ function createWinnerCardHTML(movieData, isLibrary) {
                     </div>` : '<p class="meta-info">Kinopoisk ID не указан, работа с magnet-ссылкой недоступна.</p>'}
 
                 ${trailerSectionHTML}
+                ${scheduleSectionHTML}
                 ${pointsSectionHTML}
                 ${banCostPerMonthSectionHTML}
                 ${banSectionHTML}
@@ -836,6 +851,45 @@ export class ModalManager {
             });
         }
 
+        // Секция расписания/таймеров
+        const scheduleList = this.body.querySelector('#schedule-list');
+        const addScheduleBtn = this.body.querySelector('.add-schedule-btn');
+        const scheduleDateInput = this.body.querySelector('#schedule-date-input');
+        
+        if (scheduleList && actions.onLoadSchedules) {
+            // Загружаем существующие таймеры
+            this.loadAndRenderSchedules(movieData.id, scheduleList, actions);
+        }
+        
+        if (addScheduleBtn && scheduleDateInput && actions.onAddSchedule) {
+            addScheduleBtn.addEventListener('click', async () => {
+                const dateValue = scheduleDateInput.value;
+                if (!dateValue) {
+                    if (window.showToast) {
+                        window.showToast('Выберите дату', 'error');
+                    }
+                    return;
+                }
+                
+                addScheduleBtn.disabled = true;
+                addScheduleBtn.textContent = 'Добавление...';
+                
+                try {
+                    await actions.onAddSchedule(movieData.id, dateValue);
+                    scheduleDateInput.value = '';
+                    // Перезагружаем список таймеров
+                    if (scheduleList) {
+                        this.loadAndRenderSchedules(movieData.id, scheduleList, actions);
+                    }
+                } catch (error) {
+                    // Ошибка обработана в callback
+                } finally {
+                    addScheduleBtn.disabled = false;
+                    addScheduleBtn.textContent = 'Добавить';
+                }
+            });
+        }
+
         // Кнопка "Добавить/Удалить из библиотеки"
         const addLibraryBtn = this.body.querySelector('.add-library-modal-btn');
         if (addLibraryBtn) {
@@ -858,6 +912,69 @@ export class ModalManager {
             initSlider(slider, () => {
                 actions.onDeleteTorrent(slider.dataset.torrentHash);
             });
+        }
+    }
+
+    /**
+     * Загружает и рендерит список таймеров для фильма
+     * @param {number} movieId - ID фильма
+     * @param {HTMLElement} container - Контейнер для списка
+     * @param {object} actions - Объект с функциями-обработчиками
+     */
+    async loadAndRenderSchedules(movieId, container, actions) {
+        try {
+            const response = await fetch(`/api/library/${movieId}/schedules`);
+            const data = await response.json();
+            
+            if (!data.success || !data.schedules || data.schedules.length === 0) {
+                container.innerHTML = '<p class="schedule-empty">Нет запланированных просмотров</p>';
+                return;
+            }
+            
+            const schedulesHtml = data.schedules.map(schedule => {
+                const date = new Date(schedule.scheduled_date);
+                const dateStr = date.toLocaleDateString('ru-RU', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric'
+                });
+                const statusClass = schedule.status === 'confirmed' ? 'confirmed' : 'pending';
+                const statusText = schedule.status === 'confirmed' ? '✅ Просмотрено' : '⏰ Запланировано';
+                
+                return `
+                    <div class="schedule-item ${statusClass}" data-schedule-id="${schedule.id}">
+                        <div class="schedule-info">
+                            <span class="schedule-date">${dateStr}</span>
+                            <span class="schedule-status">${statusText}</span>
+                        </div>
+                        <button type="button" class="schedule-delete-btn" data-schedule-id="${schedule.id}" title="Удалить">✕</button>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = schedulesHtml;
+            
+            // Добавляем обработчики для кнопок удаления
+            container.querySelectorAll('.schedule-delete-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    const scheduleId = btn.dataset.scheduleId;
+                    
+                    if (actions.onRemoveSchedule) {
+                        btn.disabled = true;
+                        try {
+                            await actions.onRemoveSchedule(scheduleId);
+                            // Перезагружаем список
+                            this.loadAndRenderSchedules(movieId, container, actions);
+                        } catch (error) {
+                            btn.disabled = false;
+                        }
+                    }
+                });
+            });
+        } catch (error) {
+            console.error('Ошибка загрузки расписаний:', error);
+            container.innerHTML = '<p class="schedule-error">Ошибка загрузки</p>';
         }
     }
 }

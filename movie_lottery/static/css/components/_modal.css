@@ -433,3 +433,253 @@
     color: #e9ecef;
     font-weight: 600;
 }
+
+/* ==========================================================================
+   Schedule Section - Секция расписания/таймеров
+   ========================================================================== */
+
+.movie-schedule-section {
+    margin-top: 20px;
+    padding: 16px;
+    background: rgba(74, 111, 165, 0.1);
+    border-radius: 12px;
+    border: 1px solid rgba(74, 111, 165, 0.2);
+}
+
+.movie-schedule-section h4 {
+    margin: 0 0 12px 0;
+    font-size: 15px;
+    color: #e9ecef;
+    font-weight: 600;
+}
+
+.schedule-form {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.schedule-date-input {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    background: rgba(30, 30, 40, 0.8);
+    color: #fff;
+    font-size: 14px;
+}
+
+.schedule-date-input:focus {
+    outline: none;
+    border-color: #4facfe;
+    box-shadow: 0 0 0 2px rgba(79, 172, 254, 0.2);
+}
+
+.schedule-list {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.schedule-loading,
+.schedule-empty,
+.schedule-error {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.5);
+    text-align: center;
+    padding: 12px;
+    margin: 0;
+}
+
+.schedule-error {
+    color: #fc8181;
+}
+
+.schedule-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border-left: 3px solid #f6ad55;
+}
+
+.schedule-item.confirmed {
+    border-left-color: #68d391;
+    opacity: 0.8;
+}
+
+.schedule-item:last-child {
+    margin-bottom: 0;
+}
+
+.schedule-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.schedule-date {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.schedule-status {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.schedule-item.pending .schedule-status {
+    color: #f6ad55;
+}
+
+.schedule-item.confirmed .schedule-status {
+    color: #68d391;
+}
+
+.schedule-delete-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    border-radius: 4px;
+}
+
+.schedule-delete-btn:hover {
+    background: rgba(255, 0, 0, 0.2);
+    color: #fc8181;
+}
+
+.schedule-delete-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ==========================================================================
+   Schedule Notification - Уведомление о запланированном фильме
+   ========================================================================== */
+
+.schedule-notification {
+    text-align: center;
+    padding: 20px;
+}
+
+.schedule-notification h2 {
+    font-size: 1.5rem;
+    color: #fff;
+    margin: 0 0 24px 0;
+}
+
+.notification-movie {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 16px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+    text-align: left;
+}
+
+.notification-poster {
+    width: 100px;
+    height: 150px;
+    object-fit: cover;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.notification-info {
+    flex: 1;
+}
+
+.notification-info h3 {
+    font-size: 1.2rem;
+    color: #fff;
+    margin: 0 0 8px 0;
+}
+
+.notification-date {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.6);
+    margin: 0;
+}
+
+.notification-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.postpone-group {
+    display: flex;
+    gap: 10px;
+}
+
+.postpone-select {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    background: rgba(30, 30, 40, 0.8);
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.postpone-select:focus {
+    outline: none;
+    border-color: #4facfe;
+}
+
+.postpone-group .postpone-btn {
+    flex-shrink: 0;
+}
+
+.notification-actions .confirm-btn {
+    padding: 14px 24px;
+    font-size: 1rem;
+}
+
+.notification-actions .danger-button-small {
+    padding: 10px 16px;
+    font-size: 0.85rem;
+    background: transparent;
+    border: 1px solid rgba(252, 129, 129, 0.5);
+    color: #fc8181;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.notification-actions .danger-button-small:hover {
+    background: rgba(252, 129, 129, 0.1);
+    border-color: #fc8181;
+}
+
+.notification-counter {
+    margin-top: 16px;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+@media (max-width: 480px) {
+    .notification-movie {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .notification-poster {
+        width: 80px;
+        height: 120px;
+    }
+    
+    .postpone-group {
+        flex-direction: column;
+    }
+}

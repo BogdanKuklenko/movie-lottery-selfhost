@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кино-лотерея: Календарь</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body class="gallery-body">
+
+    <div class="background-rotator"></div>
+
+    <header class="gallery-header">
+        <h1>📅 Календарь просмотров</h1>
+        <div class="gallery-actions">
+            <a href="{{ url_for('main.library') }}" class="nav-button">&larr; Библиотека</a>
+            <a href="{{ url_for('main.index') }}" class="nav-button">Создать лотерею</a>
+        </div>
+    </header>
+
+    <div class="calendar-container">
+        <div class="calendar-header">
+            <button type="button" class="calendar-nav-btn" id="prev-month">&larr;</button>
+            <h2 class="calendar-title" id="calendar-title">Загрузка...</h2>
+            <button type="button" class="calendar-nav-btn" id="next-month">&rarr;</button>
+        </div>
+        
+        <div class="calendar-weekdays">
+            <div class="calendar-weekday">Пн</div>
+            <div class="calendar-weekday">Вт</div>
+            <div class="calendar-weekday">Ср</div>
+            <div class="calendar-weekday">Чт</div>
+            <div class="calendar-weekday">Пт</div>
+            <div class="calendar-weekday">Сб</div>
+            <div class="calendar-weekday">Вс</div>
+        </div>
+        
+        <div class="calendar-grid" id="calendar-grid">
+            <!-- Ячейки календаря будут генерироваться JS -->
+        </div>
+        
+        <div class="calendar-legend">
+            <div class="legend-item">
+                <span class="legend-dot legend-pending"></span>
+                <span>Запланировано</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-dot legend-confirmed"></span>
+                <span>Просмотрено</span>
+            </div>
+        </div>
+    </div>
+
+    <p class="no-history calendar-empty-message" id="calendar-empty" style="display: none;">
+        В календаре пока нет запланированных фильмов.
+    </p>
+
+    <script>
+        window.appConfig = window.appConfig || {};
+        window.appConfig.pollApiBaseUrl = {{ poll_api_base_url|tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/pages/calendar.js') }}"></script>
+
+    <script>
+        var backgroundPhotos = {{ background_photos|tojson|safe }};
+    </script>
+    <script type="module" src="{{ url_for('static', filename='js/background.js') }}"></script>
+</body>
+</html>
+

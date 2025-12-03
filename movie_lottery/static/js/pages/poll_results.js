@@ -34,23 +34,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateResultsLink(currentPageUrl);
 
     document.querySelectorAll('.copy-btn').forEach((button) => {
-        button.addEventListener('click', () => {
+        button.addEventListener('click', async () => {
             const targetId = button.getAttribute('data-copy-target');
             const input = document.getElementById(targetId);
-            if (!input) return;
+            if (!input || !input.value) return;
 
-            input.select();
-            input.setSelectionRange(0, input.value.length);
-
-            const copied = document.execCommand('copy');
-            if (copied) {
+            try {
+                // Современный способ копирования через Clipboard API
+                await navigator.clipboard.writeText(input.value);
                 showToast('Ссылка скопирована!', 'success');
-            } else if (navigator.clipboard && input.value) {
-                navigator.clipboard.writeText(input.value).then(() => {
+            } catch {
+                // Fallback для старых браузеров
+                input.select();
+                input.setSelectionRange(0, input.value.length);
+                try {
+                    document.execCommand('copy');
                     showToast('Ссылка скопирована!', 'success');
-                }).catch(() => {
+                } catch {
                     showToast('Не удалось скопировать ссылку', 'error');
-                });
+                }
             }
         });
     });

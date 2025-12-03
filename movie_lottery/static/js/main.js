@@ -282,16 +282,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 input.select();
                 input.setSelectionRange(0, input.value.length);
 
-                const copied = document.execCommand('copy');
-                if (copied) {
+                navigator.clipboard.writeText(input.value).then(() => {
                     showToast('Ссылка скопирована!', 'success');
-                } else if (navigator.clipboard && input.value) {
-                    navigator.clipboard.writeText(input.value).then(() => {
-                        showToast('Ссылка скопирована!', 'success');
-                    }).catch(() => {
-                        showToast('Не удалось скопировать ссылку', 'error');
-                    });
-                }
+                }).catch(() => {
+                    showToast('Не удалось скопировать ссылку', 'error');
+                });
             });
         });
     }
