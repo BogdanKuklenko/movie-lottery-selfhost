@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff5500"/>
+      <stop offset="100%" style="stop-color:#ff9500"/>
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="60" fill="url(#grad)"/>
+  <!-- Film reel icon -->
+  <g fill="#ffffff">
+    <!-- Main film body -->
+    <rect x="28" y="36" width="72" height="56" rx="6" fill="none" stroke="#ffffff" stroke-width="5"/>
+    <!-- Film perforations left -->
+    <rect x="32" y="44" width="8" height="6" rx="1"/>
+    <rect x="32" y="56" width="8" height="6" rx="1"/>
+    <rect x="32" y="68" width="8" height="6" rx="1"/>
+    <rect x="32" y="80" width="8" height="6" rx="1"/>
+    <!-- Film perforations right -->
+    <rect x="88" y="44" width="8" height="6" rx="1"/>
+    <rect x="88" y="56" width="8" height="6" rx="1"/>
+    <rect x="88" y="68" width="8" height="6" rx="1"/>
+    <rect x="88" y="80" width="8" height="6" rx="1"/>
+    <!-- Plus sign in center -->
+    <rect x="56" y="50" width="16" height="28" rx="2"/>
+    <rect x="44" y="58" width="40" height="12" rx="2"/>
+  </g>
+</svg>
+

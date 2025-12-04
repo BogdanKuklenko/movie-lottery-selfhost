@@ -98,22 +98,21 @@
             <div id="admin-messages" class="admin-messages" role="status"></div>
             <p class="admin-hint table-hint">Редактируйте метки устройств, баланс баллов и «Всего начислено» (сумму всех начислений за весь срок токена) прямо в таблице: нажмите «Редактировать», внесите изменения и сохраните их без перезагрузки страницы.</p>
             <div class="table-wrapper">
-                <table class="admin-table" id="stats-table">
+                <table class="admin-table admin-table-compact" id="stats-table">
                     <thead>
                         <tr>
                             <th data-sort="token">Токен</th>
                             <th data-sort="user_id">User ID</th>
                             <th data-sort="device_label">Устройство</th>
-                            <th data-sort="total_points">Баллы (баланс)</th>
-                            <th data-sort="points_accrued_total">Баллы (всего начислено)</th>
+                            <th data-sort="total_points">Баланс</th>
+                            <th data-sort="points_accrued_total">Начислено</th>
                             <th data-sort="updated_at">Обновлён</th>
-                            <th>Голоса (фильтр)</th>
-                            <th>Детали</th>
+                            <th>История</th>
                         </tr>
                     </thead>
                     <tbody id="stats-table-body">
                         <tr>
-                            <td colspan="8">Данные загружаются…</td>
+                            <td colspan="7">Данные загружаются…</td>
                         </tr>
                     </tbody>
                 </table>
@@ -138,6 +137,26 @@
             <div class="modal-actions">
                 <button type="button" id="delete-confirm" class="cta-button">Удалить</button>
                 <button type="button" id="delete-cancel" class="cta-button secondary">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- User transactions history modal -->
+    <div id="user-transactions-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-hidden="true" style="display:none;">
+        <div class="modal-content user-transactions-modal-content">
+            <span class="close-button" id="user-transactions-close">&times;</span>
+            <div id="user-transactions-body">
+                <div class="loader"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Movie details modal (reused from library) -->
+    <div id="movie-details-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-hidden="true" style="display:none;">
+        <div class="modal-content">
+            <span class="close-button" id="movie-details-close">&times;</span>
+            <div id="movie-details-body">
+                <div class="loader"></div>
             </div>
         </div>
     </div>

@@ -27,6 +27,7 @@ from ..models import (
     PollSettings,
     PollMovie,
     PollVoterProfile,
+    PointsTransaction,
     Vote,
 )
 
@@ -1112,4 +1113,257 @@ def ensure_voter_streak_columns():
             print(f"{message} Ошибка: {exc}")
         return False
 
+
+# --- Points Transaction Logging ---
+
+def ensure_points_transaction_table():
+    """Создаёт таблицу points_transaction, если её ещё нет."""
+    engine = db.engine
+
+    try:
+        inspector = inspect(engine)
+    except Exception:
+        return False
+
+    if 'points_transaction' in inspector.get_table_names():
+        return False
+
+    dialect = engine.dialect.name
+
+    try:
+        with engine.begin() as connection:
+            if dialect == 'postgresql':
+                connection.execute(text("""
+                    CREATE TABLE IF NOT EXISTS points_transaction (
+                        id SERIAL PRIMARY KEY,
+                        voter_token VARCHAR(64) NOT NULL,
+                        transaction_type VARCHAR(30) NOT NULL,
+                        amount INTEGER NOT NULL,
+                        balance_before INTEGER NOT NULL,
+                        balance_after INTEGER NOT NULL,
+                        description VARCHAR(255),
+                        movie_name VARCHAR(200),
+                        poll_id VARCHAR(8),
+                        created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+                    )
+                """))
+            else:
+                connection.execute(text("""
+                    CREATE TABLE IF NOT EXISTS points_transaction (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        voter_token VARCHAR(64) NOT NULL,
+                        transaction_type VARCHAR(30) NOT NULL,
+                        amount INTEGER NOT NULL,
+                        balance_before INTEGER NOT NULL,
+                        balance_after INTEGER NOT NULL,
+                        description VARCHAR(255),
+                        movie_name VARCHAR(200),
+                        poll_id VARCHAR(8),
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                """))
+
+            # Создаём индексы
+            if dialect == 'postgresql':
+                connection.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_points_transaction_voter_token "
+                    "ON points_transaction (voter_token)"
+                ))
+                connection.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_points_transaction_created_at "
+                    "ON points_transaction (created_at)"
+                ))
+            else:
+                connection.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_points_transaction_voter_token "
+                    "ON points_transaction (voter_token)"
+                ))
+                connection.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_points_transaction_created_at "
+                    "ON points_transaction (created_at)"
+                ))
+
+        logger = getattr(current_app, 'logger', None)
+        message = 'Автоматически создана таблица points_transaction.'
+        if logger:
+            logger.info(message)
+        else:
+            print(message)
+        return True
+    except Exception as exc:
+        logger = getattr(current_app, 'logger', None)
+        message = 'Не удалось автоматически создать таблицу points_transaction.'
+        if logger:
+            logger.warning('%s Ошибка: %s', message, exc)
+        else:
+            print(f"{message} Ошибка: {exc}")
+        return False
+
+
+def log_points_transaction(
+    voter_token,
+    transaction_type,
+    amount,
+    balance_before,
+    balance_after,
+    description=None,
+    movie_name=None,
+    poll_id=None,
+    commit=False,
+):
+    """
+    Записывает транзакцию баллов в БД и выводит удобочитаемый лог.
+
+    Args:
+        voter_token: Токен пользователя
+        transaction_type: Тип операции (vote, custom_vote, trailer, ban, admin)
+        amount: Сумма изменения (положительная = начисление, отрицательная = списание)
+        balance_before: Баланс до операции
+        balance_after: Баланс после операции
+        description: Описание операции
+        movie_name: Название фильма (если применимо)
+        poll_id: ID опроса (если применимо)
+        commit: Делать ли commit после записи
+
+    Returns:
+        PointsTransaction или None при ошибке
+    """
+    # Сначала убедимся, что таблица существует
+    ensure_points_transaction_table()
+
+    logger = getattr(current_app, 'logger', None)
+
+    # Форматируем сумму с +/-
+    formatted_amount = f"+{amount}" if amount > 0 else str(amount)
+
+    # Формируем консольный лог
+    type_labels = {
+        'vote': 'VOTE',
+        'custom_vote': 'CUSTOM',
+        'trailer': 'TRAILER',
+        'ban': 'BAN',
+        'admin': 'ADMIN',
+    }
+    type_label = type_labels.get(transaction_type, transaction_type.upper())
+
+    # Получаем user_id если есть
+    user_id = None
+    try:
+        profile = PollVoterProfile.query.get(voter_token)
+        if profile:
+            user_id = profile.user_id or profile.device_label or voter_token[:8]
+    except Exception:
+        user_id = voter_token[:8]
+
+    # Формируем читаемый лог
+    movie_part = f" | {movie_name}" if movie_name else ""
+    poll_part = f" | poll:{poll_id}" if poll_id else ""
+    log_message = (
+        f"[POINTS] {type_label:8} | {user_id or voter_token[:8]:15} | "
+        f"{formatted_amount:>6} | balance: {balance_before} → {balance_after}"
+        f"{movie_part}{poll_part}"
+    )
+
+    if logger:
+        logger.info(log_message)
+    else:
+        print(log_message)
+
+    # Записываем в БД
+    try:
+        transaction = PointsTransaction(
+            voter_token=voter_token,
+            transaction_type=transaction_type,
+            amount=amount,
+            balance_before=balance_before,
+            balance_after=balance_after,
+            description=description,
+            movie_name=movie_name,
+            poll_id=poll_id,
+        )
+        db.session.add(transaction)
+
+        if commit:
+            db.session.commit()
+        else:
+            db.session.flush()
+
+        return transaction
+    except (ProgrammingError, OperationalError) as exc:
+        db.session.rollback()
+        if logger:
+            logger.warning('Не удалось записать транзакцию баллов: %s', exc)
+        return None
+    except Exception as exc:
+        db.session.rollback()
+        if logger:
+            logger.warning('Ошибка записи транзакции: %s', exc)
+        return None
+
+
+def get_voter_transactions(voter_token, limit=50, offset=0, transaction_type=None):
+    """
+    Получает историю транзакций пользователя.
+
+    Args:
+        voter_token: Токен пользователя
+        limit: Максимум записей
+        offset: Смещение для пагинации
+        transaction_type: Фильтр по типу транзакции (опционально)
+
+    Returns:
+        list[PointsTransaction]
+    """
+    ensure_points_transaction_table()
+
+    try:
+        query = PointsTransaction.query.filter_by(voter_token=voter_token)
+
+        if transaction_type:
+            query = query.filter_by(transaction_type=transaction_type)
+
+        return query.order_by(PointsTransaction.created_at.desc())\
+            .offset(offset).limit(limit).all()
+    except (ProgrammingError, OperationalError):
+        db.session.rollback()
+        return []
+
+
+def get_voter_transactions_summary(voter_token):
+    """
+    Получает сводку по транзакциям пользователя.
+
+    Returns:
+        dict с total_earned, total_spent, transaction_count
+    """
+    ensure_points_transaction_table()
+
+    try:
+        transactions = PointsTransaction.query.filter_by(voter_token=voter_token).all()
+
+        total_earned = sum(t.amount for t in transactions if t.amount > 0)
+        total_spent = abs(sum(t.amount for t in transactions if t.amount < 0))
+
+        # Группировка по типам
+        by_type = {}
+        for t in transactions:
+            if t.transaction_type not in by_type:
+                by_type[t.transaction_type] = {'count': 0, 'total': 0}
+            by_type[t.transaction_type]['count'] += 1
+            by_type[t.transaction_type]['total'] += t.amount
+
+        return {
+            'total_earned': total_earned,
+            'total_spent': total_spent,
+            'transaction_count': len(transactions),
+            'by_type': by_type,
+        }
+    except (ProgrammingError, OperationalError):
+        db.session.rollback()
+        return {
+            'total_earned': 0,
+            'total_spent': 0,
+            'transaction_count': 0,
+            'by_type': {},
+        }
 

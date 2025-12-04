@@ -16,6 +16,19 @@ const state = {
 
 const elements = {};
 
+// Modal state
+const modalState = {
+    userTransactionsModal: null,
+    movieDetailsModal: null,
+    currentVoterToken: null,
+    // Для фильтрации транзакций
+    allTransactions: [],
+    summary: {},
+    deviceLabel: '',
+    userId: '',
+    dateFilter: null,
+};
+
 function initElements() {
     elements.tableBody = document.getElementById('stats-table-body');
     elements.paginationInfo = document.getElementById('pagination-info');
@@ -37,6 +50,14 @@ function initElements() {
     elements.customVoteCost = document.getElementById('custom-vote-cost');
     elements.pollSettingsStatus = document.getElementById('poll-settings-status');
     elements.pollSettingsUpdated = document.getElementById('poll-settings-updated');
+    
+    // Modal elements
+    elements.userTransactionsModal = document.getElementById('user-transactions-modal');
+    elements.userTransactionsBody = document.getElementById('user-transactions-body');
+    elements.userTransactionsClose = document.getElementById('user-transactions-close');
+    elements.movieDetailsModal = document.getElementById('movie-details-modal');
+    elements.movieDetailsBody = document.getElementById('movie-details-body');
+    elements.movieDetailsClose = document.getElementById('movie-details-close');
 }
 
 function setMessage(text, type = '') {
@@ -49,7 +70,7 @@ function setLoadingState() {
     if (!elements.tableBody) return;
     elements.tableBody.innerHTML = `
         <tr>
-            <td colspan="8">Загружаем данные…</td>
+            <td colspan="7">Загружаем данные…</td>
         </tr>
     `;
 }
@@ -113,6 +134,409 @@ function buildVotesMarkup(votes = []) {
             </table>
         </details>
     `;
+}
+
+function buildTransactionsMarkup(voterToken, votes = []) {
+    // Показываем кнопку открытия модального окна
+    const voteCount = votes.length;
+    const hasVotes = voteCount > 0;
+    
+    return `
+        <div class="transactions-container" data-voter-token="${escapeHtml(voterToken)}">
+            <button type="button" class="open-transactions-modal-btn cta-button secondary" data-voter-token="${escapeHtml(voterToken)}">
+                📋 История
+            </button>
+            ${hasVotes ? `<p class="admin-hint">Голосов: ${voteCount}</p>` : ''}
+        </div>
+    `;
+}
+
+/**
+ * Форматирует дату в читаемый вид для заголовка группы (например, "4 декабря 2025")
+ */
+function formatDateHeader(dateStr) {
+    if (!dateStr) return '—';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '—';
+    
+    const options = { day: 'numeric', month: 'long', year: 'numeric' };
+    return date.toLocaleDateString('ru-RU', options);
+}
+
+/**
+ * Форматирует время из ISO строки (например, "10:30")
+ */
+function formatTime(isoString) {
+    if (!isoString) return '—';
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return '—';
+    return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+
+/**
+ * Группирует транзакции по датам
+ */
+function groupTransactionsByDate(transactions) {
+    const groups = {};
+    
+    for (const t of transactions) {
+        if (!t.created_at) continue;
+        
+        // Извлекаем только дату (без времени)
+        const dateKey = t.created_at.split('T')[0];
+        
+        if (!groups[dateKey]) {
+            groups[dateKey] = {
+                date: dateKey,
+                transactions: [],
+                totalEarned: 0,
+                totalSpent: 0
+            };
+        }
+        
+        groups[dateKey].transactions.push(t);
+        
+        // Подсчитываем итоги за день
+        if (t.is_credit) {
+            groups[dateKey].totalEarned += Math.abs(t.amount || 0);
+        } else {
+            groups[dateKey].totalSpent += Math.abs(t.amount || 0);
+        }
+    }
+    
+    // Сортируем по дате (новые сверху)
+    return Object.values(groups).sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/**
+ * Создаёт HTML для одной транзакции в модальном окне
+ */
+function renderTransactionBlock(t) {
+    const icon = t.type_emoji || (t.is_credit ? '📥' : '📤');
+    const typeLabel = t.type_label || t.transaction_type || 'Операция';
+    const time = formatTime(t.created_at);
+    
+    // Формируем строку изменения баланса
+    const balanceBefore = t.balance_before ?? 0;
+    const balanceAfter = t.balance_after ?? 0;
+    const amount = t.amount ?? 0;
+    const amountSign = amount >= 0 ? '+' : '';
+    const changeType = amount >= 0 ? 'Получено' : 'Потрачено';
+    const amountClass = amount >= 0 ? 'amount-positive' : 'amount-negative';
+    
+    // Кликабельное название фильма (если есть)
+    const movieNameHtml = t.movie_name 
+        ? `<span class="tx-movie-link" data-movie-name="${escapeHtml(t.movie_name)}">📽️ «${escapeHtml(t.movie_name)}»</span>`
+        : '';
+    
+    const pollHtml = t.poll_id 
+        ? `<span class="tx-poll-id">Poll: <code>${escapeHtml(t.poll_id)}</code></span>` 
+        : '';
+    
+    return `
+        <div class="tx-block ${amountClass}">
+            <div class="tx-header">
+                <span class="tx-time">${time}</span>
+                <span class="tx-type">${icon} ${escapeHtml(typeLabel)}</span>
+            </div>
+            <div class="tx-balance-change">
+                <span class="tx-balance-before">Было: <strong>${balanceBefore}</strong></span>
+                <span class="tx-arrow">→</span>
+                <span class="tx-change ${amountClass}">${changeType}: <strong>${amountSign}${amount}</strong></span>
+                <span class="tx-arrow">→</span>
+                <span class="tx-balance-after">Стало: <strong>${balanceAfter}</strong></span>
+            </div>
+            ${movieNameHtml || pollHtml ? `
+            <div class="tx-details">
+                ${movieNameHtml}
+                ${pollHtml}
+            </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+/**
+ * Создаёт HTML для группы транзакций за один день
+ */
+function renderDateGroup(group) {
+    const dateHeader = formatDateHeader(group.date);
+    const transactionsHtml = group.transactions.map(renderTransactionBlock).join('');
+    
+    // Итоги за день
+    const dayStatsHtml = `
+        <div class="day-stats">
+            <span class="day-stat day-earned">+${group.totalEarned} pts</span>
+            <span class="day-stat day-spent">-${group.totalSpent} pts</span>
+        </div>
+    `;
+    
+    return `
+        <div class="tx-date-group">
+            <div class="tx-date-header">
+                <span class="tx-date-title">${dateHeader}</span>
+                ${dayStatsHtml}
+            </div>
+            <div class="tx-date-content">
+                ${transactionsHtml}
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Создаёт HTML для общей статистики пользователя
+ */
+function renderSummaryBlock(summary, voterToken, deviceLabel, userId, activeFilter = null) {
+    const totalEarned = summary.total_earned || 0;
+    const totalSpent = summary.total_spent || 0;
+    const currentBalance = summary.current_balance || 0;
+    const transactionCount = summary.transaction_count || 0;
+    
+    // Сокращаем токен для отображения
+    const shortToken = voterToken ? `${voterToken.slice(0, 8)}...` : '—';
+    
+    // Формируем текст фильтра
+    const filterBtnClass = activeFilter ? 'tx-filter-btn active' : 'tx-filter-btn';
+    const filterTitle = activeFilter ? `Фильтр: ${formatDateHeader(activeFilter)}` : 'Фильтр по дате';
+    
+    return `
+        <div class="tx-modal-header">
+            <div class="tx-user-info">
+                <span class="tx-user-token" title="${escapeHtml(voterToken)}">Пользователь: <code>${shortToken}</code></span>
+                ${deviceLabel ? `<span class="tx-user-device">Устройство: ${escapeHtml(deviceLabel)}</span>` : ''}
+                ${userId ? `<span class="tx-user-id">User ID: ${escapeHtml(userId)}</span>` : ''}
+            </div>
+        </div>
+        <div class="tx-summary-card">
+            <div class="tx-summary-title">СТАТИСТИКА</div>
+            <div class="tx-summary-grid">
+                <div class="tx-summary-item">
+                    <span class="tx-summary-label">Всего получено:</span>
+                    <span class="tx-summary-value amount-positive">+${totalEarned} pts</span>
+                </div>
+                <div class="tx-summary-item">
+                    <span class="tx-summary-label">Всего потрачено:</span>
+                    <span class="tx-summary-value amount-negative">-${totalSpent} pts</span>
+                </div>
+                <div class="tx-summary-item">
+                    <span class="tx-summary-label">Текущий баланс:</span>
+                    <span class="tx-summary-value tx-balance-current">${currentBalance} pts</span>
+                </div>
+                <div class="tx-summary-item">
+                    <span class="tx-summary-label">Всего операций:</span>
+                    <span class="tx-summary-value">${transactionCount}</span>
+                </div>
+            </div>
+            ${activeFilter ? `<button type="button" class="tx-filter-clear" title="Сбросить фильтр">✕</button>` : ''}
+            <button type="button" class="${filterBtnClass}" title="${filterTitle}">📅</button>
+            <input type="date" class="tx-date-filter-input">
+        </div>
+    `;
+}
+
+/**
+ * Открывает модальное окно с историей транзакций пользователя
+ */
+async function openUserTransactionsModal(voterToken) {
+    if (!elements.userTransactionsModal || !elements.userTransactionsBody) return;
+    
+    modalState.currentVoterToken = voterToken;
+    modalState.dateFilter = null; // Сбрасываем фильтр при открытии
+    
+    // Показываем модальное окно с загрузчиком
+    elements.userTransactionsModal.style.display = 'flex';
+    elements.userTransactionsModal.setAttribute('aria-hidden', 'false');
+    elements.userTransactionsBody.innerHTML = '<div class="loader"></div>';
+    document.body.style.overflow = 'hidden';
+    
+    try {
+        const response = await fetch(buildPollApiUrl(`/api/polls/voter-stats/${encodeURIComponent(voterToken)}/transactions?per_page=100`), {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Не удалось загрузить транзакции');
+        }
+        
+        const data = await response.json();
+        const transactions = data.transactions || [];
+        const summary = data.summary || {};
+        const deviceLabel = data.device_label || '';
+        const userId = data.user_id || '';
+        
+        // current_balance приходит в корне ответа, добавляем в summary для удобства
+        summary.current_balance = data.current_balance || 0;
+        
+        // Сохраняем данные для фильтрации
+        modalState.allTransactions = transactions;
+        modalState.summary = summary;
+        modalState.deviceLabel = deviceLabel;
+        modalState.userId = userId;
+        
+        renderTransactionsContent();
+        
+    } catch (error) {
+        console.error('Ошибка загрузки транзакций:', error);
+        elements.userTransactionsBody.innerHTML = `
+            <p class="tx-error">Ошибка: ${escapeHtml(error.message)}</p>
+        `;
+    }
+}
+
+/**
+ * Рендерит содержимое модального окна с учётом фильтра
+ */
+function renderTransactionsContent() {
+    const { allTransactions, summary, deviceLabel, userId, dateFilter, currentVoterToken } = modalState;
+    
+    // Фильтруем транзакции по дате если есть фильтр
+    let filteredTransactions = allTransactions;
+    if (dateFilter) {
+        filteredTransactions = allTransactions.filter(t => {
+            if (!t.created_at) return false;
+            return t.created_at.startsWith(dateFilter);
+        });
+    }
+    
+    // Пересчитываем статистику для отфильтрованных данных
+    const displaySummary = dateFilter ? {
+        total_earned: filteredTransactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0),
+        total_spent: Math.abs(filteredTransactions.filter(t => t.amount < 0).reduce((sum, t) => sum + t.amount, 0)),
+        current_balance: summary.current_balance,
+        transaction_count: filteredTransactions.length,
+    } : summary;
+    
+    if (!filteredTransactions.length) {
+        elements.userTransactionsBody.innerHTML = `
+            ${renderSummaryBlock(displaySummary, currentVoterToken, deviceLabel, userId, dateFilter)}
+            <p class="tx-empty">${dateFilter ? 'Нет операций за выбранную дату.' : 'Нет операций с баллами.'}</p>
+        `;
+    } else {
+        // Группируем транзакции по датам
+        const groups = groupTransactionsByDate(filteredTransactions);
+        const groupsHtml = groups.map(renderDateGroup).join('');
+        
+        elements.userTransactionsBody.innerHTML = `
+            ${renderSummaryBlock(displaySummary, currentVoterToken, deviceLabel, userId, dateFilter)}
+            <div class="tx-groups">
+                ${groupsHtml}
+            </div>
+        `;
+    }
+    
+    // Подключаем обработчики фильтра
+    attachFilterHandlers();
+}
+
+/**
+ * Подключает обработчики для кнопки фильтра
+ */
+function attachFilterHandlers() {
+    const filterBtn = elements.userTransactionsBody?.querySelector('.tx-filter-btn');
+    const dateInput = elements.userTransactionsBody?.querySelector('.tx-date-filter-input');
+    const clearBtn = elements.userTransactionsBody?.querySelector('.tx-filter-clear');
+    
+    if (filterBtn && dateInput) {
+        filterBtn.addEventListener('click', () => {
+            dateInput.showPicker?.() || dateInput.click();
+        });
+        
+        dateInput.addEventListener('change', (e) => {
+            const selectedDate = e.target.value;
+            if (selectedDate) {
+                modalState.dateFilter = selectedDate;
+                renderTransactionsContent();
+            }
+        });
+    }
+    
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            modalState.dateFilter = null;
+            renderTransactionsContent();
+        });
+    }
+}
+
+/**
+ * Закрывает модальное окно транзакций пользователя
+ */
+function closeUserTransactionsModal() {
+    if (!elements.userTransactionsModal) return;
+    
+    elements.userTransactionsModal.style.display = 'none';
+    elements.userTransactionsModal.setAttribute('aria-hidden', 'true');
+    modalState.currentVoterToken = null;
+    
+    // Восстанавливаем скролл если нет открытых модальных окон
+    if (!elements.movieDetailsModal || elements.movieDetailsModal.style.display !== 'flex') {
+        document.body.style.overflow = '';
+    }
+}
+
+/**
+ * Открывает модальное окно с деталями фильма из библиотеки
+ */
+async function openMovieDetailsModal(movieName) {
+    if (!elements.movieDetailsModal || !elements.movieDetailsBody) return;
+    
+    // Показываем модальное окно с загрузчиком
+    elements.movieDetailsModal.style.display = 'flex';
+    elements.movieDetailsModal.setAttribute('aria-hidden', 'false');
+    elements.movieDetailsBody.innerHTML = '<div class="loader"></div>';
+    
+    try {
+        const response = await fetch(buildPollApiUrl(`/api/library/search?name=${encodeURIComponent(movieName)}`), {
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || 'Фильм не найден в библиотеке');
+        }
+        
+        const movie = data.movie;
+        
+        // Рендерим карточку фильма (упрощённая версия)
+        const posterUrl = movie.poster || 'https://via.placeholder.com/200x300.png?text=No+Image';
+        const rating = movie.rating_kp ? parseFloat(movie.rating_kp).toFixed(1) : null;
+        const ratingClass = rating >= 7 ? 'rating-high' : rating >= 5 ? 'rating-medium' : 'rating-low';
+        
+        elements.movieDetailsBody.innerHTML = `
+            <div class="movie-card-modal">
+                <div class="movie-poster-wrap">
+                    <img src="${escapeHtml(posterUrl)}" alt="${escapeHtml(movie.name)}">
+                    ${rating ? `<div class="rating-badge rating-${ratingClass}">${rating}</div>` : ''}
+                </div>
+                <div class="movie-info">
+                    <h2>${escapeHtml(movie.name)}${movie.year ? ` (${movie.year})` : ''}</h2>
+                    <p class="movie-meta">${escapeHtml(movie.genres || 'н/д')} / ${escapeHtml(movie.countries || 'н/д')}</p>
+                    <p class="movie-description">${escapeHtml(movie.description || 'Описание отсутствует.')}</p>
+                    ${movie.ban_status && movie.ban_status !== 'none' ? `<div class="ban-info">⛔ Фильм забанен</div>` : ''}
+                    ${movie.has_local_trailer ? `<div class="trailer-info">🎬 Трейлер доступен</div>` : ''}
+                </div>
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('Ошибка загрузки фильма:', error);
+        elements.movieDetailsBody.innerHTML = `
+            <p class="tx-error">Фильм «${escapeHtml(movieName)}» не найден в библиотеке.</p>
+            <p class="admin-hint">Возможно, фильм был удалён или ещё не добавлен.</p>
+        `;
+    }
+}
+
+/**
+ * Закрывает модальное окно деталей фильма
+ */
+function closeMovieDetailsModal() {
+    if (!elements.movieDetailsModal) return;
+    
+    elements.movieDetailsModal.style.display = 'none';
+    elements.movieDetailsModal.setAttribute('aria-hidden', 'true');
 }
 
 function buildRow(item) {
@@ -201,11 +625,7 @@ function buildRow(item) {
                 <div class="admin-hint">Создан: ${formatDateTime(item.created_at, false)}</div>
             </td>
             <td>
-                ${votesBadge}
-                <div class="admin-hint">Последний голос: ${formatDateTime(lastVote)}</div>
-            </td>
-            <td>
-                ${buildVotesMarkup(votes)}
+                ${buildTransactionsMarkup(item.voter_token, votes)}
             </td>
         </tr>
     `;
@@ -216,7 +636,7 @@ function renderTable(items = []) {
     if (!items.length) {
         elements.tableBody.innerHTML = `
             <tr>
-                <td colspan="8">По текущим фильтрам ничего не найдено.</td>
+                <td colspan="7">По текущим фильтрам ничего не найдено.</td>
             </tr>
         `;
         return;
@@ -1084,6 +1504,29 @@ function handleAccruedPointsKeydown(event) {
     }
 }
 
+function handleTransactionsClick(event) {
+    // Открытие модального окна транзакций
+    const btn = event.target.closest('.open-transactions-modal-btn');
+    if (btn) {
+        const voterToken = btn.dataset.voterToken;
+        if (voterToken) {
+            openUserTransactionsModal(voterToken);
+        }
+        return;
+    }
+}
+
+function handleMovieLinkClick(event) {
+    // Клик на название фильма в модальном окне транзакций
+    const movieLink = event.target.closest('.tx-movie-link');
+    if (movieLink) {
+        const movieName = movieLink.dataset.movieName;
+        if (movieName) {
+            openMovieDetailsModal(movieName);
+        }
+    }
+}
+
 function attachEvents() {
     elements.filtersForm?.addEventListener('submit', handleFiltersSubmit);
     elements.resetFilters?.addEventListener('click', handleResetFilters);
@@ -1102,6 +1545,7 @@ function attachEvents() {
     elements.tableBody?.addEventListener('keydown', handlePointsKeydown);
     elements.tableBody?.addEventListener('click', handleAccruedPointsClick);
     elements.tableBody?.addEventListener('keydown', handleAccruedPointsKeydown);
+    elements.tableBody?.addEventListener('click', handleTransactionsClick);
     elements.perPageSelect?.addEventListener('change', (event) => {
         const value = parseInt(event.target.value, 10);
         if (!Number.isNaN(value)) {
@@ -1116,6 +1560,38 @@ function attachEvents() {
     const deleteCancel = document.getElementById('delete-cancel');
     deleteConfirm?.addEventListener('click', confirmDeleteToken);
     deleteCancel?.addEventListener('click', closeDeleteModal);
+    
+    // User transactions modal events
+    elements.userTransactionsClose?.addEventListener('click', closeUserTransactionsModal);
+    elements.userTransactionsModal?.addEventListener('click', (event) => {
+        // Закрытие по клику на overlay
+        if (event.target === elements.userTransactionsModal) {
+            closeUserTransactionsModal();
+        }
+        // Клик на название фильма
+        handleMovieLinkClick(event);
+    });
+    
+    // Movie details modal events
+    elements.movieDetailsClose?.addEventListener('click', closeMovieDetailsModal);
+    elements.movieDetailsModal?.addEventListener('click', (event) => {
+        // Закрытие по клику на overlay
+        if (event.target === elements.movieDetailsModal) {
+            closeMovieDetailsModal();
+        }
+    });
+    
+    // Закрытие модальных окон по Escape
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            // Закрываем в порядке: сначала модалку фильма, потом транзакций
+            if (elements.movieDetailsModal?.style.display === 'flex') {
+                closeMovieDetailsModal();
+            } else if (elements.userTransactionsModal?.style.display === 'flex') {
+                closeUserTransactionsModal();
+            }
+        }
+    });
 }
 
 function bootstrap() {

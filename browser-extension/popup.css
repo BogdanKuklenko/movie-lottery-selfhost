@@ -1,0 +1,243 @@
+/* Movie Lottery Extension - Popup Styles */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background: #0d0d1a;
+  color: #ffffff;
+  min-width: 340px;
+}
+
+/* ========================================
+   Container
+   ======================================== */
+
+.popup-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+/* ========================================
+   Header
+   ======================================== */
+
+.popup-header {
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16162a 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-icon {
+  width: 28px;
+  height: 28px;
+  color: #ff5500;
+}
+
+.logo-text {
+  font-size: 18px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #ff5500, #ff9500);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ========================================
+   Main Content
+   ======================================== */
+
+.popup-main {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Settings Section */
+.settings-section,
+.quick-add-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.setting-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.setting-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.setting-hint {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Input Group */
+.input-group {
+  display: flex;
+  gap: 8px;
+}
+
+.input-field {
+  flex: 1;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.input-field::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: #ff5500;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(255, 85, 0, 0.15);
+}
+
+/* Buttons */
+.save-btn,
+.add-btn {
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+  background: linear-gradient(135deg, #ff5500 0%, #ff7b00 100%);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #ffffff;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.save-btn svg,
+.add-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.save-btn:hover,
+.add-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 85, 0, 0.4);
+}
+
+.save-btn:active,
+.add-btn:active {
+  transform: translateY(0);
+}
+
+.save-btn:disabled,
+.add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Status Message */
+.status-message {
+  font-size: 12px;
+  min-height: 18px;
+  transition: all 0.2s ease;
+}
+
+.status-message.success {
+  color: #00e676;
+}
+
+.status-message.error {
+  color: #ff5252;
+}
+
+.status-message.loading {
+  color: #ffab40;
+}
+
+/* Info Section */
+.info-section {
+  margin-top: 4px;
+}
+
+.info-card {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 85, 0, 0.08);
+  border: 1px solid rgba(255, 85, 0, 0.2);
+  border-radius: 10px;
+}
+
+.info-icon {
+  width: 20px;
+  height: 20px;
+  color: #ff7b00;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.info-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ========================================
+   Footer
+   ======================================== */
+
+.popup-footer {
+  padding: 10px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  text-align: center;
+}
+
+.version {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* ========================================
+   Animations
+   ======================================== */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.status-message:not(:empty) {
+  animation: fadeIn 0.2s ease;
+}
+

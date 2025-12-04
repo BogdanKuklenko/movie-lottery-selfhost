@@ -1,0 +1,286 @@
+/* Movie Lottery Extension - Content Styles */
+
+/* ========================================
+   Кнопка добавления в библиотеку
+   ======================================== */
+
+.ml-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  margin: 12px 0;
+  font-family: 'Graphik Kinopoisk LC Web', Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: #ffffff;
+  background: linear-gradient(135deg, #ff5500 0%, #ff7b00 100%);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(255, 85, 0, 0.35);
+  position: relative;
+  overflow: hidden;
+  z-index: 1000;
+}
+
+.ml-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #ff7b00 0%, #ff9500 100%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  z-index: -1;
+}
+
+.ml-button:hover::before {
+  opacity: 1;
+}
+
+.ml-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 85, 0, 0.45);
+}
+
+.ml-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(255, 85, 0, 0.35);
+}
+
+.ml-button-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.ml-button-text {
+  white-space: nowrap;
+}
+
+/* Состояние загрузки */
+.ml-button.ml-loading {
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.ml-spinner {
+  width: 18px;
+  height: 18px;
+  animation: ml-spin 1s linear infinite;
+}
+
+@keyframes ml-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Состояние успеха */
+.ml-button.ml-success {
+  background: linear-gradient(135deg, #00c853 0%, #00e676 100%);
+  box-shadow: 0 4px 12px rgba(0, 200, 83, 0.35);
+}
+
+.ml-button.ml-success:hover {
+  box-shadow: 0 6px 20px rgba(0, 200, 83, 0.45);
+}
+
+/* ========================================
+   Toast уведомления
+   ======================================== */
+
+.ml-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  max-width: 400px;
+  min-width: 320px;
+  background: #1a1a2e;
+  border-radius: 12px;
+  box-shadow: 
+    0 10px 40px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+  z-index: 2147483647;
+  transform: translateX(calc(100% + 30px));
+  opacity: 0;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+}
+
+.ml-toast-visible {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.ml-toast-hiding {
+  transform: translateX(calc(100% + 30px));
+  opacity: 0;
+}
+
+.ml-toast-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+}
+
+/* Иконка в toast */
+.ml-toast-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.ml-toast-success .ml-toast-icon {
+  color: #00e676;
+}
+
+.ml-toast-error .ml-toast-icon {
+  color: #ff5252;
+}
+
+.ml-toast-info .ml-toast-icon {
+  color: #448aff;
+}
+
+/* Тело toast */
+.ml-toast-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.ml-toast-message {
+  font-size: 14px;
+  font-weight: 500;
+  color: #ffffff;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+/* Информация о фильме в toast */
+.ml-toast-movie {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  margin-top: 8px;
+}
+
+.ml-toast-poster {
+  width: 48px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.ml-toast-movie-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.ml-toast-movie-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ml-toast-movie-year {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 2px;
+}
+
+/* Кнопка закрытия */
+.ml-toast-close {
+  width: 28px;
+  height: 28px;
+  padding: 4px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.5);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.ml-toast-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.ml-toast-close svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Прогресс-бар */
+.ml-toast-progress {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.ml-toast-progress::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  animation: ml-progress 5s linear forwards;
+}
+
+.ml-toast-success .ml-toast-progress::after {
+  background: linear-gradient(90deg, #00e676, #00c853);
+}
+
+.ml-toast-error .ml-toast-progress::after {
+  background: linear-gradient(90deg, #ff5252, #ff1744);
+}
+
+.ml-toast-info .ml-toast-progress::after {
+  background: linear-gradient(90deg, #448aff, #2979ff);
+}
+
+@keyframes ml-progress {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+
+/* Цветовая полоса сверху toast */
+.ml-toast::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+
+.ml-toast-success::before {
+  background: linear-gradient(90deg, #00e676, #00c853);
+}
+
+.ml-toast-error::before {
+  background: linear-gradient(90deg, #ff5252, #ff1744);
+}
+
+.ml-toast-info::before {
+  background: linear-gradient(90deg, #448aff, #2979ff);
+}
+

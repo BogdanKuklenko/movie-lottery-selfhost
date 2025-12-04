@@ -899,10 +899,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         voteConfirmTitle.textContent = movie.name;
         voteConfirmYear.textContent = movie.year || '';
         if (voteConfirmPoints) {
-            const pointsValue = getMoviePoints(movie);
-            voteConfirmPoints.textContent = pointsValue > 0
-                ? `+${formatPoints(pointsValue)} за голос`
-                : 'Баллы не начисляются';
+            const basePoints = getMoviePoints(movie);
+            const streakBonus = currentStreak?.current_bonus || 0;
+            const totalPoints = basePoints + streakBonus;
+            
+            if (basePoints <= 0) {
+                voteConfirmPoints.textContent = 'Баллы не начисляются';
+            } else if (streakBonus > 0) {
+                voteConfirmPoints.innerHTML = `
+                    <span class="vote-confirm-points-total">+${formatPoints(totalPoints)} за голос</span>
+                    <span class="vote-confirm-points-breakdown">
+                        <span class="vote-confirm-points-base">${basePoints} базовых</span>
+                        <span class="vote-confirm-points-bonus">+${streakBonus} 🔥 бонус</span>
+                    </span>`;
+            } else {
+                voteConfirmPoints.textContent = `+${formatPoints(basePoints)} за голос`;
+            }
         }
         if (!isVoteModalOpen) {
             lockScroll();

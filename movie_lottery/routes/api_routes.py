@@ -40,6 +40,9 @@ from ..utils.helpers import (
     get_custom_vote_cost,
     get_poll_settings,
     get_voter_streak_info,
+    get_voter_transactions,
+    get_voter_transactions_summary,
+    log_points_transaction,
     prevent_caching,
     rotate_voter_token,
     update_poll_settings,
@@ -82,6 +85,16 @@ def _normalize_device_label(raw_label=None):
         if trimmed:
             return trimmed[:255]
     return None
+
+
+def _plural_months(n):
+    """Возвращает правильное склонение слова 'месяц' для числа n."""
+    if n % 10 == 1 and n % 100 != 11:
+        return 'месяц'
+    elif 2 <= n % 10 <= 4 and (n % 100 < 10 or n % 100 >= 20):
+        return 'месяца'
+    else:
+        return 'месяцев'
 
 
 def _get_json_payload():
@@ -1223,6 +1236,50 @@ def get_library_movies():
     return prevent_caching(jsonify({'movies': payload}))
 
 
+@api_bp.route('/library/search', methods=['GET'])
+def search_library_movie():
+    """
+    Поиск фильма в библиотеке по названию.
+    Используется для открытия модального окна фильма из истории транзакций.
+    
+    Query params:
+        name: название фильма для поиска (точное совпадение или частичное)
+    
+    Returns:
+        JSON с данными фильма или 404 если не найден
+    """
+    name = request.args.get('name', '').strip()
+    if not name:
+        return jsonify({"success": False, "message": "Параметр 'name' обязателен"}), 400
+    
+    # Сначала пробуем точное совпадение
+    movie = LibraryMovie.query.filter_by(name=name).first()
+    
+    # Если не найден - ищем по частичному совпадению (ILIKE)
+    if not movie:
+        movie = LibraryMovie.query.filter(
+            LibraryMovie.name.ilike(f'%{name}%')
+        ).first()
+    
+    if not movie:
+        return jsonify({"success": False, "message": "Фильм не найден в библиотеке"}), 404
+    
+    # Сериализуем данные фильма
+    data = _serialize_library_movie(movie)
+    
+    # Добавляем информацию о magnet-ссылке
+    identifier = None
+    if movie.kinopoisk_id:
+        identifier = MovieIdentifier.query.filter_by(kinopoisk_id=movie.kinopoisk_id).first()
+    
+    data['has_magnet'] = bool(identifier)
+    data['magnet_link'] = identifier.magnet_link if identifier else ''
+    data['is_on_client'] = False
+    data['torrent_hash'] = None
+    
+    return prevent_caching(jsonify({"success": True, "movie": data}))
+
+
 @api_bp.route('/library', methods=['POST'])
 def add_library_movie():
     payload = _get_json_payload()
@@ -1285,6 +1342,110 @@ def add_library_movie():
 
     db.session.commit()
     return jsonify({"success": True, "message": message})
+
+
+@api_bp.route('/library/add-from-url', methods=['POST'])
+def add_library_movie_from_url():
+    """
+    Добавление фильма в библиотеку по URL или ID Кинопоиска.
+    Используется браузерным расширением для быстрого добавления фильмов.
+    
+    Принимает JSON: {"url": "https://www.kinopoisk.ru/film/12345/"}
+    или: {"url": "12345"} (просто ID)
+    """
+    payload = _get_json_payload()
+    if payload is None:
+        return jsonify({
+            "success": False, 
+            "message": "Некорректный JSON-запрос."
+        }), 400
+
+    url = payload.get('url', '').strip()
+    if not url:
+        return jsonify({
+            "success": False, 
+            "message": "URL или ID фильма не указан."
+        }), 400
+
+    # Получаем данные фильма с Кинопоиска
+    movie_data, error = get_movie_data_from_kinopoisk(url)
+    
+    if not movie_data:
+        message = "Фильм не найден на Кинопоиске."
+        if error and error.get('message'):
+            message = error['message']
+        return jsonify({
+            "success": False, 
+            "message": message
+        }), 404
+
+    # Проверяем, есть ли уже этот фильм в библиотеке
+    kinopoisk_id = movie_data.get('kinopoisk_id')
+    existing_movie = None
+    
+    if kinopoisk_id:
+        existing_movie = LibraryMovie.query.filter_by(kinopoisk_id=kinopoisk_id).first()
+
+    if not existing_movie:
+        existing_movie = LibraryMovie.query.filter_by(
+            name=movie_data['name'], 
+            year=movie_data.get('year')
+        ).first()
+
+    poster_url = movie_data.get('poster')
+    movie_for_poster = None
+
+    if existing_movie:
+        # Обновляем данные существующего фильма
+        for key, value in movie_data.items():
+            if hasattr(existing_movie, key) and value is not None:
+                setattr(existing_movie, key, value)
+        existing_movie.bumped_at = vladivostok_now()
+        movie_for_poster = existing_movie
+        message = f"Фильм «{movie_data['name']}» уже был в библиотеке. Данные обновлены."
+        is_new = False
+    else:
+        # Создаём новый фильм
+        new_movie = LibraryMovie(**movie_data)
+        now = vladivostok_now()
+        new_movie.added_at = now
+        new_movie.bumped_at = now
+        db.session.add(new_movie)
+        db.session.flush()
+        movie_for_poster = new_movie
+        message = f"Фильм «{movie_data['name']}» добавлен в библиотеку!"
+        is_new = True
+
+    # Скачиваем постер локально если его ещё нет
+    if movie_for_poster and poster_url:
+        try:
+            has_local = movie_for_poster.poster_file_path
+        except Exception:
+            has_local = None
+
+        if not has_local:
+            poster_path = _download_and_save_poster(poster_url, movie_for_poster.id)
+            if poster_path:
+                movie_for_poster.poster_file_path = poster_path
+
+    # Add poster to background
+    if poster_url:
+        ensure_background_photo(poster_url)
+
+    db.session.commit()
+    
+    return jsonify({
+        "success": True, 
+        "message": message,
+        "movie": {
+            "id": movie_for_poster.id,
+            "name": movie_data['name'],
+            "year": movie_data.get('year'),
+            "poster": poster_url,
+            "is_new": is_new
+        }
+    })
+
 
 @api_bp.route('/library/<int:movie_id>', methods=['DELETE'])
 def remove_library_movie(movie_id):
@@ -1890,11 +2051,28 @@ def vote_in_poll(poll_id):
     )
     db.session.add(new_vote)
 
+    balance_before = profile.total_points or 0  # баланс до начисления
     new_balance = change_voter_points_balance(
         voter_token,
         points_awarded,
         device_label=device_label,
     )
+
+    # Логируем транзакцию
+    if points_awarded != 0:
+        description = f"Голосование за «{movie.name}»"
+        if streak_bonus > 0:
+            description += f" (+{base_points} базовых +{streak_bonus} бонус)"
+        log_points_transaction(
+            voter_token=voter_token,
+            transaction_type='vote',
+            amount=points_awarded,
+            balance_before=balance_before,
+            balance_after=new_balance,
+            description=description,
+            movie_name=movie.name,
+            poll_id=poll_id,
+        )
 
     db.session.commit()
 
@@ -2014,6 +2192,19 @@ def ban_poll_movie(poll_id):
         voter_token,
         -total_cost,
         device_label=device_label,
+    )
+
+    # Логируем транзакцию
+    months_word = _plural_months(months)
+    log_points_transaction(
+        voter_token=voter_token,
+        transaction_type='ban',
+        amount=-total_cost,
+        balance_before=balance_before,
+        balance_after=new_balance,
+        description=f"Бан «{movie.name}» на {months} {months_word}",
+        movie_name=movie.name,
+        poll_id=poll_id,
     )
 
     active_movies_after = _get_active_poll_movies(poll)
@@ -2137,6 +2328,7 @@ def custom_vote(poll_id):
     db.session.flush()
 
     points_awarded = -cost
+    balance_before = profile.total_points or 0
 
     new_balance = change_voter_points_balance(
         voter_token,
@@ -2147,6 +2339,19 @@ def custom_vote(poll_id):
     if new_balance < 0:
         db.session.rollback()
         return jsonify({"error": "Недостаточно баллов для кастомного голосования"}), 400
+
+    # Логируем транзакцию
+    movie_name = movie_data.get('name') or poll_movie.name
+    log_points_transaction(
+        voter_token=voter_token,
+        transaction_type='custom_vote',
+        amount=points_awarded,
+        balance_before=balance_before,
+        balance_after=new_balance,
+        description=f"Кастомный голос за «{movie_name}»",
+        movie_name=movie_name,
+        poll_id=poll_id,
+    )
 
     new_vote = Vote(
         poll_id=poll_id,
@@ -2377,6 +2582,19 @@ def watch_trailer_in_poll(poll_id):
             -trailer_cost,
             device_label=device_label,
         )
+
+        # Логируем транзакцию
+        log_points_transaction(
+            voter_token=voter_token,
+            transaction_type='trailer',
+            amount=-trailer_cost,
+            balance_before=balance_before,
+            balance_after=new_balance,
+            description=f"Просмотр трейлера «{movie.name}»",
+            movie_name=movie.name,
+            poll_id=poll_id,
+        )
+
         db.session.commit()
 
     # Fetch updated profile
@@ -2998,6 +3216,62 @@ def update_voter_points_accrued_total(voter_token):
         'points_earned_total': earned_total,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
+    }
+
+    return prevent_caching(jsonify(payload))
+
+
+@api_bp.route('/polls/voter-stats/<string:voter_token>/transactions', methods=['GET'])
+def get_voter_transactions_api(voter_token):
+    """Получение истории транзакций баллов пользователя."""
+    profile = PollVoterProfile.query.get_or_404(voter_token)
+
+    # Параметры пагинации
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    per_page = min(max(per_page, 1), 100)  # Ограничиваем от 1 до 100
+    offset = (page - 1) * per_page
+
+    # Фильтр по типу транзакции
+    transaction_type = request.args.get('type')
+
+    transactions = get_voter_transactions(
+        voter_token=voter_token,
+        limit=per_page,
+        offset=offset,
+        transaction_type=transaction_type,
+    )
+
+    summary = get_voter_transactions_summary(voter_token)
+
+    # Сериализуем транзакции
+    transactions_data = []
+    for t in transactions:
+        transactions_data.append({
+            'id': t.id,
+            'type': t.transaction_type,
+            'type_label': t.type_label,
+            'type_emoji': t.type_emoji,
+            'amount': t.amount,
+            'formatted_amount': t.formatted_amount,
+            'is_credit': t.is_credit,
+            'balance_before': t.balance_before,
+            'balance_after': t.balance_after,
+            'description': t.description,
+            'movie_name': t.movie_name,
+            'poll_id': t.poll_id,
+            'created_at': t.created_at.isoformat() if t.created_at else None,
+        })
+
+    payload = {
+        'voter_token': voter_token,
+        'user_id': profile.user_id,
+        'device_label': profile.device_label,
+        'current_balance': profile.total_points or 0,
+        'transactions': transactions_data,
+        'summary': summary,
+        'page': page,
+        'per_page': per_page,
     }
 
     return prevent_caching(jsonify(payload))

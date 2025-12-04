@@ -372,3 +372,60 @@ class Vote(db.Model):
     __table_args__ = (
         db.UniqueConstraint('poll_id', 'voter_token', name='unique_voter_per_poll'),
     )
+
+
+class PointsTransaction(db.Model):
+    """История всех операций с баллами пользователей."""
+    __tablename__ = 'points_transaction'
+
+    id = db.Column(db.Integer, primary_key=True)
+    voter_token = db.Column(db.String(64), nullable=False, index=True)
+    transaction_type = db.Column(db.String(30), nullable=False)  # vote, custom_vote, trailer, ban
+    amount = db.Column(db.Integer, nullable=False)  # положительный = начисление, отрицательный = списание
+    balance_before = db.Column(db.Integer, nullable=False)
+    balance_after = db.Column(db.Integer, nullable=False)
+    description = db.Column(db.String(255), nullable=True)  # детали операции
+    movie_name = db.Column(db.String(200), nullable=True)
+    poll_id = db.Column(db.String(8), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=vladivostok_now, index=True)
+
+    # Типы транзакций
+    TYPE_VOTE = 'vote'  # Начисление за голосование
+    TYPE_CUSTOM_VOTE = 'custom_vote'  # Списание за кастомный голос
+    TYPE_TRAILER = 'trailer'  # Списание за просмотр трейлера
+    TYPE_BAN = 'ban'  # Списание за бан фильма
+    TYPE_ADMIN = 'admin'  # Ручное изменение админом
+
+    @property
+    def is_credit(self):
+        """Проверяет, является ли транзакция начислением."""
+        return self.amount > 0
+
+    @property
+    def formatted_amount(self):
+        """Возвращает сумму с + или - для отображения."""
+        return f"+{self.amount}" if self.amount > 0 else str(self.amount)
+
+    @property
+    def type_emoji(self):
+        """Возвращает эмодзи для типа транзакции."""
+        emojis = {
+            self.TYPE_VOTE: '🎬',
+            self.TYPE_CUSTOM_VOTE: '🎯',
+            self.TYPE_TRAILER: '📺',
+            self.TYPE_BAN: '🚫',
+            self.TYPE_ADMIN: '👤',
+        }
+        return emojis.get(self.transaction_type, '💰')
+
+    @property
+    def type_label(self):
+        """Возвращает человекочитаемое название типа."""
+        labels = {
+            self.TYPE_VOTE: 'Голосование',
+            self.TYPE_CUSTOM_VOTE: 'Кастомный голос',
+            self.TYPE_TRAILER: 'Трейлер',
+            self.TYPE_BAN: 'Бан фильма',
+            self.TYPE_ADMIN: 'Админ',
+        }
+        return labels.get(self.transaction_type, self.transaction_type)

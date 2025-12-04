@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Movie Lottery</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="popup-header">
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="4" rx="2" width="20" height="16"/>
+          <path d="M2 8h20M7 4v4M17 4v4M7 16v4M17 16v4"/>
+        </svg>
+        <span class="logo-text">Movie Lottery</span>
+      </div>
+    </header>
+
+    <main class="popup-main">
+      <section class="settings-section">
+        <label class="setting-label">
+          <span class="setting-title">URL сервера</span>
+          <span class="setting-hint">Адрес вашего Movie Lottery сервера</span>
+        </label>
+        <div class="input-group">
+          <input 
+            type="url" 
+            id="serverUrl" 
+            class="input-field" 
+            placeholder="http://localhost:5000"
+          >
+          <button id="saveBtn" class="save-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20,6 9,17 4,12"/>
+            </svg>
+          </button>
+        </div>
+        <div id="statusMessage" class="status-message"></div>
+      </section>
+
+      <section class="info-section">
+        <div class="info-card">
+          <svg class="info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="16" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12.01" y2="8"/>
+          </svg>
+          <p class="info-text">
+            Перейдите на страницу фильма на Кинопоиске и нажмите оранжевую кнопку «В библиотеку» для добавления.
+          </p>
+        </div>
+      </section>
+
+      <section class="quick-add-section">
+        <label class="setting-label">
+          <span class="setting-title">Быстрое добавление</span>
+          <span class="setting-hint">Вставьте ссылку или ID фильма с Кинопоиска</span>
+        </label>
+        <div class="input-group">
+          <input 
+            type="text" 
+            id="movieUrl" 
+            class="input-field" 
+            placeholder="https://kinopoisk.ru/film/12345/"
+          >
+          <button id="addBtn" class="add-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+          </button>
+        </div>
+        <div id="addStatusMessage" class="status-message"></div>
+      </section>
+    </main>
+
+    <footer class="popup-footer">
+      <span class="version">v1.0.0</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
+

@@ -927,6 +927,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             // Обновляем активное состояние
             badgeFilters.forEach(f => f.classList.remove('active'));
+            // Снимаем active с кастомных фильтров
+            const customFiltersContainer = document.getElementById('badge-filters-custom-container');
+            if (customFiltersContainer) {
+                customFiltersContainer.querySelectorAll('.badge-filter').forEach(f => f.classList.remove('active'));
+            }
             filter.classList.add('active');
             
             // Применяем фильтр
@@ -1617,8 +1622,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Инициализация формы создания бейджа
     initBadgeCreateForm();
 
-    // Загружаем кастомные бейджи при старте
-    loadCustomBadges();
+    // Загружаем кастомные бейджи при старте и обновляем статистику после загрузки
+    loadCustomBadges().then(() => {
+        updateBadgeFilterStats();
+    });
 
     // Для обратной совместимости
     const badgeIcons = standardBadgeIcons;
@@ -2057,4 +2064,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     refreshLibraryData({ silent: true });
     setInterval(updateBanTimers, 1000);
     setInterval(() => refreshLibraryData({ silent: true }), BAN_STATE_POLL_INTERVAL_MS);
+
+    // --- Функция обновления библиотеки из браузерного расширения ---
+    // Вызывается расширением через chrome.scripting.executeScript
+    window.refreshLibraryFromExtension = async (movieData) => {
+        console.log('🎬 Movie Lottery Extension: Обновление библиотеки...');
+        
+        if (movieData && movieData.name) {
+            // Показываем уведомление о добавленном фильме
+            const message = movieData.is_new 
+                ? `Фильм «${movieData.name}» добавлен в библиотеку!`
+                : `Фильм «${movieData.name}» обновлён в библиотеке`;
+            showToast(message, 'success');
+        }
+        
+        // Небольшая задержка перед перезагрузкой для отображения toast
+        setTimeout(() => {
+            // Перезагружаем страницу для отображения нового фильма
+            // Сохраняем позицию скролла
+            const scrollPos = window.scrollY;
+            sessionStorage.setItem('libraryScrollPos', scrollPos.toString());
+            window.location.reload();
+        }, 1500);
+    };
+
+    // Восстанавливаем позицию скролла после перезагрузки
+    const savedScrollPos = sessionStorage.getItem('libraryScrollPos');
+    if (savedScrollPos) {
+        sessionStorage.removeItem('libraryScrollPos');
+        window.scrollTo(0, parseInt(savedScrollPos, 10));
+    }
 });
