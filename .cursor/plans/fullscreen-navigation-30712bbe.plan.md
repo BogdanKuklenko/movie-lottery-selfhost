@@ -1,4 +1,18 @@
-<!-- 30712bbe-e793-4704-9acc-1214f92619c5 6985e662-897b-49f5-b707-2c95af20c778 -->
+---
+name: Исправление центрирования видео в fullscreen
+overview: ""
+todos:
+  - id: 1e3872d7-ca29-4d6f-a400-a82447a2290f
+    content: Заменить flex на grid для .trailer-player-wrapper в fullscreen
+    status: pending
+  - id: 33acc2cd-7d94-4389-ad75-f836384a44cb
+    content: Исправить размеры .trailer-video - убрать 100% width/height
+    status: pending
+  - id: 1f0b6233-3a1f-4ca4-8a69-be974256bc50
+    content: Обнулить все safe-area отступы в fullscreen режиме
+    status: pending
+---
+
 # Исправление центрирования видео в fullscreen
 
 ## Проблема
@@ -48,9 +62,3 @@ CSS Grid с `place-items: center` даёт более надёжное цент�
 #### 3. Обнулить все safe-area отступы в fullscreen
 
 Добавить `!important` для сброса padding на всех уровнях контейнера.
-
-### To-dos
-
-- [ ] Заменить flex на grid для .trailer-player-wrapper в fullscreen
-- [ ] Исправить размеры .trailer-video - убрать 100% width/height
-- [ ] Обнулить все safe-area отступы в fullscreen режиме

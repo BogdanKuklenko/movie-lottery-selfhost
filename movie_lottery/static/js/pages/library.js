@@ -510,6 +510,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const winnerNameAttr = escapeHtml(primaryWinner.name || '');
             const winnerYearAttr = escapeHtml(primaryWinner.year || '');
             const winnerSearchNameAttr = escapeHtml(primaryWinner.search_name || '');
+            const winnerCountriesAttr = escapeHtml(primaryWinner.countries || '');
             const isExpired = Boolean(poll.is_expired);
             const statusBadge = isExpired
                 ? '<span class="poll-status poll-status-expired">Опрос завершён</span>'
@@ -568,7 +569,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </button>
                     ` : ''}
                     <div class="poll-actions">
-                        <button class="secondary-button search-winner-btn" data-movie-name="${winnerNameAttr}" data-movie-year="${winnerYearAttr}" data-movie-search-name="${winnerSearchNameAttr}">
+                        <button class="secondary-button search-winner-btn" data-movie-name="${winnerNameAttr}" data-movie-year="${winnerYearAttr}" data-movie-search-name="${winnerSearchNameAttr}" data-movie-countries="${winnerCountriesAttr}">
                             Найти на RuTracker
                         </button>
                         <a href="${poll.poll_url}" class="secondary-button" target="_blank">Открыть опрос</a>
@@ -608,7 +609,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const movieName = e.target.dataset.movieName;
                 const movieYear = e.target.dataset.movieYear;
                 const movieSearchName = e.target.dataset.movieSearchName;
-                const searchQuery = `${movieSearchName || movieName}${movieYear ? ' ' + movieYear : ''}`;
+                const movieCountries = e.target.dataset.movieCountries || '';
+                // Определяем, русский ли это контент (Россия или СССР)
+                const countries = movieCountries.toLowerCase();
+                const isRussian = countries.includes('россия') || countries.includes('ссср');
+                // Для русского контента — русское название, для иностранного — английское (если есть)
+                const searchQuery = isRussian
+                    ? `${movieName || movieSearchName}${movieYear ? ' ' + movieYear : ''}`
+                    : `${movieSearchName || movieName}${movieYear ? ' ' + movieYear : ''}`;
                 const encodedQuery = encodeURIComponent(searchQuery);
                 const rutrackerUrl = `https://rutracker.net/forum/tracker.php?nm=${encodedQuery}`;
                 closeModalIfOpen();
@@ -2005,7 +2013,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const card = event.target.closest('.gallery-item');
         if (!card) return;
 
-        const { movieId, kinopoiskId, movieName, movieYear, movieSearchName, hasMagnet, magnetLink } = card.dataset;
+        const { movieId, kinopoiskId, movieName, movieYear, movieSearchName, movieCountries, hasMagnet, magnetLink } = card.dataset;
         const button = event.target.closest('.icon-button');
         const checkbox = event.target.closest('.movie-checkbox');
         const badgeControlBtn = event.target.closest('.badge-control-btn');
@@ -2031,8 +2039,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     showToast(data.message, data.success ? 'success' : 'error');
                 });
             } else if (button.classList.contains('search-rutracker-button')) {
-                // Открываем поиск на RuTracker
-                const searchQuery = `${movieSearchName || movieName}${movieYear ? ' ' + movieYear : ''}`;
+                // Определяем, русский ли это контент (Россия или СССР)
+                const countries = (movieCountries || '').toLowerCase();
+                const isRussian = countries.includes('россия') || countries.includes('ссср');
+                // Для русского контента — русское название, для иностранного — английское (если есть)
+                const searchQuery = isRussian
+                    ? `${movieName || movieSearchName}${movieYear ? ' ' + movieYear : ''}`
+                    : `${movieSearchName || movieName}${movieYear ? ' ' + movieYear : ''}`;
                 const encodedQuery = encodeURIComponent(searchQuery);
                 const rutrackerUrl = `https://rutracker.net/forum/tracker.php?nm=${encodedQuery}`;
                 window.open(rutrackerUrl, '_blank');

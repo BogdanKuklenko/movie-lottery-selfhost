@@ -1,29 +1,149 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
   <defs>
-    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#ff5500"/>
-      <stop offset="100%" style="stop-color:#ff9500"/>
+    <!-- Enhanced main gradient - deep purple to vibrant pink -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1"/>
+      <stop offset="50%" style="stop-color:#8b5cf6;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#ec4899;stop-opacity:1"/>
+    </linearGradient>
+    
+    <!-- Enhanced golden accent gradient with more depth -->
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fde047;stop-opacity:1"/>
+      <stop offset="50%" style="stop-color:#fbbf24;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#f59e0b;stop-opacity:1"/>
+    </linearGradient>
+    
+    <!-- Enhanced glow effect for dice -->
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Drop shadow for clapper -->
+    <filter id="dropShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
+      <feOffset dx="0" dy="2" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.4"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Inner shadow for depth -->
+    <filter id="innerShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feComponentTransfer in="SourceAlpha">
+        <feFuncA type="table" tableValues="1 0"/>
+      </feComponentTransfer>
+      <feGaussianBlur stdDeviation="2"/>
+      <feOffset dx="0" dy="1" result="offsetblur"/>
+      <feFlood flood-color="#000" flood-opacity="0.4"/>
+      <feComposite in2="offsetblur" operator="in"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Clipper for diagonal stripes -->
+    <clipPath id="clapperClip">
+      <path d="M22 36 L106 36 L106 52 L22 52 Z"/>
+    </clipPath>
+    
+    <!-- Shine effect for clapper -->
+    <linearGradient id="shineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.3"/>
+      <stop offset="50%" style="stop-color:#ffffff;stop-opacity:0.1"/>
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0"/>
     </linearGradient>
   </defs>
-  <!-- Background circle -->
-  <circle cx="64" cy="64" r="60" fill="url(#grad)"/>
-  <!-- Film reel icon -->
-  <g fill="#ffffff">
-    <!-- Main film body -->
-    <rect x="28" y="36" width="72" height="56" rx="6" fill="none" stroke="#ffffff" stroke-width="5"/>
-    <!-- Film perforations left -->
-    <rect x="32" y="44" width="8" height="6" rx="1"/>
-    <rect x="32" y="56" width="8" height="6" rx="1"/>
-    <rect x="32" y="68" width="8" height="6" rx="1"/>
-    <rect x="32" y="80" width="8" height="6" rx="1"/>
-    <!-- Film perforations right -->
-    <rect x="88" y="44" width="8" height="6" rx="1"/>
-    <rect x="88" y="56" width="8" height="6" rx="1"/>
-    <rect x="88" y="68" width="8" height="6" rx="1"/>
-    <rect x="88" y="80" width="8" height="6" rx="1"/>
-    <!-- Plus sign in center -->
-    <rect x="56" y="50" width="16" height="28" rx="2"/>
-    <rect x="44" y="58" width="40" height="12" rx="2"/>
+  
+  <!-- Background rounded square with enhanced border -->
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#bgGrad)"/>
+  
+  <!-- Subtle pattern overlay for texture -->
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="rgba(255,255,255,0.08)"/>
+  
+  <!-- Film clapper board - enhanced main body -->
+  <g filter="url(#dropShadow)">
+    <!-- Clapper bottom part with better contrast -->
+    <rect x="24" y="52" width="80" height="52" rx="7" fill="#0f172a" opacity="0.95"/>
+    
+    <!-- Clapper top part base -->
+    <path d="M24 46 L104 46 L104 52 L24 52 Z" fill="#0f172a"/>
+    
+    <!-- Clapper top part (golden) with rounded corners -->
+    <path d="M26 34 L102 34 C105 34 108 37 108 40 L108 52 L20 52 L20 40 C20 37 23 34 26 34 Z" fill="url(#goldGrad)"/>
+    
+    <!-- Shine on golden part -->
+    <path d="M26 34 L102 34 C105 34 108 37 108 40 L108 52 L20 52 L20 40 C20 37 23 34 26 34 Z" fill="url(#shineGrad)"/>
+    
+    <!-- Diagonal stripes on clapper - enhanced -->
+    <g clip-path="url(#clapperClip)">
+      <path d="M20 34 L40 34 L20 52 Z" fill="#0f172a" opacity="0.9"/>
+      <path d="M48 34 L68 34 L48 52 L28 52 Z" fill="#0f172a" opacity="0.9"/>
+      <path d="M76 34 L96 34 L76 52 L56 52 Z" fill="#0f172a" opacity="0.9"/>
+      <path d="M104 34 L108 34 L108 48 L104 52 L84 52 Z" fill="#0f172a" opacity="0.9"/>
+    </g>
+    
+    <!-- Clapper handle/hinge detail -->
+    <circle cx="64" cy="46" r="3" fill="#0f172a" opacity="0.6"/>
   </g>
+  
+  <!-- Enhanced dice/lottery element in center -->
+  <g filter="url(#glow)">
+    <!-- Dice shadow -->
+    <rect x="50" y="64" width="32" height="32" rx="7" fill="#000" opacity="0.3" transform="rotate(15 64 78)"/>
+    
+    <!-- Dice main body with enhanced gradient -->
+    <rect x="48" y="62" width="32" height="32" rx="7" fill="url(#goldGrad)" transform="rotate(15 64 78)"/>
+    
+    <!-- Dice highlight -->
+    <rect x="48" y="62" width="32" height="16" rx="7" fill="rgba(255,255,255,0.25)" transform="rotate(15 64 78)"/>
+    
+    <!-- Dice border for definition -->
+    <rect x="48" y="62" width="32" height="32" rx="7" fill="none" stroke="#f59e0b" stroke-width="1" opacity="0.5" transform="rotate(15 64 78)"/>
+    
+    <!-- Enhanced dice dots with better visibility -->
+    <g transform="rotate(15 64 78)">
+      <circle cx="56" cy="70" r="3.5" fill="#0f172a"/>
+      <circle cx="56" cy="70" r="2.5" fill="#1e293b"/>
+      <circle cx="72" cy="70" r="3.5" fill="#0f172a"/>
+      <circle cx="72" cy="70" r="2.5" fill="#1e293b"/>
+      <circle cx="64" cy="78" r="3.5" fill="#0f172a"/>
+      <circle cx="64" cy="78" r="2.5" fill="#1e293b"/>
+      <circle cx="56" cy="86" r="3.5" fill="#0f172a"/>
+      <circle cx="56" cy="86" r="2.5" fill="#1e293b"/>
+      <circle cx="72" cy="86" r="3.5" fill="#0f172a"/>
+      <circle cx="72" cy="86" r="2.5" fill="#1e293b"/>
+    </g>
+  </g>
+  
+  <!-- Enhanced sparkles with better visibility -->
+  <g fill="#ffffff" opacity="1">
+    <!-- Large sparkle top right -->
+    <path d="M100 22 L102 26 L106 28 L102 30 L100 34 L98 30 L94 28 L98 26 Z" filter="url(#glow)"/>
+    <circle cx="100" cy="28" r="1.5" fill="#fde047"/>
+    
+    <!-- Medium sparkle left -->
+    <path d="M18 68 L19 71 L22 72 L19 73 L18 76 L17 73 L14 72 L17 71 Z" opacity="0.9"/>
+    <circle cx="18" cy="72" r="1" fill="#fbbf24"/>
+    
+    <!-- Small sparkles -->
+    <circle cx="90" cy="100" r="2.5" opacity="0.8"/>
+    <circle cx="90" cy="100" r="1.5" fill="#fde047"/>
+    <circle cx="34" cy="26" r="2" opacity="0.7"/>
+    <circle cx="34" cy="26" r="1" fill="#fbbf24"/>
+    <circle cx="110" cy="70" r="1.5" opacity="0.6"/>
+    <circle cx="20" cy="100" r="1.5" opacity="0.6"/>
+  </g>
+  
+  <!-- Subtle border for definition -->
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
 </svg>
-

@@ -5,10 +5,6 @@
 (function() {
   'use strict';
 
-  // Проверяем, что мы на странице фильма
-  const isMoviePage = /kinopoisk\.ru\/(film|series)\/\d+/.test(window.location.href);
-  if (!isMoviePage) return;
-
   // ID для предотвращения дублирования
   const BUTTON_ID = 'ml-add-to-library-btn';
   const TOAST_ID = 'ml-toast-container';
@@ -16,8 +12,21 @@
   // Ждём загрузки страницы
   let attempts = 0;
   const maxAttempts = 30;
+  let currentUrl = window.location.href;
+
+  // Проверяем, что мы на странице фильма
+  function isMoviePage() {
+    return /kinopoisk\.ru\/(film|series)\/\d+/.test(window.location.href);
+  }
 
   function init() {
+    // Проверяем URL каждый раз при вызове init
+    if (!isMoviePage()) {
+      // Удаляем кнопку если она есть и мы не на странице фильма
+      removeButton();
+      return;
+    }
+
     // Если кнопка уже есть — не добавляем
     if (document.getElementById(BUTTON_ID)) return;
 
@@ -26,9 +35,22 @@
     
     if (titleContainer) {
       injectButton(titleContainer);
+      attempts = 0; // Сбрасываем счётчик при успехе
     } else if (attempts < maxAttempts) {
       attempts++;
       setTimeout(init, 500);
+    }
+  }
+
+  function removeButton() {
+    const button = document.getElementById(BUTTON_ID);
+    if (button) {
+      button.remove();
+    }
+    // Также удаляем toast если есть
+    const toast = document.getElementById(TOAST_ID);
+    if (toast) {
+      toast.remove();
     }
   }
 
@@ -260,6 +282,18 @@
     }, 300);
   }
 
+  // Обработка изменения URL (SPA навигация)
+  function handleUrlChange() {
+    const newUrl = window.location.href;
+    if (newUrl !== currentUrl) {
+      currentUrl = newUrl;
+      attempts = 0; // Сбрасываем счётчик попыток при смене URL
+      
+      // Небольшая задержка для загрузки нового контента
+      setTimeout(init, 100);
+    }
+  }
+
   // Запускаем инициализацию
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
@@ -267,9 +301,31 @@
     init();
   }
 
-  // Наблюдаем за изменениями DOM (для SPA навигации)
+  // Слушаем события навигации SPA
+  // popstate - для кнопок назад/вперёд
+  window.addEventListener('popstate', handleUrlChange);
+
+  // Перехватываем pushState и replaceState для отслеживания программной навигации
+  const originalPushState = history.pushState;
+  const originalReplaceState = history.replaceState;
+
+  history.pushState = function(...args) {
+    originalPushState.apply(this, args);
+    handleUrlChange();
+  };
+
+  history.replaceState = function(...args) {
+    originalReplaceState.apply(this, args);
+    handleUrlChange();
+  };
+
+  // Наблюдаем за изменениями DOM (для случаев когда контент загружается динамически)
   const observer = new MutationObserver(() => {
-    if (!document.getElementById(BUTTON_ID)) {
+    // Проверяем URL при каждом изменении DOM
+    handleUrlChange();
+    
+    // Дополнительно проверяем, нужна ли кнопка
+    if (isMoviePage() && !document.getElementById(BUTTON_ID)) {
       init();
     }
   });
@@ -279,4 +335,3 @@
     subtree: true,
   });
 })();
-

@@ -93,7 +93,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const index = parseInt(e.target.closest('.search-rutracker-btn').dataset.index, 10);
                 const movie = movies[index];
                 if (movie) {
-                    const searchQuery = `${movie.search_name || movie.name}${movie.year ? ' ' + movie.year : ''}`;
+                    // Определяем, русский ли это контент (Россия или СССР)
+                    const countries = (movie.countries || '').toLowerCase();
+                    const isRussian = countries.includes('россия') || countries.includes('ссср');
+                    // Для русского контента — русское название, для иностранного — английское (если есть)
+                    const searchQuery = isRussian
+                        ? `${movie.name || movie.search_name}${movie.year ? ' ' + movie.year : ''}`
+                        : `${movie.search_name || movie.name}${movie.year ? ' ' + movie.year : ''}`;
                     const encodedQuery = encodeURIComponent(searchQuery);
                     const rutrackerUrl = `https://rutracker.net/forum/tracker.php?nm=${encodedQuery}`;
                     window.open(rutrackerUrl, '_blank');

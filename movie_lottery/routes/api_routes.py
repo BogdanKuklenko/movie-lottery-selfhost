@@ -2431,6 +2431,7 @@ def get_poll_results(poll_id):
                 "search_name": w.search_name,
                 "poster": w.poster,
                 "year": w.year,
+                "countries": w.countries,
                 "points": w.points if w.points is not None else 1,
             }
             for w in winners
@@ -2497,6 +2498,7 @@ def get_my_polls():
                     "search_name": w.search_name,
                     "poster": w.poster,
                     "year": w.year,
+                    "countries": w.countries,
                     "points": w.points if w.points is not None else 1,
                     "votes": vote_counts.get(w.id, 0)
                 }
@@ -2695,6 +2697,10 @@ def stream_trailer(movie_id):
         response.headers['Accept-Ranges'] = 'bytes'
         response.headers['Content-Length'] = content_length
         response.headers['Content-Type'] = mime_type
+        # Запрет кэширования для корректной работы после замены трейлера
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
         return response
     else:
         response = send_file(
@@ -2704,6 +2710,10 @@ def stream_trailer(movie_id):
         )
         response.headers['Accept-Ranges'] = 'bytes'
         response.headers['Content-Length'] = file_size
+        # Запрет кэширования для корректной работы после замены трейлера
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
         return response
 
 

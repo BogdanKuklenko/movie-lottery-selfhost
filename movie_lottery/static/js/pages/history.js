@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const card = event.target.closest('.gallery-item');
         if (!card) return;
 
-        const { lotteryId, kinopoiskId, movieName, movieSearchName, movieYear, hasMagnet, magnetLink } = card.dataset;
+        const { lotteryId, kinopoiskId, movieName, movieSearchName, movieYear, movieCountries, hasMagnet, magnetLink } = card.dataset;
         const button = event.target.closest('.icon-button');
 
         if (button) {
@@ -151,8 +151,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     showToast(data.message, data.success ? 'success' : 'error');
                 });
             } else if (button.classList.contains('search-rutracker-button')) {
-                // Открываем поиск на RuTracker
-                const searchQuery = `${movieSearchName || movieName}${movieYear ? ' ' + movieYear : ''}`;
+                // Определяем, русский ли это контент (Россия или СССР)
+                const countries = (movieCountries || '').toLowerCase();
+                const isRussian = countries.includes('россия') || countries.includes('ссср');
+                // Для русского контента — русское название, для иностранного — английское (если есть)
+                const searchQuery = isRussian
+                    ? `${movieName || movieSearchName}${movieYear ? ' ' + movieYear : ''}`
+                    : `${movieSearchName || movieName}${movieYear ? ' ' + movieYear : ''}`;
                 const encodedQuery = encodeURIComponent(searchQuery);
                 const rutrackerUrl = `https://rutracker.net/forum/tracker.php?nm=${encodedQuery}`;
                 window.open(rutrackerUrl, '_blank');

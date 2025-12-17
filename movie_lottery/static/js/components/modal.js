@@ -274,7 +274,7 @@ function createWinnerCardHTML(movieData, isLibrary) {
                   </div>
                   <div class="trailer-preview-container" style="display: none;">
                     <video class="trailer-preview-video" controls preload="metadata">
-                        <source src="/api/trailers/${escapeHtml(String(movieData.id))}/stream" type="video/mp4">
+                        <source src="/api/trailers/${escapeHtml(String(movieData.id))}/stream?t=${Date.now()}" type="video/mp4">
                         Ваш браузер не поддерживает воспроизведение видео.
                     </video>
                     <button class="trailer-preview-close-btn" type="button">✕ Закрыть</button>
@@ -577,8 +577,14 @@ export class ModalManager {
         const searchRutrackerBtn = this.body.querySelector('.search-rutracker-btn');
         if (searchRutrackerBtn) {
             searchRutrackerBtn.addEventListener('click', () => {
-                // Формируем поисковый запрос на английском: "Название год"
-                const searchBase = movieData.search_name || movieData.name || '';
+                // Определяем, русский ли это контент (Россия или СССР)
+                const countries = (movieData.countries || '').toLowerCase();
+                const isRussian = countries.includes('россия') || countries.includes('ссср');
+                
+                // Для русского контента — русское название, для иностранного — английское (если есть)
+                const searchBase = isRussian 
+                    ? (movieData.name || movieData.search_name || '')
+                    : (movieData.search_name || movieData.name || '');
                 const searchQuery = `${searchBase}${movieData.year ? ' ' + movieData.year : ''}`.trim();
                 
                 // Кодируем запрос для URL
