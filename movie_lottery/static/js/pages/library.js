@@ -1064,6 +1064,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <p style="font-size: 14px; color: #adb5bd; margin-top: 10px;">
                     ⏱️ Опрос будет активен <strong>${escapeHtml(formatPollDuration(pollDurationMinutes))}</strong>
                 </p>
+                <p style="font-size: 14px; color: ${winnerBadge ? '#f0ad4e' : '#adb5bd'}; margin-top: 5px;">
+                    🏆 Бейдж победителя: <strong>${escapeHtml(winnerBadgeLabel)}</strong>
+                </p>
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
                     <button class="secondary-button" id="cancel-badge-poll" style="flex: 1; padding: 15px; margin: 0;">Отмена</button>
                     <button class="cta-button" id="confirm-badge-poll" style="flex: 1; padding: 15px; margin: 0;">Создать опрос</button>
@@ -1808,8 +1811,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <h3 style="margin: 10px 0;">${badgeName}</h3>
                     </div>
                     <p>Вы действительно хотите создать опрос со всеми фильмами, имеющими бейдж "${badgeName}"?</p>
+                    <div class="badge-poll-theme-selector" style="display: flex; align-items: center; justify-content: center; gap: 10px; margin: 15px 0;">
+                        <label for="badge-poll-theme-select-custom" style="color: #adb5bd;">Тема опроса:</label>
+                        <select id="badge-poll-theme-select-custom" class="poll-theme-select" style="padding: 8px 12px; border-radius: 6px; background: #2a2a3e; color: #fff; border: 1px solid #3a3a5e;">
+                            <option value="default">🎬 Обычная</option>
+                            <option value="newyear">❄️ Новогодняя</option>
+                        </select>
+                    </div>
                     <p style="font-size: 14px; color: #adb5bd; margin-top: 10px;">
                         ⏱️ Опрос будет активен <strong>${escapeHtml(formatPollDuration(pollDurationMinutes))}</strong>
+                    </p>
+                    <p style="font-size: 14px; color: ${winnerBadge ? '#f0ad4e' : '#adb5bd'}; margin-top: 5px;">
+                        🏆 Бейдж победителя: <strong>${escapeHtml(winnerBadgeLabel)}</strong>
                     </p>
                     <div style="display: flex; gap: 10px; margin-top: 20px;">
                         <button class="secondary-button" id="cancel-badge-poll-custom" style="flex: 1; padding: 15px; margin: 0;">Отмена</button>
@@ -1837,10 +1850,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                             throw new Error(data.error || 'Не удалось получить фильмы');
                         }
 
+                        // Получаем выбранную тему
+                        const themeSelect = document.getElementById('badge-poll-theme-select-custom');
+                        const selectedTheme = themeSelect ? themeSelect.value : 'default';
+
                         const pollResponse = await fetch(buildPollApiUrl('/api/polls/create'), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ movies: data.movies }),
+                            body: JSON.stringify({ movies: data.movies, theme: selectedTheme }),
                             credentials: 'include'
                         });
 
