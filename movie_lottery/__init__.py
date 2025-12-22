@@ -110,47 +110,81 @@ def create_app():
     register_cli(app)
     
     # Запускаем планировщик для очистки истёкших опросов и таймеров
-    # В продакшене (Gunicorn) или в режиме разработки, но не в reloader процессе
-    if not scheduler.running:
-        # В режиме разработки запускаем только в основном процессе (не в reloader)
-        # В продакшене (без reloader) всегда запускаем
-        if os.environ.get('WERKZEUG_RUN_MAIN') != 'false' and not os.environ.get('FLASK_DEBUG_RELOADER'):
-            from .utils.helpers import cleanup_expired_polls
-            from .models import MovieSchedule
-            
-            def cleanup_job():
-                with app.app_context():
-                    count = cleanup_expired_polls()
-                    if count > 0:
-                        app.logger.info("Удалено истёкших опросов: %d", count)
-            
-            def cleanup_schedules_job():
-                with app.app_context():
-                    count = MovieSchedule.cleanup_expired()
-                    if count > 0:
-                        app.logger.info("Удалено истёкших таймеров: %d", count)
-            
-            scheduler.add_job(
-                func=cleanup_job,
-                trigger=IntervalTrigger(minutes=5),  # Запускаем каждые 5 минут для быстрой обработки коротких опросов
-                id='cleanup_polls',
-                name='Cleanup expired polls',
-                replace_existing=True
-            )
-            
-            scheduler.add_job(
-                func=cleanup_schedules_job,
-                trigger=IntervalTrigger(hours=1),  # Запускаем каждый час
-                id='cleanup_schedules',
-                name='Cleanup expired movie schedules',
-                replace_existing=True
-            )
-            
-            scheduler.start()
-            checkpoint("Scheduler started")
-            
-            # Останавливаем scheduler при завершении приложения
-            atexit.register(lambda: scheduler.shutdown() if scheduler.running else None)
+    # ВАЖНО: При использовании gunicorn с несколькими воркерами нужно запускать
+    # планировщик только в одном процессе, чтобы избежать дублирования задач.
+    # Используем файловую блокировку для гарантии единственного экземпляра.
+    def _should_start_scheduler():
+        """Проверяет, нужно ли запускать планировщик в этом процессе."""
+        # В режиме разработки Flask проверяем reloader
+        if os.environ.get('WERKZEUG_RUN_MAIN') == 'false':
+            return False
+        if os.environ.get('FLASK_DEBUG_RELOADER'):
+            return False
+        
+        # Для gunicorn: используем файловую блокировку (только Unix/Linux)
+        # Только первый процесс, который захватит lock, запустит scheduler
+        try:
+            import fcntl
+        except ImportError:
+            # Windows не поддерживает fcntl, запускаем scheduler 
+            # (в production всегда Linux/Docker)
+            return True
+        
+        import tempfile
+        lock_file = os.path.join(tempfile.gettempdir(), 'movie_lottery_scheduler.lock')
+        try:
+            # Открываем или создаём lock-файл
+            lock_fd = os.open(lock_file, os.O_CREAT | os.O_RDWR)
+            # Пытаемся захватить эксклюзивную блокировку без ожидания
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            # Записываем PID для отладки
+            os.write(lock_fd, f'{os.getpid()}\n'.encode())
+            os.fsync(lock_fd)
+            # Не закрываем файл - блокировка должна держаться пока процесс жив
+            # Сохраняем дескриптор чтобы он не был закрыт GC
+            app._scheduler_lock_fd = lock_fd
+            return True
+        except (BlockingIOError, OSError):
+            # Другой процесс уже держит блокировку
+            return False
+    
+    if not scheduler.running and _should_start_scheduler():
+        from .utils.helpers import cleanup_expired_polls
+        from .models import MovieSchedule
+        
+        def cleanup_job():
+            with app.app_context():
+                count = cleanup_expired_polls()
+                if count > 0:
+                    app.logger.info("Удалено истёкших опросов: %d", count)
+        
+        def cleanup_schedules_job():
+            with app.app_context():
+                count = MovieSchedule.cleanup_expired()
+                if count > 0:
+                    app.logger.info("Удалено истёкших таймеров: %d", count)
+        
+        scheduler.add_job(
+            func=cleanup_job,
+            trigger=IntervalTrigger(minutes=5),  # Запускаем каждые 5 минут для быстрой обработки коротких опросов
+            id='cleanup_polls',
+            name='Cleanup expired polls',
+            replace_existing=True
+        )
+        
+        scheduler.add_job(
+            func=cleanup_schedules_job,
+            trigger=IntervalTrigger(hours=1),  # Запускаем каждый час
+            id='cleanup_schedules',
+            name='Cleanup expired movie schedules',
+            replace_existing=True
+        )
+        
+        scheduler.start()
+        checkpoint("Scheduler started (single instance with file lock)")
+        
+        # Останавливаем scheduler при завершении приложения
+        atexit.register(lambda: scheduler.shutdown() if scheduler.running else None)
     
     finish_diagnostics()
     return app

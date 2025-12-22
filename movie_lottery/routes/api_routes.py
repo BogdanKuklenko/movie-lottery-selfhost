@@ -3984,8 +3984,20 @@ def send_vote_notifications(poll_id, voted_movie_name, total_votes):
         except WebPushException as e:
             current_app.logger.warning(f'[Push] Ошибка отправки на {sub.endpoint[:50]}: {e}')
             # Если подписка больше не действительна (404, 410), удаляем её
-            if e.response and e.response.status_code in (404, 410):
+            # Проверяем и через response, и через сообщение (для разных версий pywebpush)
+            should_remove = False
+            if e.response is not None and hasattr(e.response, 'status_code'):
+                if e.response.status_code in (404, 410):
+                    should_remove = True
+            else:
+                # Fallback: проверяем код статуса в сообщении исключения
+                error_msg = str(e)
+                if '410' in error_msg or '404' in error_msg or 'Gone' in error_msg:
+                    should_remove = True
+            
+            if should_remove:
                 failed_endpoints.append(sub.endpoint)
+                current_app.logger.info(f'[Push] Подписка {sub.endpoint[:50]}... помечена для удаления (expired/gone)')
         except Exception as e:
             current_app.logger.error(f'[Push] Неожиданная ошибка при отправке: {e}')
     
