@@ -3,6 +3,31 @@
 import { buildPollApiUrl, loadMyPolls } from './utils/polls.js';
 import PushNotificationManager from './utils/pushNotifications.js';
 
+// Форматирует минуты в человекочитаемую строку
+function formatDuration(totalMinutes) {
+    if (!totalMinutes || totalMinutes < 1) return '1 минута';
+    
+    const days = Math.floor(totalMinutes / (60 * 24));
+    const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+    const minutes = totalMinutes % 60;
+    
+    const parts = [];
+    if (days > 0) {
+        const dayWord = days === 1 ? 'день' : (days < 5 ? 'дня' : 'дней');
+        parts.push(`${days} ${dayWord}`);
+    }
+    if (hours > 0) {
+        const hourWord = hours === 1 ? 'час' : (hours < 5 ? 'часа' : 'часов');
+        parts.push(`${hours} ${hourWord}`);
+    }
+    if (minutes > 0 && days === 0) { // Не показываем минуты если есть дни
+        const minWord = minutes === 1 ? 'минута' : (minutes < 5 ? 'минуты' : 'минут');
+        parts.push(`${minutes} ${minWord}`);
+    }
+    
+    return parts.join(' ') || '1 минута';
+}
+
 const escapeHtml = (unsafeValue) => {
     const value = unsafeValue == null ? '' : String(unsafeValue);
     return value
@@ -40,6 +65,81 @@ document.addEventListener('DOMContentLoaded', async () => {
         myPollsBadgeElement: myPollsBadge,
     });
     await refreshMyPolls();
+
+    // Загружаем настройки опросов для отображения информации о сроке жизни и бейдже победителя
+    let pollDurationMinutes = 1440; // по умолчанию 24 часа
+    let winnerBadge = null; // бейдж победителя (null = без бейджа)
+    let winnerBadgeLabel = 'без бейджа'; // текстовое описание бейджа
+    
+    // Стандартные бейджи с их названиями
+    const standardBadgeLabels = {
+        'favorite': '⭐ Любимое',
+        'watchlist': '👁️ Хочу посмотреть',
+        'top': '🏆 Топ',
+        'watched': '✅ Просмотрено',
+        'new': '🔥 Новинка'
+    };
+    
+    async function loadPollSettings() {
+        try {
+            const response = await fetch(buildPollApiUrl('/api/polls/settings'), {
+                credentials: 'include'
+            });
+            if (response.ok) {
+                const data = await response.json();
+                if (data.poll_duration_minutes) {
+                    pollDurationMinutes = data.poll_duration_minutes;
+                }
+                // Получаем настройку бейджа победителя
+                winnerBadge = data.winner_badge || null;
+                if (winnerBadge) {
+                    if (standardBadgeLabels[winnerBadge]) {
+                        winnerBadgeLabel = standardBadgeLabels[winnerBadge];
+                    } else if (winnerBadge.startsWith('custom_')) {
+                        // Для кастомных бейджей нужно загрузить название
+                        winnerBadgeLabel = '🏷️ Кастомный бейдж';
+                        loadCustomBadgeName(winnerBadge);
+                    } else {
+                        winnerBadgeLabel = winnerBadge;
+                    }
+                } else {
+                    winnerBadgeLabel = 'без бейджа';
+                }
+                updatePollDurationInfo();
+            }
+        } catch (error) {
+            console.warn('Не удалось загрузить настройки опросов:', error);
+        }
+    }
+    
+    async function loadCustomBadgeName(badgeKey) {
+        try {
+            const response = await fetch(buildPollApiUrl('/api/custom-badges'), {
+                credentials: 'include'
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const badges = data.badges || [];
+                const badge = badges.find(b => b.badge_key === badgeKey);
+                if (badge) {
+                    winnerBadgeLabel = `${badge.emoji} ${badge.name}`;
+                }
+            }
+        } catch (error) {
+            console.warn('Не удалось загрузить кастомные бейджи:', error);
+        }
+    }
+    
+    function updatePollDurationInfo() {
+        const durationText = formatDuration(pollDurationMinutes);
+        createPollBtn.title = `Опрос будет активен ${durationText}`;
+        // Обновляем текст кнопки если есть место
+        if (createPollBtn.dataset.originalText === undefined) {
+            createPollBtn.dataset.originalText = createPollBtn.textContent;
+        }
+    }
+    
+    loadPollSettings();
 
     const updateCreateButtonState = () => {
         const canCreate = movies.length >= 2 && movies.length <= 25;
@@ -322,9 +422,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function showPollCreatedModal({ pollUrl, resultsUrl, pollId }) {
         const notificationsEnabled = getNotificationsEnabled();
+        const durationText = formatDuration(pollDurationMinutes);
+        const badgeInfoText = winnerBadge 
+            ? `🏅 Бейдж победителя: <strong>${escapeHtml(winnerBadgeLabel)}</strong>` 
+            : '🏅 Бейдж победителя: <strong>без бейджа</strong> <span style="opacity: 0.7;">(победитель не получит бейдж)</span>';
         const modalContent = pollModal.querySelector('.modal-content > div');
         modalContent.innerHTML = `
             <h2>Опрос создан!</h2>
+            <p class="poll-duration-info" style="color: #adb5bd; font-size: 14px; margin-bottom: 8px;">
+                ⏱️ Опрос будет активен <strong>${escapeHtml(durationText)}</strong>
+            </p>
+            <p class="poll-winner-badge-info" style="color: #adb5bd; font-size: 14px; margin-bottom: 15px;">
+                ${badgeInfoText}
+            </p>
             <p>Поделитесь этой ссылкой с друзьями:</p>
             <div class="link-box">
                 <input type="text" id="poll-share-link" value="${escapeHtml(pollUrl)}" readonly>

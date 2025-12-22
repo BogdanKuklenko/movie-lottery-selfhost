@@ -40,7 +40,7 @@ from ..utils.helpers import (
     generate_unique_id,
     generate_unique_poll_id,
     get_custom_vote_cost,
-    get_poll_duration_hours,
+    get_poll_duration_minutes,
     get_poll_settings,
     get_voter_streak_info,
     get_voter_transactions,
@@ -302,17 +302,28 @@ def _refresh_library_bans():
 
 
 def _serialize_poll_settings(settings):
-    # Безопасно получаем poll_duration_hours (для совместимости при миграции)
+    # Безопасно получаем poll_duration_minutes (для совместимости при миграции)
     try:
-        poll_duration = getattr(settings, 'poll_duration_hours', 24) if settings else 24
+        poll_duration = getattr(settings, 'poll_duration_minutes', 1440) if settings else 1440
         if poll_duration is None:
-            poll_duration = 24
+            poll_duration = 1440
     except (AttributeError, OperationalError, ProgrammingError):
-        poll_duration = 24
+        poll_duration = 1440
+
+    # Безопасно получаем winner_badge (для совместимости при миграции)
+    try:
+        winner_badge = getattr(settings, 'winner_badge', None) if settings else None
+        if winner_badge and isinstance(winner_badge, str) and winner_badge.strip():
+            winner_badge = winner_badge.strip()
+        else:
+            winner_badge = None
+    except (AttributeError, OperationalError, ProgrammingError):
+        winner_badge = None
 
     return {
         'custom_vote_cost': _get_custom_vote_cost(),
-        'poll_duration_hours': poll_duration,
+        'poll_duration_minutes': poll_duration,
+        'winner_badge': winner_badge,
         'updated_at': settings.updated_at.isoformat() if settings and settings.updated_at else None,
         'created_at': settings.created_at.isoformat() if settings and settings.created_at else None,
     }
@@ -537,13 +548,15 @@ def update_poll_settings_api():
 
     # Проверяем что передан хотя бы один параметр
     has_custom_vote_cost = 'custom_vote_cost' in data
-    has_poll_duration = 'poll_duration_hours' in data
+    has_poll_duration = 'poll_duration_minutes' in data
+    has_winner_badge = 'winner_badge' in data
 
-    if not has_custom_vote_cost and not has_poll_duration:
-        return jsonify({'error': 'Передайте custom_vote_cost или poll_duration_hours в теле запроса'}), 400
+    if not has_custom_vote_cost and not has_poll_duration and not has_winner_badge:
+        return jsonify({'error': 'Передайте custom_vote_cost, poll_duration_minutes или winner_badge в теле запроса'}), 400
 
     new_cost = None
     new_duration = None
+    new_winner_badge = None
 
     if has_custom_vote_cost:
         new_cost = data.get('custom_vote_cost')
@@ -553,15 +566,39 @@ def update_poll_settings_api():
             return jsonify({'error': 'custom_vote_cost не может быть отрицательным'}), 400
 
     if has_poll_duration:
-        new_duration = data.get('poll_duration_hours')
+        new_duration = data.get('poll_duration_minutes')
         if isinstance(new_duration, bool) or not isinstance(new_duration, int):
-            return jsonify({'error': 'poll_duration_hours должен быть целым числом'}), 400
+            return jsonify({'error': 'poll_duration_minutes должен быть целым числом'}), 400
         if new_duration < 1:
-            return jsonify({'error': 'poll_duration_hours должен быть не менее 1 часа'}), 400
-        if new_duration > 87600:
-            return jsonify({'error': 'poll_duration_hours не может превышать 87600 часов (10 лет)'}), 400
+            return jsonify({'error': 'poll_duration_minutes должен быть не менее 1 минуты'}), 400
+        if new_duration > 5256000:
+            return jsonify({'error': 'poll_duration_minutes не может превышать 5256000 минут (10 лет)'}), 400
 
-    settings = update_poll_settings(custom_vote_cost=new_cost, poll_duration_hours=new_duration)
+    if has_winner_badge:
+        new_winner_badge = data.get('winner_badge')
+        # winner_badge может быть строкой, None или пустой строкой
+        if new_winner_badge is not None and not isinstance(new_winner_badge, str):
+            return jsonify({'error': 'winner_badge должен быть строкой или null'}), 400
+        # Валидация допустимых значений
+        allowed_badges = ['favorite', 'watchlist', 'top', 'watched', 'new', '', 'none', None]
+        if new_winner_badge and new_winner_badge not in allowed_badges:
+            # Проверяем формат кастомного бейджа
+            if not new_winner_badge.startswith('custom_'):
+                return jsonify({'error': 'Недопустимое значение winner_badge'}), 400
+            # Проверяем что кастомный бейдж существует
+            try:
+                custom_id = int(new_winner_badge.split('_')[1])
+                custom_badge = CustomBadge.query.get(custom_id)
+                if not custom_badge:
+                    return jsonify({'error': 'Кастомный бейдж не найден'}), 404
+            except (ValueError, IndexError):
+                return jsonify({'error': 'Некорректный формат кастомного бейджа'}), 400
+
+    settings = update_poll_settings(
+        custom_vote_cost=new_cost,
+        poll_duration_minutes=new_duration,
+        winner_badge=new_winner_badge
+    )
     if not settings:
         return jsonify({'error': 'Сервис настроек временно недоступен'}), 503
 
@@ -1906,8 +1943,8 @@ def create_poll():
     creator_token, _ = _get_or_issue_creator_token()
 
     # Получаем время жизни опроса из настроек (фиксируем на момент создания)
-    poll_duration = get_poll_duration_hours()
-    expires_at = vladivostok_now() + timedelta(hours=poll_duration)
+    poll_duration_mins = get_poll_duration_minutes()
+    expires_at = vladivostok_now() + timedelta(minutes=poll_duration_mins)
 
     new_poll = Poll(
         id=generate_unique_poll_id(),
@@ -2621,16 +2658,23 @@ def get_my_polls():
 
 
 @api_bp.route('/polls/cleanup-expired', methods=['POST'])
-def cleanup_expired_polls():
-    """Удаление истёкших опросов (можно вызывать по cron или вручную)"""
-    expired_polls = Poll.query.filter(Poll.expires_at <= vladivostok_now()).all()
-    count = len(expired_polls)
+def cleanup_expired_polls_api():
+    """Удаление истёкших опросов (можно вызывать по cron или вручную).
     
-    for poll in expired_polls:
-        db.session.delete(poll)
+    Перед удалением проверяет настройку winner_badge:
+    - Если бейдж победителя настроен и победитель ровно один,
+      применяет бейдж к соответствующему фильму в библиотеке.
     
-    db.session.commit()
-    return jsonify({"success": True, "deleted_count": count})
+    Использует ту же функцию что и scheduler.
+    """
+    from ..utils.helpers import cleanup_expired_polls as do_cleanup
+    
+    count = do_cleanup()
+    
+    return jsonify({
+        "success": True,
+        "deleted_count": count,
+    })
 
 
 @api_bp.route('/polls/<poll_id>/watch-trailer', methods=['POST'])

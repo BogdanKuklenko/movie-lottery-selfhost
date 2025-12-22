@@ -21,6 +21,8 @@ def vladivostok_now():
     return datetime.now(VLADIVOSTOK_TZ).replace(tzinfo=None)
 from ..models import (
     BackgroundPhoto,
+    CustomBadge,
+    LibraryMovie,
     Lottery,
     Poll,
     PollCreatorToken,
@@ -581,7 +583,7 @@ def get_custom_vote_cost():
         return default_cost
 
 
-def update_poll_settings(*, custom_vote_cost=None, poll_duration_hours=None):
+def update_poll_settings(*, custom_vote_cost=None, poll_duration_minutes=None, winner_badge=None):
     settings = get_poll_settings(create_if_missing=True)
     if not settings:
         return None
@@ -591,9 +593,23 @@ def update_poll_settings(*, custom_vote_cost=None, poll_duration_hours=None):
         settings.custom_vote_cost = max(0, int(custom_vote_cost))
         updated = True
 
-    if poll_duration_hours is not None:
-        # Минимум 1 час, максимум 87600 часов (10 лет)
-        settings.poll_duration_hours = max(1, min(87600, int(poll_duration_hours)))
+    if poll_duration_minutes is not None:
+        # Минимум 1 минута, максимум 5256000 минут (10 лет)
+        settings.poll_duration_minutes = max(1, min(5256000, int(poll_duration_minutes)))
+        updated = True
+
+    # winner_badge может быть: None (не менять), '' (очистить), или валидный бейдж
+    if winner_badge is not None:
+        # Пустая строка или None означает "без изменения бейджа победителя"
+        if winner_badge == '' or winner_badge == 'none':
+            settings.winner_badge = None
+        else:
+            # Проверяем валидность бейджа
+            allowed_badges = ['favorite', 'watchlist', 'top', 'watched', 'new']
+            if winner_badge in allowed_badges or winner_badge.startswith('custom_'):
+                settings.winner_badge = winner_badge[:30]  # Ограничиваем длину
+            else:
+                settings.winner_badge = None
         updated = True
 
     if updated:
@@ -603,15 +619,62 @@ def update_poll_settings(*, custom_vote_cost=None, poll_duration_hours=None):
     return settings
 
 
-def get_poll_duration_hours():
-    """Вернуть актуальную продолжительность опроса в часах."""
-    DEFAULT_DURATION = 24
+def get_winner_badge():
+    """Вернуть бейдж победителя из настроек опросов (или None если не задан)."""
+    settings = get_poll_settings(create_if_missing=True)
+    if not settings:
+        return None
+
+    try:
+        winner_badge = getattr(settings, 'winner_badge', None)
+        if winner_badge and isinstance(winner_badge, str) and winner_badge.strip():
+            return winner_badge.strip()
+        return None
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
+def get_winner_badge_display():
+    """Вернуть красивое название бейджа победителя с эмодзи."""
+    winner_badge = get_winner_badge()
+    if not winner_badge:
+        return None
+    
+    # Стандартные бейджи с эмодзи
+    BADGE_LABELS = {
+        'favorite': '⭐ Любимое',
+        'watchlist': '👁️ Хочу посмотреть',
+        'top': '🏆 Топ',
+        'watched': '✅ Просмотрено',
+        'new': '🔥 Новинка'
+    }
+    
+    if winner_badge in BADGE_LABELS:
+        return BADGE_LABELS[winner_badge]
+    
+    # Кастомный бейдж
+    if winner_badge.startswith('custom_'):
+        try:
+            custom_id = int(winner_badge.split('_')[1])
+            custom_badge = CustomBadge.query.get(custom_id)
+            if custom_badge:
+                return f'{custom_badge.emoji} {custom_badge.name}'
+        except (ValueError, IndexError):
+            pass
+        return '🏷️ Кастомный бейдж'
+    
+    return winner_badge
+
+
+def get_poll_duration_minutes():
+    """Вернуть актуальную продолжительность опроса в минутах."""
+    DEFAULT_DURATION = 1440  # 24 часа в минутах
     settings = get_poll_settings(create_if_missing=True)
     if not settings:
         return DEFAULT_DURATION
 
     try:
-        duration = getattr(settings, 'poll_duration_hours', DEFAULT_DURATION)
+        duration = getattr(settings, 'poll_duration_minutes', DEFAULT_DURATION)
         if duration is None:
             return DEFAULT_DURATION
         return max(1, int(duration))
@@ -662,23 +725,151 @@ def ensure_background_photo(poster_url):
         pass
 
 
+def _apply_winner_badge_to_library_movie(poll, winner_badge):
+    """
+    Применяет бейдж победителя к соответствующему фильму в библиотеке.
+    Возвращает название фильма, которому был применён бейдж, или None.
+    """
+    winners = poll.winners
+    
+    # Бейдж применяется только если победитель ровно один
+    if len(winners) != 1:
+        logger = getattr(current_app, 'logger', None)
+        if logger:
+            logger.info(
+                'Poll %s has %d winners, skipping winner badge application',
+                poll.id, len(winners)
+            )
+        return None
+    
+    winner = winners[0]
+    
+    # Ищем фильм в библиотеке по kinopoisk_id или по имени
+    library_movie = None
+    if winner.kinopoisk_id:
+        library_movie = LibraryMovie.query.filter_by(kinopoisk_id=winner.kinopoisk_id).first()
+    
+    if not library_movie and winner.name:
+        # Пробуем найти по имени и году
+        if winner.year:
+            library_movie = LibraryMovie.query.filter_by(name=winner.name, year=winner.year).first()
+        if not library_movie:
+            library_movie = LibraryMovie.query.filter_by(name=winner.name).first()
+    
+    if not library_movie:
+        logger = getattr(current_app, 'logger', None)
+        if logger:
+            logger.warning(
+                'Poll %s winner "%s" not found in library, cannot apply winner badge',
+                poll.id, winner.name
+            )
+        return None
+    
+    # Не применяем бейдж если фильм в бане
+    if library_movie.badge == 'ban':
+        logger = getattr(current_app, 'logger', None)
+        if logger:
+            logger.info(
+                'Poll %s winner "%s" is banned, skipping winner badge application',
+                poll.id, winner.name
+            )
+        return None
+    
+    # Применяем бейдж
+    old_badge = library_movie.badge
+    library_movie.badge = winner_badge
+    library_movie.bumped_at = vladivostok_now()
+    
+    logger = getattr(current_app, 'logger', None)
+    if logger:
+        logger.info(
+            'Poll %s: applied winner badge "%s" to movie "%s" (id=%d, was "%s")',
+            poll.id, winner_badge, library_movie.name, library_movie.id, old_badge
+        )
+    
+    return library_movie.name
+
+
 def cleanup_expired_polls():
     """
     Удаляет истёкшие опросы из базы данных.
     Эту функцию можно вызывать периодически через scheduler или cron.
+    
+    Перед удалением проверяет настройку winner_badge:
+    - Если бейдж победителя настроен и победитель ровно один,
+      применяет бейдж к соответствующему фильму в библиотеке.
+    - Бейдж применяется ТОЛЬКО если опрос истёк недавно (в пределах 30 минут),
+      чтобы избежать массового применения к старым опросам.
     """
     try:
-        expired_polls = Poll.query.filter(Poll.expires_at <= vladivostok_now()).all()
+        now = vladivostok_now()
+        expired_polls = Poll.query.filter(Poll.expires_at <= now).all()
         count = len(expired_polls)
         
+        if count == 0:
+            return 0
+        
+        # Получаем настройку бейджа победителя
+        winner_badge = get_winner_badge()
+        badges_applied = []
+        poll_ids_to_delete = []
+        
+        # Максимальное время после истечения для применения бейджа (30 минут)
+        MAX_BADGE_APPLY_WINDOW = timedelta(minutes=30)
+        
+        # ШАГ 1: Применяем бейджи победителям (до удаления опросов!)
         for poll in expired_polls:
-            db.session.delete(poll)
+            poll_ids_to_delete.append(poll.id)
+            
+            # Применяем бейдж ТОЛЬКО если опрос истёк недавно (защита от массового применения)
+            if winner_badge:
+                time_since_expiry = now - poll.expires_at
+                if time_since_expiry <= MAX_BADGE_APPLY_WINDOW:
+                    movie_name = _apply_winner_badge_to_library_movie(poll, winner_badge)
+                    if movie_name:
+                        badges_applied.append({
+                            'poll_id': poll.id,
+                            'movie_name': movie_name,
+                            'badge': winner_badge
+                        })
+                else:
+                    logger = getattr(current_app, 'logger', None)
+                    if logger:
+                        logger.info(
+                            'Poll %s expired %s ago, skipping badge application (max window: %s)',
+                            poll.id, time_since_expiry, MAX_BADGE_APPLY_WINDOW
+                        )
+        
+        # ШАГ 2: Коммитим изменения бейджей ПЕРЕД удалением опросов
+        if badges_applied:
+            db.session.commit()
+            logger = getattr(current_app, 'logger', None)
+            if logger:
+                logger.info(
+                    'Applied winner badges to %d movies: %s',
+                    len(badges_applied),
+                    ', '.join(f'{b["movie_name"]} ({b["badge"]})' for b in badges_applied)
+                )
+        
+        # ШАГ 3: Удаляем опросы (голоса и фильмы опроса удалятся каскадно)
+        for poll_id in poll_ids_to_delete:
+            # Удаляем голоса явно (для старых записей без CASCADE)
+            Vote.query.filter_by(poll_id=poll_id).delete()
+            # Удаляем опрос
+            poll = Poll.query.get(poll_id)
+            if poll:
+                db.session.delete(poll)
         
         db.session.commit()
+        
         return count
     except Exception as e:
         db.session.rollback()
-        print(f"Ошибка при очистке опросов: {e}")
+        logger = getattr(current_app, 'logger', None)
+        if logger:
+            logger.error(f"Ошибка при очистке опросов: {e}")
+        else:
+            print(f"Ошибка при очистке опросов: {e}")
         return 0
 
 

@@ -233,7 +233,12 @@ class PollSettings(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, default=1)
     custom_vote_cost = db.Column(db.Integer, nullable=False, default=10)
-    poll_duration_hours = db.Column(db.Integer, nullable=False, default=24, server_default=db.text('24'))
+    # Время жизни опроса в минутах (по умолчанию 1440 = 24 часа, минимум 1 минута)
+    poll_duration_minutes = db.Column(db.Integer, nullable=False, default=1440, server_default=db.text('1440'))
+    # Бейдж победителя опроса: если указан, победитель (единственный) получит этот бейдж при истечении опроса
+    # Формат: 'favorite', 'watchlist', 'top', 'watched', 'new' или 'custom_ID' для кастомных бейджей
+    # NULL или пустая строка = без изменения бейджа
+    winner_badge = db.Column(db.String(30), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=vladivostok_now)
     updated_at = db.Column(
         db.DateTime,
@@ -363,8 +368,8 @@ class PollVoterProfile(db.Model):
 
 class Vote(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    poll_id = db.Column(db.String(8), db.ForeignKey('poll.id'), nullable=False)
-    movie_id = db.Column(db.Integer, db.ForeignKey('poll_movie.id'), nullable=False)
+    poll_id = db.Column(db.String(8), db.ForeignKey('poll.id', ondelete='CASCADE'), nullable=False)
+    movie_id = db.Column(db.Integer, db.ForeignKey('poll_movie.id', ondelete='CASCADE'), nullable=False)
     voter_token = db.Column(
         db.String(64),
         db.ForeignKey('poll_voter_profile.token'),

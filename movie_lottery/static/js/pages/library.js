@@ -33,6 +33,31 @@ function formatDateTime(isoString) {
     return formatVladivostokDateTime(isoString);
 }
 
+// Форматирует минуты в человекочитаемую строку для срока жизни опроса
+function formatPollDuration(totalMinutes) {
+    if (!totalMinutes || totalMinutes < 1) return '1 минута';
+    
+    const days = Math.floor(totalMinutes / (60 * 24));
+    const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+    const minutes = totalMinutes % 60;
+    
+    const parts = [];
+    if (days > 0) {
+        const dayWord = days === 1 ? 'день' : (days < 5 ? 'дня' : 'дней');
+        parts.push(`${days} ${dayWord}`);
+    }
+    if (hours > 0) {
+        const hourWord = hours === 1 ? 'час' : (hours < 5 ? 'часа' : 'часов');
+        parts.push(`${hours} ${hourWord}`);
+    }
+    if (minutes > 0 && days === 0) { // Не показываем минуты если есть дни
+        const minWord = minutes === 1 ? 'минута' : (minutes < 5 ? 'минуты' : 'минут');
+        parts.push(`${minutes} ${minWord}`);
+    }
+    
+    return parts.join(' ') || '1 минута';
+}
+
 function formatDurationShort(seconds) {
     const totalSeconds = Math.max(0, Math.floor(seconds));
     const hours = Math.floor(totalSeconds / 3600);
@@ -91,6 +116,71 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Инициализация менеджера уведомлений
     const pushNotificationManager = new PushNotificationManager();
     await pushNotificationManager.init();
+
+    // Загружаем настройки опросов для отображения информации о сроке жизни и бейдже победителя
+    let pollDurationMinutes = 1440; // по умолчанию 24 часа
+    let winnerBadge = null; // бейдж победителя (null = без бейджа)
+    let winnerBadgeLabel = 'без бейджа'; // текстовое описание бейджа
+    
+    // Стандартные бейджи с их названиями
+    const standardBadgeLabels = {
+        'favorite': '⭐ Любимое',
+        'watchlist': '👁️ Хочу посмотреть',
+        'top': '🏆 Топ',
+        'watched': '✅ Просмотрено',
+        'new': '🔥 Новинка'
+    };
+    
+    async function loadPollSettings() {
+        try {
+            const response = await fetch(buildPollApiUrl('/api/polls/settings'), {
+                credentials: 'include'
+            });
+            if (response.ok) {
+                const data = await response.json();
+                if (data.poll_duration_minutes) {
+                    pollDurationMinutes = data.poll_duration_minutes;
+                }
+                // Получаем настройку бейджа победителя
+                winnerBadge = data.winner_badge || null;
+                if (winnerBadge) {
+                    if (standardBadgeLabels[winnerBadge]) {
+                        winnerBadgeLabel = standardBadgeLabels[winnerBadge];
+                    } else if (winnerBadge.startsWith('custom_')) {
+                        // Для кастомных бейджей нужно загрузить название
+                        winnerBadgeLabel = '🏷️ Кастомный бейдж';
+                        loadCustomBadgeName(winnerBadge);
+                    } else {
+                        winnerBadgeLabel = winnerBadge;
+                    }
+                } else {
+                    winnerBadgeLabel = 'без бейджа';
+                }
+            }
+        } catch (error) {
+            console.warn('Не удалось загрузить настройки опросов:', error);
+        }
+    }
+    
+    async function loadCustomBadgeName(badgeKey) {
+        try {
+            const response = await fetch(buildPollApiUrl('/api/custom-badges'), {
+                credentials: 'include'
+            });
+            if (response.ok) {
+                const data = await response.json();
+                const badges = data.badges || [];
+                const badge = badges.find(b => b.badge_key === badgeKey);
+                if (badge) {
+                    winnerBadgeLabel = `${badge.emoji} ${badge.name}`;
+                }
+            }
+        } catch (error) {
+            console.warn('Не удалось загрузить кастомные бейджи:', error);
+        }
+    }
+    
+    loadPollSettings();
 
     // Загружаем настройку уведомлений из localStorage (по умолчанию включено)
     const getNotificationsEnabled = () => {
@@ -495,8 +585,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function showPollCreatedModal({ pollUrl, resultsUrl, pollId }) {
         const notificationsEnabled = getNotificationsEnabled();
+        const durationText = formatPollDuration(pollDurationMinutes);
+        const badgeInfoText = winnerBadge 
+            ? `🏅 Бейдж победителя: <strong>${escapeHtml(winnerBadgeLabel)}</strong>` 
+            : '🏅 Бейдж победителя: <strong>без бейджа</strong> <span style="opacity: 0.7;">(победитель не получит бейдж)</span>';
         const modalContent = `
             <h2>Опрос создан!</h2>
+            <p class="poll-duration-info" style="color: #adb5bd; font-size: 14px; margin-bottom: 8px;">
+                ⏱️ Опрос будет активен <strong>${escapeHtml(durationText)}</strong>
+            </p>
+            <p class="poll-winner-badge-info" style="color: #adb5bd; font-size: 14px; margin-bottom: 15px;">
+                ${badgeInfoText}
+            </p>
             <p>Поделитесь этой ссылкой с друзьями:</p>
             <div class="link-box">
                 <input type="text" id="poll-share-link" value="${escapeHtml(pollUrl)}" readonly>
@@ -962,7 +1062,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </select>
                 </div>
                 <p style="font-size: 14px; color: #adb5bd; margin-top: 10px;">
-                    Опрос будет доступен друзьям по ссылке в течение 24 часов.
+                    ⏱️ Опрос будет активен <strong>${escapeHtml(formatPollDuration(pollDurationMinutes))}</strong>
                 </p>
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
                     <button class="secondary-button" id="cancel-badge-poll" style="flex: 1; padding: 15px; margin: 0;">Отмена</button>
@@ -1709,7 +1809,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </div>
                     <p>Вы действительно хотите создать опрос со всеми фильмами, имеющими бейдж "${badgeName}"?</p>
                     <p style="font-size: 14px; color: #adb5bd; margin-top: 10px;">
-                        Опрос будет доступен друзьям по ссылке в течение 24 часов.
+                        ⏱️ Опрос будет активен <strong>${escapeHtml(formatPollDuration(pollDurationMinutes))}</strong>
                     </p>
                     <div style="display: flex; gap: 10px; margin-top: 20px;">
                         <button class="secondary-button" id="cancel-badge-poll-custom" style="flex: 1; padding: 15px; margin: 0;">Отмена</button>

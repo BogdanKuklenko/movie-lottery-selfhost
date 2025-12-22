@@ -132,7 +132,7 @@ def create_app():
             
             scheduler.add_job(
                 func=cleanup_job,
-                trigger=IntervalTrigger(hours=1),  # Запускаем каждый час
+                trigger=IntervalTrigger(minutes=5),  # Запускаем каждые 5 минут для быстрой обработки коротких опросов
                 id='cleanup_polls',
                 name='Cleanup expired polls',
                 replace_existing=True

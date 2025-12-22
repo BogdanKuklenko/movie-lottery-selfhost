@@ -29,6 +29,9 @@ const modalState = {
     dateFilter: null,
 };
 
+// Кастомные бейджи
+let customBadges = [];
+
 function initElements() {
     elements.tableBody = document.getElementById('stats-table-body');
     elements.paginationInfo = document.getElementById('pagination-info');
@@ -49,6 +52,8 @@ function initElements() {
     elements.pollSettingsForm = document.getElementById('poll-settings-form');
     elements.customVoteCost = document.getElementById('custom-vote-cost');
     elements.pollDurationHours = document.getElementById('poll-duration-hours');
+    elements.pollDurationMinutes = document.getElementById('poll-duration-minutes');
+    elements.winnerBadge = document.getElementById('winner-badge');
     elements.pollSettingsStatus = document.getElementById('poll-settings-status');
     elements.pollSettingsUpdated = document.getElementById('poll-settings-updated');
     
@@ -693,11 +698,48 @@ function validateDates() {
     return true;
 }
 
+async function loadCustomBadges() {
+    try {
+        const response = await fetch(buildPollApiUrl('/api/custom-badges'), {
+            credentials: 'include'
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            console.error('Не удалось загрузить кастомные бейджи:', data.error);
+            return;
+        }
+
+        customBadges = data.badges || [];
+        
+        // Добавляем кастомные бейджи в select
+        if (elements.winnerBadge && customBadges.length > 0) {
+            // Удаляем старые кастомные опции (если были)
+            const existingCustomOptions = elements.winnerBadge.querySelectorAll('option[data-custom="true"]');
+            existingCustomOptions.forEach(opt => opt.remove());
+            
+            // Добавляем новые
+            for (const badge of customBadges) {
+                const option = document.createElement('option');
+                option.value = badge.badge_key;
+                option.textContent = `${badge.emoji} ${badge.name}`;
+                option.dataset.custom = 'true';
+                elements.winnerBadge.appendChild(option);
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки кастомных бейджей:', error);
+    }
+}
+
 async function loadPollSettings() {
     if (!elements.customVoteCost) return;
     setSettingsStatus('Загружаем...');
 
     try {
+        // Загружаем кастомные бейджи параллельно с настройками
+        await loadCustomBadges();
+        
         const response = await fetch(buildPollApiUrl('/api/polls/settings'), {
             credentials: 'include'
         });
@@ -710,9 +752,26 @@ async function loadPollSettings() {
         const cost = Number.parseInt(data.custom_vote_cost, 10);
         elements.customVoteCost.value = Number.isFinite(cost) ? cost : '';
 
-        const duration = Number.parseInt(data.poll_duration_hours, 10);
-        if (elements.pollDurationHours) {
-            elements.pollDurationHours.value = Number.isFinite(duration) ? duration : 24;
+        // Конвертируем минуты в часы и минуты для отображения
+        const totalMinutes = Number.parseInt(data.poll_duration_minutes, 10);
+        if (Number.isFinite(totalMinutes)) {
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
+            if (elements.pollDurationHours) {
+                elements.pollDurationHours.value = hours;
+            }
+            if (elements.pollDurationMinutes) {
+                elements.pollDurationMinutes.value = minutes;
+            }
+        } else {
+            // По умолчанию 24 часа
+            if (elements.pollDurationHours) elements.pollDurationHours.value = 24;
+            if (elements.pollDurationMinutes) elements.pollDurationMinutes.value = 0;
+        }
+
+        // Устанавливаем значение бейджа победителя
+        if (elements.winnerBadge) {
+            elements.winnerBadge.value = data.winner_badge || '';
         }
 
         updateSettingsUpdatedAt(data.updated_at);
@@ -733,27 +792,39 @@ async function savePollSettings(event) {
         return;
     }
 
-    const parsedDuration = elements.pollDurationHours 
+    // Вычисляем общее количество минут из часов и минут
+    const parsedHours = elements.pollDurationHours 
         ? Number.parseInt(elements.pollDurationHours.value, 10) 
-        : null;
+        : 0;
+    const parsedMins = elements.pollDurationMinutes 
+        ? Number.parseInt(elements.pollDurationMinutes.value, 10) 
+        : 0;
     
-    if (parsedDuration !== null) {
-        if (!Number.isFinite(parsedDuration) || parsedDuration < 1) {
-            setSettingsStatus('Время жизни опроса: минимум 1 час', 'error');
-            return;
-        }
-        if (parsedDuration > 87600) {
-            setSettingsStatus('Время жизни опроса: максимум 87600 часов', 'error');
-            return;
-        }
+    const hours = Number.isFinite(parsedHours) && parsedHours >= 0 ? parsedHours : 0;
+    const mins = Number.isFinite(parsedMins) && parsedMins >= 0 && parsedMins < 60 ? parsedMins : 0;
+    const totalMinutes = hours * 60 + mins;
+    
+    if (totalMinutes < 1) {
+        setSettingsStatus('Время жизни опроса: минимум 1 минута', 'error');
+        return;
     }
+    if (totalMinutes > 5256000) {
+        setSettingsStatus('Время жизни опроса: максимум 10 лет', 'error');
+        return;
+    }
+
+    // Получаем значение бейджа победителя
+    const winnerBadge = elements.winnerBadge ? elements.winnerBadge.value : null;
 
     setSettingsStatus('Сохраняем...');
 
     try {
         const payload = { custom_vote_cost: parsedCost };
-        if (parsedDuration !== null) {
-            payload.poll_duration_hours = parsedDuration;
+        // Отправляем общее количество минут
+        payload.poll_duration_minutes = totalMinutes;
+        // Отправляем winner_badge (пустая строка означает "не менять бейдж")
+        if (winnerBadge !== null) {
+            payload.winner_badge = winnerBadge;
         }
 
         const response = await fetch(buildPollApiUrl('/api/polls/settings'), {
@@ -771,9 +842,22 @@ async function savePollSettings(event) {
         const cost = Number.parseInt(data.custom_vote_cost, 10);
         elements.customVoteCost.value = Number.isFinite(cost) ? cost : parsedCost;
 
-        const duration = Number.parseInt(data.poll_duration_hours, 10);
-        if (elements.pollDurationHours) {
-            elements.pollDurationHours.value = Number.isFinite(duration) ? duration : 24;
+        // Конвертируем минуты в часы и минуты для отображения
+        const savedMinutes = Number.parseInt(data.poll_duration_minutes, 10);
+        if (Number.isFinite(savedMinutes)) {
+            const savedHours = Math.floor(savedMinutes / 60);
+            const savedMins = savedMinutes % 60;
+            if (elements.pollDurationHours) {
+                elements.pollDurationHours.value = savedHours;
+            }
+            if (elements.pollDurationMinutes) {
+                elements.pollDurationMinutes.value = savedMins;
+            }
+        }
+
+        // Обновляем значение бейджа победителя
+        if (elements.winnerBadge) {
+            elements.winnerBadge.value = data.winner_badge || '';
         }
 
         updateSettingsUpdatedAt(data.updated_at);

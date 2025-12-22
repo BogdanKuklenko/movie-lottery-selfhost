@@ -1059,3 +1059,346 @@
         margin: 0 auto;
     }
 }
+
+/* Duration input styles */
+.duration-inputs {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.duration-input-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.duration-input-group input {
+    width: 80px;
+    text-align: center;
+}
+
+.duration-label {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+    white-space: nowrap;
+}
+/* ==========================================
+   Poll Settings Card — Modern Design
+   ========================================== */
+
+.poll-settings-card {
+    background: linear-gradient(145deg, rgba(35, 39, 65, 0.95), rgba(26, 26, 46, 0.98));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    position: relative;
+    overflow: hidden;
+}
+
+.poll-settings-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary-color) 0%, #a855f7 50%, #ec4899 100%);
+}
+
+.poll-settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.poll-settings-title-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.poll-settings-icon {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, rgba(var(--primary-color-rgb, 106, 203, 233), 0.2), rgba(168, 85, 247, 0.15));
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.poll-settings-icon svg {
+    width: 24px;
+    height: 24px;
+    color: var(--primary-color);
+}
+
+.poll-settings-title-text h2 {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 700;
+}
+
+.poll-settings-subtitle {
+    margin: 4px 0 0;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.poll-settings-status-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.poll-settings-status-badge .status-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--primary-color);
+    border-radius: 50%;
+    animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+.poll-settings-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.poll-setting-item {
+    display: flex;
+    gap: 18px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    transition: all 0.25s ease;
+}
+
+.poll-setting-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+    transform: translateY(-1px);
+}
+
+.setting-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.setting-icon svg {
+    width: 22px;
+    height: 22px;
+}
+
+.setting-icon-cost {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.08));
+}
+
+.setting-icon-cost svg {
+    color: #10b981;
+}
+
+.setting-icon-time {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.08));
+}
+
+.setting-icon-time svg {
+    color: #3b82f6;
+}
+
+.setting-icon-badge {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(245, 158, 11, 0.08));
+}
+
+.setting-icon-badge svg {
+    color: #f59e0b;
+}
+
+.setting-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.setting-label {
+    display: block;
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.setting-description {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 0 0 14px;
+    line-height: 1.4;
+}
+
+.setting-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.setting-input {
+    padding: 12px 16px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    color: var(--text-color);
+    font-size: 1rem;
+    font-family: inherit;
+    transition: all 0.2s ease;
+    width: 100%;
+    max-width: 180px;
+}
+
+.setting-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    background: rgba(0, 0, 0, 0.35);
+    box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb, 106, 203, 233), 0.15);
+}
+
+.input-suffix {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.duration-inputs-new {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.duration-field {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.duration-input {
+    width: 90px;
+    text-align: center;
+}
+
+.duration-unit {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.45);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.duration-separator {
+    font-size: 1.5rem;
+    color: rgba(255, 255, 255, 0.25);
+    margin-bottom: 22px;
+}
+
+.setting-select {
+    padding: 12px 40px 12px 16px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    color: var(--text-color);
+    font-size: 1rem;
+    font-family: inherit;
+    cursor: pointer;
+    width: 100%;
+    max-width: 320px;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='rgba(255,255,255,0.5)' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+}
+
+.setting-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb, 106, 203, 233), 0.15);
+}
+
+.poll-settings-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.save-settings-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 28px;
+    background: linear-gradient(135deg, var(--primary-color), #38bdf8);
+    border: none;
+    border-radius: 12px;
+    color: #0f172a;
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    box-shadow: 0 4px 15px rgba(var(--primary-color-rgb, 106, 203, 233), 0.3);
+}
+
+.save-settings-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.save-settings-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(var(--primary-color-rgb, 106, 203, 233), 0.4);
+}
+
+.settings-status-message {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.6);
+    margin: 0;
+}
+
+@media (max-width: 640px) {
+    .poll-setting-item {
+        flex-direction: column;
+        gap: 14px;
+    }
+    .poll-settings-title-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    .setting-input, .setting-select {
+        max-width: 100%;
+    }
+    .save-settings-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
