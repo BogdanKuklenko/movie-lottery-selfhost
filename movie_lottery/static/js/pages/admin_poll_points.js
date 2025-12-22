@@ -48,6 +48,7 @@ function initElements() {
     elements.table = document.getElementById('stats-table');
     elements.pollSettingsForm = document.getElementById('poll-settings-form');
     elements.customVoteCost = document.getElementById('custom-vote-cost');
+    elements.pollDurationHours = document.getElementById('poll-duration-hours');
     elements.pollSettingsStatus = document.getElementById('poll-settings-status');
     elements.pollSettingsUpdated = document.getElementById('poll-settings-updated');
     
@@ -708,6 +709,12 @@ async function loadPollSettings() {
 
         const cost = Number.parseInt(data.custom_vote_cost, 10);
         elements.customVoteCost.value = Number.isFinite(cost) ? cost : '';
+
+        const duration = Number.parseInt(data.poll_duration_hours, 10);
+        if (elements.pollDurationHours) {
+            elements.pollDurationHours.value = Number.isFinite(duration) ? duration : 24;
+        }
+
         updateSettingsUpdatedAt(data.updated_at);
         setSettingsStatus('Настройки загружены');
     } catch (error) {
@@ -722,17 +729,37 @@ async function savePollSettings(event) {
 
     const parsedCost = Number.parseInt(elements.customVoteCost.value, 10);
     if (!Number.isFinite(parsedCost) || parsedCost < 0) {
-        setSettingsStatus('Введите неотрицательное целое число', 'error');
+        setSettingsStatus('Стоимость голоса: введите неотрицательное целое число', 'error');
         return;
+    }
+
+    const parsedDuration = elements.pollDurationHours 
+        ? Number.parseInt(elements.pollDurationHours.value, 10) 
+        : null;
+    
+    if (parsedDuration !== null) {
+        if (!Number.isFinite(parsedDuration) || parsedDuration < 1) {
+            setSettingsStatus('Время жизни опроса: минимум 1 час', 'error');
+            return;
+        }
+        if (parsedDuration > 87600) {
+            setSettingsStatus('Время жизни опроса: максимум 87600 часов', 'error');
+            return;
+        }
     }
 
     setSettingsStatus('Сохраняем...');
 
     try {
+        const payload = { custom_vote_cost: parsedCost };
+        if (parsedDuration !== null) {
+            payload.poll_duration_hours = parsedDuration;
+        }
+
         const response = await fetch(buildPollApiUrl('/api/polls/settings'), {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ custom_vote_cost: parsedCost }),
+            body: JSON.stringify(payload),
             credentials: 'include'
         });
 
@@ -743,6 +770,12 @@ async function savePollSettings(event) {
 
         const cost = Number.parseInt(data.custom_vote_cost, 10);
         elements.customVoteCost.value = Number.isFinite(cost) ? cost : parsedCost;
+
+        const duration = Number.parseInt(data.poll_duration_hours, 10);
+        if (elements.pollDurationHours) {
+            elements.pollDurationHours.value = Number.isFinite(duration) ? duration : 24;
+        }
+
         updateSettingsUpdatedAt(data.updated_at);
         setSettingsStatus('Настройки сохранены', 'success');
     } catch (error) {

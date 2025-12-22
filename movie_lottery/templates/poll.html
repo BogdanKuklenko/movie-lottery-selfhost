@@ -13,8 +13,24 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Ранняя загрузка темы (предотвращает FART - мигание при загрузке) -->
+    <script>
+        (function() {
+            var theme = {{ poll_theme|tojson|default('"default"') }};
+            if (!theme) theme = 'default';
+            if (theme !== 'default') {
+                var link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = '/static/css/components/themes/poll_theme_' + theme + '.css';
+                link.id = 'poll-theme-css-' + theme;
+                document.head.appendChild(link);
+            }
+            // Класс будет применён к body после его создания
+            window.__pollTheme = theme;
+        })();
+    </script>
 </head>
-<body class="poll-body">
+<body class="poll-body poll-theme-{{ poll_theme|default('default') }}">
     <div class="background-rotator"></div>
 
     <div class="container poll-container">
@@ -394,6 +410,8 @@
         var backgroundPhotos = {{ background_photos|tojson|safe }};
     </script>
     <script type="module" src="{{ url_for('static', filename='js/background.js') }}"></script>
+    
+    <!-- Тема устанавливается создателем опроса и не может быть изменена голосующими -->
 </body>
 </html>
 

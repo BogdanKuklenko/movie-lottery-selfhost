@@ -4,6 +4,7 @@ import os
 import random
 import re
 import secrets
+import threading
 import uuid
 from collections import defaultdict
 from datetime import datetime, time, timedelta, timezone
@@ -22,9 +23,10 @@ from ..models import (
     PollCreatorToken,
     PollMovie,
     PollVoterProfile,
+    PushSubscription,
     Vote,
 )
-from ..utils.kinopoisk import get_movie_data_from_kinopoisk
+from ..utils.kinopoisk import get_movie_data_from_kinopoisk, get_movies_by_release_date
 from ..utils.video_processing import apply_faststart
 from ..utils.helpers import (
     build_external_url,
@@ -38,6 +40,7 @@ from ..utils.helpers import (
     generate_unique_id,
     generate_unique_poll_id,
     get_custom_vote_cost,
+    get_poll_duration_hours,
     get_poll_settings,
     get_voter_streak_info,
     get_voter_transactions,
@@ -299,8 +302,17 @@ def _refresh_library_bans():
 
 
 def _serialize_poll_settings(settings):
+    # Безопасно получаем poll_duration_hours (для совместимости при миграции)
+    try:
+        poll_duration = getattr(settings, 'poll_duration_hours', 24) if settings else 24
+        if poll_duration is None:
+            poll_duration = 24
+    except (AttributeError, OperationalError, ProgrammingError):
+        poll_duration = 24
+
     return {
         'custom_vote_cost': _get_custom_vote_cost(),
+        'poll_duration_hours': poll_duration,
         'updated_at': settings.updated_at.isoformat() if settings and settings.updated_at else None,
         'created_at': settings.created_at.isoformat() if settings and settings.created_at else None,
     }
@@ -520,16 +532,36 @@ def delete_voter_profile(voter_token):
 @api_bp.route('/polls/settings', methods=['PATCH'])
 def update_poll_settings_api():
     data = _get_json_payload()
-    if data is None or 'custom_vote_cost' not in data:
-        return jsonify({'error': 'Передайте custom_vote_cost в теле запроса'}), 400
+    if data is None:
+        return jsonify({'error': 'Передайте JSON в теле запроса'}), 400
 
-    new_cost = data.get('custom_vote_cost')
-    if isinstance(new_cost, bool) or not isinstance(new_cost, int):
-        return jsonify({'error': 'custom_vote_cost должен быть целым числом'}), 400
-    if new_cost < 0:
-        return jsonify({'error': 'custom_vote_cost не может быть отрицательным'}), 400
+    # Проверяем что передан хотя бы один параметр
+    has_custom_vote_cost = 'custom_vote_cost' in data
+    has_poll_duration = 'poll_duration_hours' in data
 
-    settings = update_poll_settings(custom_vote_cost=new_cost)
+    if not has_custom_vote_cost and not has_poll_duration:
+        return jsonify({'error': 'Передайте custom_vote_cost или poll_duration_hours в теле запроса'}), 400
+
+    new_cost = None
+    new_duration = None
+
+    if has_custom_vote_cost:
+        new_cost = data.get('custom_vote_cost')
+        if isinstance(new_cost, bool) or not isinstance(new_cost, int):
+            return jsonify({'error': 'custom_vote_cost должен быть целым числом'}), 400
+        if new_cost < 0:
+            return jsonify({'error': 'custom_vote_cost не может быть отрицательным'}), 400
+
+    if has_poll_duration:
+        new_duration = data.get('poll_duration_hours')
+        if isinstance(new_duration, bool) or not isinstance(new_duration, int):
+            return jsonify({'error': 'poll_duration_hours должен быть целым числом'}), 400
+        if new_duration < 1:
+            return jsonify({'error': 'poll_duration_hours должен быть не менее 1 часа'}), 400
+        if new_duration > 87600:
+            return jsonify({'error': 'poll_duration_hours не может превышать 87600 часов (10 лет)'}), 400
+
+    settings = update_poll_settings(custom_vote_cost=new_cost, poll_duration_hours=new_duration)
     if not settings:
         return jsonify({'error': 'Сервис настроек временно недоступен'}), 503
 
@@ -1837,6 +1869,10 @@ def save_movie_magnet():
 # --- Маршруты для опросов ---
 
 
+# Доступные темы для опросов
+POLL_AVAILABLE_THEMES = ['default', 'newyear']
+
+
 @api_bp.route('/polls/create', methods=['POST'])
 def create_poll():
     """Создание нового опроса"""
@@ -1851,6 +1887,11 @@ def create_poll():
     if len(movies_json) > 25:
         return jsonify({"error": "Максимум 25 фильмов в опросе"}), 400
 
+    # Получаем тему опроса (из payload или cookie)
+    poll_theme = payload.get('theme') or request.cookies.get('poll_theme', 'default')
+    if poll_theme not in POLL_AVAILABLE_THEMES:
+        poll_theme = 'default'
+
     _refresh_library_bans()
 
     # Batch-check for banned movies to avoid N+1 queries
@@ -1864,7 +1905,16 @@ def create_poll():
 
     creator_token, _ = _get_or_issue_creator_token()
 
-    new_poll = Poll(id=generate_unique_poll_id(), creator_token=creator_token)
+    # Получаем время жизни опроса из настроек (фиксируем на момент создания)
+    poll_duration = get_poll_duration_hours()
+    expires_at = vladivostok_now() + timedelta(hours=poll_duration)
+
+    new_poll = Poll(
+        id=generate_unique_poll_id(),
+        creator_token=creator_token,
+        theme=poll_theme,
+        expires_at=expires_at
+    )
     db.session.add(new_poll)
 
     for movie_data in movies_json:
@@ -1893,7 +1943,8 @@ def create_poll():
     response = jsonify({
         "poll_id": new_poll.id,
         "poll_url": poll_url,
-        "results_url": results_url
+        "results_url": results_url,
+        "theme": new_poll.theme
     })
 
     return _set_creator_cookie(response, creator_token)
@@ -1939,6 +1990,12 @@ def get_poll(poll_id):
     custom_vote_cost = _get_custom_vote_cost()
     can_vote_custom = not poll.is_expired and not existing_vote and points_balance >= custom_vote_cost
 
+    # Безопасный доступ к полю theme (на случай если колонка ещё не создана в БД)
+    try:
+        poll_theme = poll.theme or 'default'
+    except Exception:
+        poll_theme = 'default'
+
     response = prevent_caching(jsonify({
         "poll_id": poll.id,
         "movies": movies_data,
@@ -1956,6 +2013,7 @@ def get_poll(poll_id):
         "custom_vote_cost_updated_at": poll_settings.updated_at.isoformat() if poll_settings and poll_settings.updated_at else None,
         "can_vote_custom": can_vote_custom,
         "is_expired": poll.is_expired,
+        "theme": poll_theme,
         "closed_by_ban": closed_by_ban,
         "forced_winner": _serialize_poll_movie(poll.winners[0]) if closed_by_ban and poll.winners else None,
         "poll_settings": _serialize_poll_settings(poll_settings),
@@ -2075,6 +2133,31 @@ def vote_in_poll(poll_id):
         )
 
     db.session.commit()
+
+    # Отправляем push-уведомления о новом голосе в фоновом потоке (не блокирует ответ)
+    try:
+        total_votes = Vote.query.filter_by(poll_id=poll_id).count()
+        voted_movie_name = movie.name
+        current_app.logger.info(f'[Push] Голос получен в опросе {poll_id}, запуск отправки уведомлений в фоне...')
+        
+        # Запускаем отправку в отдельном потоке с копией app context
+        app = current_app._get_current_object()
+        
+        def send_notifications_async():
+            with app.app_context():
+                try:
+                    send_vote_notifications(
+                        poll_id=poll_id,
+                        voted_movie_name=voted_movie_name,
+                        total_votes=total_votes,
+                    )
+                except Exception as e:
+                    app.logger.error(f'[Push] Ошибка в фоновом потоке отправки push-уведомлений: {e}', exc_info=True)
+        
+        thread = threading.Thread(target=send_notifications_async, daemon=True)
+        thread.start()
+    except Exception as e:
+        current_app.logger.error(f'[Push] Ошибка запуска фоновой отправки push-уведомлений для опроса {poll_id}: {e}', exc_info=True)
 
     # Fetch updated profile to get current points_accrued_total
     profile = ensure_voter_profile(voter_token, device_label=device_label)
@@ -2363,6 +2446,30 @@ def custom_vote(poll_id):
 
     db.session.commit()
 
+    # Отправляем push-уведомления о новом голосе в фоновом потоке (не блокирует ответ)
+    try:
+        total_votes = Vote.query.filter_by(poll_id=poll_id).count()
+        voted_movie_name = movie_name
+        current_app.logger.info(f'[Push] Кастомный голос получен в опросе {poll_id}, запуск отправки уведомлений в фоне...')
+        
+        app = current_app._get_current_object()
+        
+        def send_notifications_async():
+            with app.app_context():
+                try:
+                    send_vote_notifications(
+                        poll_id=poll_id,
+                        voted_movie_name=voted_movie_name,
+                        total_votes=total_votes,
+                    )
+                except Exception as e:
+                    app.logger.error(f'[Push] Ошибка в фоновом потоке отправки push-уведомлений: {e}', exc_info=True)
+        
+        thread = threading.Thread(target=send_notifications_async, daemon=True)
+        thread.start()
+    except Exception as e:
+        current_app.logger.error(f'[Push] Ошибка запуска фоновой отправки push-уведомлений для опроса {poll_id}: {e}', exc_info=True)
+
     # Fetch updated profile to get current points_accrued_total
     profile = ensure_voter_profile(voter_token, device_label=device_label)
     points_accrued = profile.points_accrued_total or 0
@@ -2491,6 +2598,7 @@ def get_my_polls():
             "closed_by_ban": bool(poll.forced_winner_movie_id),
             "total_votes": len(poll.votes),
             "movies_count": len(poll.movies),
+            "notifications_enabled": bool(poll.notifications_enabled),
             "winners": [
                 {
                     "id": w.id,
@@ -3510,6 +3618,96 @@ def get_schedule_notifications():
         return jsonify({"success": True, "notifications": []})
 
 
+@api_bp.route('/releases', methods=['GET'])
+def get_releases():
+    """
+    Получение фильмов по дате релиза для календаря.
+    
+    Query params:
+        year: int - Год (обязательный)
+        month: int - Месяц 1-12 (обязательный)
+        country: str - 'russia', 'world' или 'digital' (по умолчанию 'russia')
+    
+    Returns:
+        {
+            "success": true,
+            "releases": {
+                "2025-01-15": [...фильмы...],
+                "2025-01-20": [...фильмы...],
+                ...
+            },
+            "total": 50
+        }
+    """
+    year = request.args.get('year', type=int)
+    month = request.args.get('month', type=int)
+    country = request.args.get('country', 'russia')
+    
+    if not year or not month:
+        return jsonify({
+            "success": False,
+            "error": "Требуются параметры year и month"
+        }), 400
+    
+    if month < 1 or month > 12:
+        return jsonify({
+            "success": False,
+            "error": "Месяц должен быть от 1 до 12"
+        }), 400
+    
+    if country not in ('russia', 'world', 'digital'):
+        return jsonify({
+            "success": False,
+            "error": "Параметр country должен быть 'russia', 'world' или 'digital'"
+        }), 400
+    
+    movies, error = get_movies_by_release_date(year, month, country)
+    
+    if error:
+        error_code = error.get('code', 'unknown')
+        error_message = error.get('message', 'Неизвестная ошибка')
+        
+        if error_code == 'missing_token':
+            return jsonify({
+                "success": False,
+                "error": "API Кинопоиска не настроен"
+            }), 503
+        
+        current_app.logger.warning("Ошибка получения релизов: %s", error_message)
+        return jsonify({
+            "success": False,
+            "error": error_message
+        }), 502
+    
+    # Группируем фильмы по дате релиза
+    releases_by_date = {}
+    for movie in movies or []:
+        release_date = movie.get('release_date')
+        if not release_date:
+            continue
+        
+        # Нормализуем дату к формату YYYY-MM-DD
+        try:
+            if 'T' in release_date:
+                date_key = release_date.split('T')[0]
+            else:
+                date_key = release_date[:10]
+            
+            if date_key not in releases_by_date:
+                releases_by_date[date_key] = []
+            releases_by_date[date_key].append(movie)
+        except Exception as exc:
+            current_app.logger.debug("Ошибка парсинга даты релиза %s: %s", release_date, exc)
+            continue
+    
+    return jsonify({
+        "success": True,
+        "releases": releases_by_date,
+        "total": len(movies or []),
+        "country": country
+    })
+
+
 @api_bp.route('/library/<int:movie_id>/schedule', methods=['POST'])
 def add_movie_schedule(movie_id):
     """Добавление таймера для фильма."""
@@ -3644,4 +3842,288 @@ def postpone_schedule(schedule_id):
         "success": True,
         "message": f"Уведомление отложено на {minutes} минут",
         "schedule": _serialize_schedule(schedule)
+    })
+
+
+# ============================================================================
+# Push Notifications API - Уведомления о новых голосах
+# ============================================================================
+
+def send_vote_notifications(poll_id, voted_movie_name, total_votes):
+    """
+    Отправляет push-уведомления админу о новом голосе в опросе.
+    
+    Уведомления отправляются только если:
+    1. Глобально включены (VOTE_NOTIFICATIONS_ENABLED)
+    2. Для конкретного опроса включены (poll.notifications_enabled)
+    3. Есть активные подписки админа
+    
+    Args:
+        poll_id: ID опроса
+        voted_movie_name: Название фильма, за который проголосовали
+        total_votes: Общее количество голосов
+    """
+    import json
+    
+    # Проверяем, включены ли уведомления глобально
+    globally_enabled = current_app.config.get('VOTE_NOTIFICATIONS_ENABLED', True)
+    if not globally_enabled:
+        current_app.logger.debug(f'[Push] Уведомления отключены глобально для опроса {poll_id}')
+        return
+    
+    # Проверяем, включены ли уведомления для этого опроса
+    poll = Poll.query.get(poll_id)
+    if not poll:
+        current_app.logger.warning(f'[Push] Опрос {poll_id} не найден')
+        return
+    
+    current_app.logger.debug(f'[Push] Проверка опроса {poll_id}: notifications_enabled={poll.notifications_enabled}')
+    
+    if not poll.notifications_enabled:
+        current_app.logger.debug(f'[Push] Уведомления отключены для опроса {poll_id} (notifications_enabled={poll.notifications_enabled}). Пропуск отправки.')
+        return
+    
+    vapid_private_key = current_app.config.get('VAPID_PRIVATE_KEY')
+    vapid_claims_email = current_app.config.get('VAPID_CLAIMS_EMAIL', 'mailto:admin@example.com')
+    
+    if not vapid_private_key:
+        current_app.logger.debug('VAPID_PRIVATE_KEY не настроен, push-уведомления отключены')
+        return
+    
+    try:
+        from pywebpush import webpush, WebPushException
+    except ImportError:
+        current_app.logger.warning('pywebpush не установлен, push-уведомления недоступны')
+        return
+    
+    # Получаем все подписки админа (без фильтрации по voter_token)
+    subscriptions = PushSubscription.query.all()
+    
+    if not subscriptions:
+        current_app.logger.debug(f'[Push] Нет активных подписок для отправки уведомлений о голосе в опросе {poll_id}')
+        return
+    
+    current_app.logger.info(f'[Push] Отправка уведомлений для опроса {poll_id}: найдено {len(subscriptions)} подписок')
+    
+    # Формируем payload для уведомления
+    payload = json.dumps({
+        'title': '🗳️ Новый голос!',
+        'body': f'За «{voted_movie_name}» проголосовали. Всего: {total_votes}',
+        'icon': '/static/icons/icon128.png',
+        'badge': '/static/icons/icon32.png',
+        'tag': f'vote-{poll_id}',
+        'data': {
+            'poll_id': poll_id,
+            'url': f'/p/{poll_id}/results',
+        },
+    })
+    
+    failed_endpoints = []
+    
+    success_count = 0
+    for sub in subscriptions:
+        try:
+            webpush(
+                subscription_info={
+                    'endpoint': sub.endpoint,
+                    'keys': {
+                        'p256dh': sub.p256dh_key,
+                        'auth': sub.auth_key,
+                    },
+                },
+                data=payload,
+                vapid_private_key=vapid_private_key,
+                vapid_claims={'sub': vapid_claims_email},
+            )
+            success_count += 1
+            current_app.logger.debug(f'[Push] Уведомление успешно отправлено на {sub.endpoint[:50]}...')
+        except WebPushException as e:
+            current_app.logger.warning(f'[Push] Ошибка отправки на {sub.endpoint[:50]}: {e}')
+            # Если подписка больше не действительна (404, 410), удаляем её
+            if e.response and e.response.status_code in (404, 410):
+                failed_endpoints.append(sub.endpoint)
+        except Exception as e:
+            current_app.logger.error(f'[Push] Неожиданная ошибка при отправке: {e}')
+    
+    current_app.logger.info(f'[Push] Отправлено {success_count} из {len(subscriptions)} уведомлений для опроса {poll_id}')
+    
+    # Удаляем недействительные подписки
+    if failed_endpoints:
+        try:
+            PushSubscription.query.filter(
+                PushSubscription.endpoint.in_(failed_endpoints)
+            ).delete(synchronize_session=False)
+            db.session.commit()
+        except Exception as e:
+            current_app.logger.error('Error deleting invalid subscriptions: %s', e)
+            db.session.rollback()
+
+
+@api_bp.route('/polls/push/vapid-key', methods=['GET'])
+def get_vapid_public_key():
+    """Получить публичный VAPID ключ для подписки на push-уведомления."""
+    public_key = current_app.config.get('VAPID_PUBLIC_KEY')
+    
+    if not public_key:
+        return jsonify({'error': 'Push-уведомления не настроены на сервере'}), 503
+    
+    return jsonify({
+        'vapid_public_key': public_key,
+        'enabled': current_app.config.get('VOTE_NOTIFICATIONS_ENABLED', True),
+    })
+
+
+@api_bp.route('/polls/push/subscribe', methods=['POST'])
+def subscribe_to_push():
+    """Подписаться на push-уведомления о новых голосах (для админа)."""
+    payload = _get_json_payload()
+    if not payload:
+        return jsonify({'error': 'Некорректный JSON-запрос'}), 400
+    
+    subscription = payload.get('subscription')
+    if not subscription or not subscription.get('endpoint'):
+        return jsonify({'error': 'Некорректные данные подписки'}), 400
+    
+    keys = subscription.get('keys', {})
+    p256dh = keys.get('p256dh')
+    auth = keys.get('auth')
+    
+    if not p256dh or not auth:
+        return jsonify({'error': 'Отсутствуют ключи подписки'}), 400
+    
+    endpoint = subscription['endpoint']
+    
+    try:
+        # Получаем или создаём voter_token для текущего пользователя
+        identity = _resolve_voter_identity()
+        voter_token = identity['voter_token']
+        
+        # Коммитим профиль если он был только что создан
+        db.session.commit()
+        
+        # Проверяем, нет ли уже такой подписки
+        existing = PushSubscription.query.filter_by(endpoint=endpoint).first()
+        
+        if existing:
+            # Обновляем существующую подписку
+            existing.p256dh_key = p256dh
+            existing.auth_key = auth
+            existing.voter_token = voter_token
+        else:
+            # Создаём новую подписку
+            new_sub = PushSubscription(
+                voter_token=voter_token,
+                endpoint=endpoint,
+                p256dh_key=p256dh,
+                auth_key=auth,
+            )
+            db.session.add(new_sub)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'subscribed': True,
+        })
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({'error': 'Ошибка сохранения подписки'}), 500
+    except Exception as e:
+        current_app.logger.error('Error subscribing to push: %s', e)
+        db.session.rollback()
+        return jsonify({'error': 'Внутренняя ошибка сервера'}), 500
+
+
+@api_bp.route('/polls/push/unsubscribe', methods=['POST'])
+def unsubscribe_from_push():
+    """Отписаться от push-уведомлений (удаляет все подписки админа)."""
+    payload = _get_json_payload() or {}
+    endpoint = payload.get('endpoint')
+    
+    try:
+        if endpoint:
+            # Удаляем конкретную подписку
+            PushSubscription.query.filter_by(endpoint=endpoint).delete()
+        else:
+            # Удаляем все подписки
+            PushSubscription.query.delete()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'subscribed': False,
+        })
+    except Exception as e:
+        current_app.logger.error('Error unsubscribing from push: %s', e)
+        db.session.rollback()
+        return jsonify({'error': 'Внутренняя ошибка сервера'}), 500
+
+
+@api_bp.route('/polls/notifications/settings', methods=['GET'])
+def get_notifications_settings():
+    """Получить текущие настройки уведомлений админа."""
+    has_subscription = PushSubscription.query.first() is not None
+    
+    vapid_configured = bool(current_app.config.get('VAPID_PUBLIC_KEY'))
+    globally_enabled = current_app.config.get('VOTE_NOTIFICATIONS_ENABLED', True)
+    
+    return jsonify({
+        'has_push_subscription': has_subscription,
+        'vapid_configured': vapid_configured,
+        'globally_enabled': globally_enabled,
+    })
+
+
+@api_bp.route('/polls/<poll_id>/notifications', methods=['GET'])
+def get_poll_notifications_status(poll_id):
+    """Получить статус уведомлений для конкретного опроса."""
+    poll = Poll.query.get_or_404(poll_id)
+    
+    has_subscription = PushSubscription.query.first() is not None
+    vapid_configured = bool(current_app.config.get('VAPID_PUBLIC_KEY'))
+    
+    return jsonify({
+        'poll_id': poll_id,
+        'notifications_enabled': bool(poll.notifications_enabled),
+        'has_push_subscription': has_subscription,
+        'vapid_configured': vapid_configured,
+    })
+
+
+@api_bp.route('/polls/<poll_id>/notifications', methods=['POST'])
+def toggle_poll_notifications(poll_id):
+    """Включить/выключить уведомления для конкретного опроса."""
+    # Проверяем, что это создатель опроса
+    creator_token = _read_creator_token_from_request()
+    if not creator_token:
+        current_app.logger.warning(f'[Push] Попытка изменить уведомления для опроса {poll_id} без авторизации')
+        return jsonify({'error': 'Необходима авторизация'}), 401
+    
+    poll = Poll.query.get_or_404(poll_id)
+    
+    # Проверяем, что токен совпадает с создателем опроса
+    if poll.creator_token != creator_token:
+        current_app.logger.warning(f'[Push] Попытка изменить уведомления для опроса {poll_id} с неверным токеном')
+        return jsonify({'error': 'Нет доступа к этому опросу'}), 403
+    
+    # Получаем желаемое состояние из запроса
+    data = _get_json_payload() or {}
+    enabled = data.get('enabled')
+    
+    old_value = poll.notifications_enabled
+    if enabled is None:
+        # Если не указано - переключаем
+        poll.notifications_enabled = not poll.notifications_enabled
+    else:
+        poll.notifications_enabled = bool(enabled)
+    
+    db.session.commit()
+    
+    current_app.logger.info(f'[Push] Уведомления для опроса {poll_id} изменены: {old_value} -> {poll.notifications_enabled}')
+    
+    return jsonify({
+        'success': True,
+        'poll_id': poll_id,
+        'notifications_enabled': poll.notifications_enabled,
     })

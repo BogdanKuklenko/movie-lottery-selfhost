@@ -233,6 +233,7 @@ class PollSettings(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, default=1)
     custom_vote_cost = db.Column(db.Integer, nullable=False, default=10)
+    poll_duration_hours = db.Column(db.Integer, nullable=False, default=24, server_default=db.text('24'))
     created_at = db.Column(db.DateTime, nullable=False, default=vladivostok_now)
     updated_at = db.Column(
         db.DateTime,
@@ -248,6 +249,8 @@ class Poll(db.Model):
     expires_at = db.Column(db.DateTime, nullable=False)
     creator_token = db.Column(db.String(64), nullable=False)
     forced_winner_movie_id = db.Column(db.Integer, nullable=True)
+    notifications_enabled = db.Column(db.Boolean, nullable=False, default=False, server_default=db.text('FALSE'))
+    theme = db.Column(db.String(30), nullable=False, default='default', server_default='default')  # Тема оформления опроса
     movies = db.relationship('PollMovie', backref='poll', lazy=True, cascade="all, delete-orphan")
     votes = db.relationship('Vote', backref='poll', lazy=True, cascade="all, delete-orphan")
 
@@ -351,8 +354,11 @@ class PollVoterProfile(db.Model):
     voting_streak = db.Column(db.Integer, nullable=False, default=0, server_default=db.text('0'))
     last_vote_date = db.Column(db.Date, nullable=True)
     max_voting_streak = db.Column(db.Integer, nullable=False, default=0, server_default=db.text('0'))
+    # Уведомления о новых голосах
+    notifications_enabled = db.Column(db.Boolean, nullable=False, default=False, server_default=db.text('0'))
 
     votes = db.relationship('Vote', back_populates='profile', lazy=True)
+    push_subscriptions = db.relationship('PushSubscription', back_populates='profile', lazy=True, cascade='all, delete-orphan')
 
 
 class Vote(db.Model):
@@ -429,3 +435,22 @@ class PointsTransaction(db.Model):
             self.TYPE_ADMIN: 'Админ',
         }
         return labels.get(self.transaction_type, self.transaction_type)
+
+
+class PushSubscription(db.Model):
+    """Подписки на push-уведомления о новых голосах."""
+    __tablename__ = 'push_subscription'
+
+    id = db.Column(db.Integer, primary_key=True)
+    voter_token = db.Column(
+        db.String(64),
+        db.ForeignKey('poll_voter_profile.token', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    endpoint = db.Column(db.Text, nullable=False, unique=True)
+    p256dh_key = db.Column(db.Text, nullable=False)
+    auth_key = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=vladivostok_now)
+
+    profile = db.relationship('PollVoterProfile', back_populates='push_subscriptions')

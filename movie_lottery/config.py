@@ -76,3 +76,18 @@ class Config:
         TRAILER_MAX_FILE_SIZE = int(os.environ.get('TRAILER_MAX_FILE_SIZE', 200 * 1024 * 1024))
     except (TypeError, ValueError):
         TRAILER_MAX_FILE_SIZE = 200 * 1024 * 1024
+
+    # Web Push notifications (VAPID)
+    VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY')
+    VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY')
+    VAPID_CLAIMS_EMAIL = os.environ.get('VAPID_CLAIMS_EMAIL', 'mailto:admin@example.com')
+
+    # Глобальный переключатель уведомлений о голосах
+    VOTE_NOTIFICATIONS_ENABLED = os.environ.get('VOTE_NOTIFICATIONS_ENABLED', 'true').lower() == 'true'
+
+    # Кэширование релизов фильмов
+    RELEASES_CACHE_DIR = os.path.join(instance_dir, 'cache', 'releases')
+    try:
+        RELEASES_CACHE_TTL = int(os.environ.get('RELEASES_CACHE_TTL', 3600 * 6))  # 6 часов по умолчанию
+    except (TypeError, ValueError):
+        RELEASES_CACHE_TTL = 3600 * 6

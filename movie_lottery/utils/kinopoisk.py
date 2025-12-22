@@ -2,8 +2,10 @@ import argparse
 import json
 import os
 import re
-from typing import Any, Dict, Iterable, Optional, Tuple
+from datetime import datetime
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+import diskcache
 import requests
 from flask import current_app, has_app_context
 
@@ -182,6 +184,227 @@ def get_movie_data_from_kinopoisk(query: str) -> Tuple[Optional[Dict[str, Any]],
         return None, None
 
     return _format_movie_payload(movie_data), None
+
+
+# --- Функции для получения релизов фильмов ---
+
+_releases_cache: Optional[diskcache.Cache] = None
+
+
+def _get_releases_cache() -> diskcache.Cache:
+    """Получает или создаёт кэш для релизов."""
+    global _releases_cache
+    if _releases_cache is not None:
+        return _releases_cache
+
+    cache_dir = None
+    cache_ttl = 3600 * 6  # 6 часов по умолчанию
+
+    if has_app_context():
+        cache_dir = current_app.config.get('RELEASES_CACHE_DIR')
+        cache_ttl = current_app.config.get('RELEASES_CACHE_TTL', cache_ttl)
+
+    if not cache_dir:
+        # Fallback к временной директории
+        import tempfile
+        cache_dir = os.path.join(tempfile.gettempdir(), 'movie_lottery_releases_cache')
+
+    os.makedirs(cache_dir, exist_ok=True)
+    _releases_cache = diskcache.Cache(cache_dir)
+    return _releases_cache
+
+
+def _format_release_movie(movie_data: Dict[str, Any], country: str = 'russia') -> Dict[str, Any]:
+    """Форматирует данные фильма для отображения в календаре релизов.
+    
+    Args:
+        movie_data: Данные фильма от API Кинопоиска
+        country: Тип релиза - 'russia', 'world' или 'digital'
+    """
+    genres = [g.get('name') for g in movie_data.get('genres', [])[:3] if g.get('name')]
+    countries = [c.get('name') for c in movie_data.get('countries', [])[:2] if c.get('name')]
+
+    poster_data = movie_data.get('poster') or {}
+    poster_url = poster_data.get('url') if isinstance(poster_data, dict) else None
+
+    rating_data = movie_data.get('rating') or {}
+    rating_kp = rating_data.get('kp') if isinstance(rating_data, dict) else None
+
+    year_value = movie_data.get('year')
+    year_str = str(year_value) if year_value not in (None, "") else ""
+
+    # Извлекаем дату премьеры в зависимости от типа релиза
+    premiere_data = movie_data.get('premiere') or {}
+    release_date = None
+    if isinstance(premiere_data, dict):
+        release_date = premiere_data.get(country)
+
+    return {
+        "kinopoisk_id": movie_data.get('id'),
+        "name": movie_data.get('name') or movie_data.get('alternativeName') or 'Без названия',
+        "poster": poster_url,
+        "year": year_str,
+        "rating_kp": rating_kp if isinstance(rating_kp, (int, float)) else None,
+        "genres": ", ".join(genres),
+        "countries": ", ".join(countries),
+        "release_date": release_date,
+    }
+
+
+def _fetch_movies_by_release_date_uncached(
+    year: int,
+    month: int,
+    country: str = 'russia'
+) -> Tuple[Optional[List[Dict[str, Any]]], Optional[ErrorInfo]]:
+    """
+    Запрашивает фильмы по дате премьеры из API Кинопоиска (без кэширования).
+    Использует пагинацию для получения всех релизов.
+    
+    Args:
+        year: Год
+        month: Месяц (1-12)
+        country: 'russia', 'world' или 'digital'
+    
+    Returns:
+        Tuple[список фильмов или None, информация об ошибке или None]
+    """
+    api_token = _resolve_api_token()
+    if not api_token:
+        return None, {"code": "missing_token", "message": "Kinopoisk API token is not configured."}
+
+    # Формируем диапазон дат для месяца в формате dd.MM.yyyy
+    start_date_obj = datetime(year, month, 1)
+    if month == 12:
+        end_date_obj = datetime(year + 1, 1, 1)
+    else:
+        end_date_obj = datetime(year, month + 1, 1)
+    
+    # Форматируем в dd.MM.yyyy
+    start_date = start_date_obj.strftime("%d.%m.%Y")
+    end_date = end_date_obj.strftime("%d.%m.%Y")
+
+    headers = {
+        "X-API-KEY": api_token,
+        "accept": "application/json",
+    }
+
+    # Выбираем поле премьеры в зависимости от страны
+    premiere_field = f"premiere.{country}"
+    url = "https://api.kinopoisk.dev/v1.4/movie"
+    
+    # Параметры пагинации
+    LIMIT_PER_PAGE = 100
+    MAX_PAGES = 5  # Максимум 500 релизов
+    
+    all_movies = []
+    current_page = 1
+    
+    while current_page <= MAX_PAGES:
+        params = {
+            premiere_field: f"{start_date}-{end_date}",
+            "limit": LIMIT_PER_PAGE,
+            "page": current_page,
+            "selectFields": [
+                "id", "name", "alternativeName", "enName",
+                "poster", "year", "rating", "genres", "countries", "premiere"
+            ],
+            "sortField": premiere_field,
+            "sortType": 1,  # По возрастанию даты
+        }
+
+        try:
+            response = requests.get(url, headers=headers, params=params, timeout=15)
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as exc:
+            status_code = getattr(exc.response, "status_code", None)
+            response_text = ""
+            if exc.response is not None:
+                try:
+                    response_text = exc.response.text or ""
+                except Exception:
+                    response_text = str(exc)
+            _log_warning(f"Kinopoisk releases API error {status_code}: {response_text}")
+            # Если уже получили какие-то данные, возвращаем их
+            if all_movies:
+                break
+            return None, {"code": "http_error", "message": response_text, "status": status_code}
+        except requests.exceptions.RequestException as exc:
+            message = f"Ошибка сети при запросе релизов: {exc}"
+            _log_error(message)
+            if all_movies:
+                break
+            return None, {"code": "network_error", "message": message}
+
+        try:
+            data = response.json()
+        except ValueError:
+            if all_movies:
+                break
+            return None, {"code": "invalid_response", "message": "Некорректный JSON-ответ от API."}
+
+        if not isinstance(data, dict):
+            break
+
+        docs = data.get('docs', [])
+        if not docs:
+            break  # Нет больше данных
+        
+        for movie_data in docs:
+            formatted = _format_release_movie(movie_data, country)
+            if formatted.get('release_date'):
+                all_movies.append(formatted)
+        
+        # Проверяем, есть ли ещё страницы
+        total = data.get('total', 0)
+        pages = data.get('pages', 1)
+        
+        if current_page >= pages:
+            break
+            
+        current_page += 1
+
+    _log_info(f"Получено {len(all_movies)} релизов для {year}-{month:02d} ({country}) за {current_page} страниц(ы)")
+    return all_movies, None
+
+
+def get_movies_by_release_date(
+    year: int,
+    month: int,
+    country: str = 'russia'
+) -> Tuple[Optional[List[Dict[str, Any]]], Optional[ErrorInfo]]:
+    """
+    Получает фильмы по дате премьеры с кэшированием.
+    
+    Args:
+        year: Год
+        month: Месяц (1-12)
+        country: 'russia', 'world' или 'digital'
+    
+    Returns:
+        Tuple[список фильмов или None, информация об ошибке или None]
+    """
+    cache = _get_releases_cache()
+    cache_key = f"releases_{year}_{month}_{country}"
+
+    # Проверяем кэш
+    cached = cache.get(cache_key)
+    if cached is not None:
+        _log_info(f"Релизы для {year}-{month:02d} ({country}) взяты из кэша")
+        return cached, None
+
+    # Запрашиваем с API
+    movies, error = _fetch_movies_by_release_date_uncached(year, month, country)
+
+    if error:
+        return None, error
+
+    # Сохраняем в кэш
+    cache_ttl = 3600 * 6  # 6 часов по умолчанию
+    if has_app_context():
+        cache_ttl = current_app.config.get('RELEASES_CACHE_TTL', cache_ttl)
+
+    cache.set(cache_key, movies, expire=cache_ttl)
+    return movies, None
 
 
 def _run_real_checks(queries: Iterable[str]) -> Tuple[int, Dict[str, Optional[Dict[str, Any]]]]:

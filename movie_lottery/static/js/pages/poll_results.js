@@ -63,6 +63,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         libraryLink.removeAttribute('rel');
     }
 
+    // Элементы уведомлений (объявлены до loadResults для избежания TDZ)
+    const notificationsWrapper = document.getElementById('poll-notifications-wrapper');
+    const notificationsBtn = document.getElementById('poll-notifications-btn');
+
     await loadResults();
 
     function handleErrorResponse(status, errorMessage) {
@@ -88,6 +92,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             winnersSection.style.display = 'block';
             winnersTitle.textContent = winnerMovies.length > 1 ? 'Победители' : 'Победитель';
             winnersContainer.innerHTML = winnerMovies.map(renderWinnerCard).join('');
+            
+            // Добавляем обработчики для кнопок RuTracker
+            winnersContainer.querySelectorAll('.search-winner-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const movieName = btn.dataset.movieName;
+                    const movieYear = btn.dataset.movieYear;
+                    const movieSearchName = btn.dataset.movieSearchName;
+                    const movieCountries = btn.dataset.movieCountries || '';
+                    // Определяем, русский ли это контент (Россия или СССР)
+                    const countries = movieCountries.toLowerCase();
+                    const isRussian = countries.includes('россия') || countries.includes('ссср');
+                    // Для русского контента — русское название, для иностранного — английское (если есть)
+                    const searchQuery = isRussian
+                        ? `${movieName || movieSearchName}${movieYear ? ' ' + movieYear : ''}`
+                        : `${movieSearchName || movieName}${movieYear ? ' ' + movieYear : ''}`;
+                    const encodedQuery = encodeURIComponent(searchQuery);
+                    const rutrackerUrl = `https://rutracker.net/forum/tracker.php?nm=${encodedQuery}`;
+                    window.open(rutrackerUrl, '_blank');
+                    showToast(`Открыт поиск на RuTracker: "${searchQuery}"`, 'info');
+                });
+            });
         } else {
             winnersSection.style.display = 'none';
         }
@@ -114,6 +139,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <h4>${escapeHtml(movie.name)}</h4>
                     ${year}
                     ${votesLabel}
+                </div>
+                <div class="poll-winner-actions">
+                    <button class="secondary-button search-winner-btn" 
+                            data-movie-name="${escapeHtml(movie.name)}" 
+                            data-movie-year="${escapeHtml(movie.year || '')}"
+                            data-movie-search-name="${escapeHtml(movie.search_name || '')}"
+                            data-movie-countries="${escapeHtml(movie.countries || '')}">
+                        Найти на RuTracker
+                    </button>
                 </div>
             </div>
         `;
@@ -219,10 +253,98 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             renderResults(payload);
+            
+            // Загружаем статус уведомлений для опроса
+            await loadNotificationsStatus();
         } catch (error) {
             console.error('Не удалось загрузить результаты опроса:', error);
             showMessage('Не удалось загрузить результаты опроса. Попробуйте обновить страницу позже.', 'error');
         }
+    }
+
+    // ============================================================================
+    // Уведомления о голосах
+    // ============================================================================
+    async function loadNotificationsStatus() {
+        if (!notificationsBtn) return;
+
+        try {
+            const response = await fetch(buildPollApiUrl(`/api/polls/${currentPollId}/notifications`), {
+                credentials: 'include'
+            });
+
+            if (!response.ok) {
+                // Если не авторизован как создатель - скрываем кнопку
+                return;
+            }
+
+            const data = await response.json();
+            
+            // Показываем кнопку только если VAPID настроен
+            if (!data.vapid_configured) {
+                return;
+            }
+
+            // Показываем кнопку
+            if (notificationsWrapper) {
+                notificationsWrapper.style.display = 'block';
+            }
+
+            updateNotificationsButtonUI(data.notifications_enabled);
+        } catch (error) {
+            console.warn('Не удалось загрузить статус уведомлений:', error);
+        }
+    }
+
+    function updateNotificationsButtonUI(enabled) {
+        if (!notificationsBtn) return;
+
+        notificationsBtn.dataset.enabled = enabled;
+
+        if (enabled) {
+            notificationsBtn.classList.add('notifications-enabled');
+            notificationsBtn.querySelector('.notifications-icon').textContent = '🔔';
+            notificationsBtn.querySelector('.notifications-text').textContent = 'Уведомления вкл.';
+        } else {
+            notificationsBtn.classList.remove('notifications-enabled');
+            notificationsBtn.querySelector('.notifications-icon').textContent = '🔕';
+            notificationsBtn.querySelector('.notifications-text').textContent = 'Уведомления выкл.';
+        }
+    }
+
+    if (notificationsBtn) {
+        notificationsBtn.addEventListener('click', async () => {
+            const currentEnabled = notificationsBtn.dataset.enabled === 'true';
+
+            notificationsBtn.disabled = true;
+
+            try {
+                const response = await fetch(buildPollApiUrl(`/api/polls/${currentPollId}/notifications`), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: !currentEnabled }),
+                    credentials: 'include'
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Не удалось переключить уведомления');
+                }
+
+                updateNotificationsButtonUI(data.notifications_enabled);
+
+                if (data.notifications_enabled) {
+                    showToast('Уведомления для этого опроса включены', 'success');
+                } else {
+                    showToast('Уведомления для этого опроса выключены', 'info');
+                }
+            } catch (error) {
+                showToast(error.message, 'error');
+            } finally {
+                notificationsBtn.disabled = false;
+            }
+        });
     }
 
     function escapeHtml(text) {

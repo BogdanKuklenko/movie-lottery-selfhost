@@ -1,0 +1,656 @@
+/* poll_theme_newyear.css - Новогодняя тема для страницы опроса */
+/* Содержит только переопределения базовых стилей из _polls.css */
+
+/* === НОВОГОДНИЙ ШРИФТ === */
+@font-face {
+    font-family: 'Comfortaa';
+    src: url('/static/fonts/Comfortaa-Bold.ttf') format('truetype');
+    font-weight: bold;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* === ПЕРЕМЕННЫЕ ТЕМЫ === */
+body.poll-theme-newyear {
+    --newyear-red: #c41e3a;
+    --newyear-green: #1a5f2a;
+    --newyear-gold: #ffd700;
+    --newyear-white: #f8f8ff;
+    --newyear-dark-red: #8b0000;
+    --newyear-dark-green: #0d3d1a;
+    --newyear-snow: rgba(255, 255, 255, 0.9);
+    --newyear-font: 'Comfortaa', sans-serif;
+}
+
+/* === ФОН СТРАНИЦЫ === */
+body.poll-theme-newyear.poll-body {
+    background: 
+        radial-gradient(ellipse at top, rgba(26, 95, 42, 0.35) 0%, transparent 50%),
+        radial-gradient(ellipse at bottom, rgba(196, 30, 58, 0.25) 0%, transparent 50%),
+        linear-gradient(180deg, #0a1a0d 0%, #1a0a0f 50%, #0a0a1a 100%);
+    position: relative;
+}
+
+/* Снежинки - анимированный фон */
+body.poll-theme-newyear.poll-body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+    background-image: 
+        radial-gradient(3px 3px at 20px 30px, var(--newyear-snow), transparent),
+        radial-gradient(2px 2px at 40px 70px, var(--newyear-snow), transparent),
+        radial-gradient(2px 2px at 90px 40px, var(--newyear-snow), transparent),
+        radial-gradient(3px 3px at 130px 80px, var(--newyear-snow), transparent),
+        radial-gradient(2px 2px at 160px 120px, var(--newyear-snow), transparent),
+        radial-gradient(3px 3px at 200px 60px, var(--newyear-snow), transparent),
+        radial-gradient(2px 2px at 230px 150px, var(--newyear-snow), transparent),
+        radial-gradient(3px 3px at 280px 90px, var(--newyear-snow), transparent),
+        radial-gradient(2px 2px at 320px 30px, var(--newyear-snow), transparent),
+        radial-gradient(3px 3px at 360px 170px, var(--newyear-snow), transparent),
+        radial-gradient(2px 2px at 50px 180px, var(--newyear-snow), transparent),
+        radial-gradient(3px 3px at 180px 20px, var(--newyear-snow), transparent);
+    background-size: 400px 200px;
+    animation: snowfall 20s linear infinite;
+    opacity: 0.7;
+}
+
+@keyframes snowfall {
+    0% {
+        background-position: 0 0;
+    }
+    100% {
+        background-position: 200px 600px;
+    }
+}
+
+/* === ЁЛОЧКИ В УГЛАХ === */
+body.poll-theme-newyear .poll-container::before,
+body.poll-theme-newyear .poll-container::after {
+    position: fixed;
+    font-size: 60px;
+    pointer-events: none;
+    z-index: 1;
+    filter: drop-shadow(0 0 10px rgba(26, 95, 42, 0.5));
+}
+
+body.poll-theme-newyear .poll-container::before {
+    content: '🎄';
+    bottom: 20px;
+    left: 15px;
+    animation: treeSway 4s ease-in-out infinite;
+}
+
+body.poll-theme-newyear .poll-container::after {
+    content: '🎄';
+    bottom: 20px;
+    right: 15px;
+    animation: treeSway 4s ease-in-out infinite reverse;
+}
+
+@keyframes treeSway {
+    0%, 100% { transform: rotate(-3deg) scale(1); }
+    50% { transform: rotate(3deg) scale(1.05); }
+}
+
+/* === ГИРЛЯНДА НАД ЗАГОЛОВКОМ === */
+body.poll-theme-newyear .poll-header-text::before {
+    content: '🔴🟢🟡🔵🟣🔴🟢🟡🔵🟣🔴🟢';
+    display: block;
+    font-size: 14px;
+    letter-spacing: 8px;
+    text-align: center;
+    margin-bottom: 8px;
+    animation: garlandBlink 1.5s ease-in-out infinite;
+    filter: drop-shadow(0 0 5px currentColor);
+}
+
+@keyframes garlandBlink {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+
+/* === ЗАГОЛОВОК С НОВОГОДНИМ ШРИФТОМ === */
+body.poll-theme-newyear .poll-title {
+    font-family: var(--newyear-font);
+    font-size: 28px;
+    background: linear-gradient(135deg, 
+        var(--newyear-gold) 0%, 
+        #fff4b0 25%, 
+        var(--newyear-gold) 50%, 
+        #fff4b0 75%, 
+        var(--newyear-gold) 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer 3s ease-in-out infinite;
+    text-shadow: none;
+    letter-spacing: 1px;
+}
+
+@keyframes shimmer {
+    0%, 100% { background-position: 0% center; }
+    50% { background-position: 100% center; }
+}
+
+/* === ПАНЕЛЬ БАЛЛОВ (БЕЗ РАМКИ) === */
+body.poll-theme-newyear .poll-points-panel {
+    position: relative;
+    background: linear-gradient(135deg, 
+        rgba(26, 95, 42, 0.6) 0%, 
+        rgba(13, 26, 15, 0.8) 100%);
+    border: none !important;
+    border-width: 0 !important;
+    border-style: none !important;
+    outline: none !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+body.poll-theme-newyear .points-balance-card {
+    background: transparent;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none;
+}
+
+body.poll-theme-newyear .points-balance-value {
+    color: var(--newyear-gold);
+    text-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+}
+
+body.poll-theme-newyear .points-balance-label {
+    color: var(--newyear-white);
+}
+
+body.poll-theme-newyear .points-state-badge {
+    background: linear-gradient(135deg, var(--newyear-red), var(--newyear-dark-red));
+    color: var(--newyear-white);
+    border: none !important;
+}
+
+/* === STREAK WIDGET (БЕЗ РАМКИ) === */
+body.poll-theme-newyear .streak-widget {
+    background: linear-gradient(135deg, 
+        rgba(196, 30, 58, 0.35) 0%, 
+        rgba(26, 95, 42, 0.35) 100%);
+    border: none;
+    box-shadow: 
+        0 8px 32px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 215, 0, 0.1);
+}
+
+body.poll-theme-newyear .streak-fire,
+body.poll-theme-newyear .streak-fire-large {
+    filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.7));
+}
+
+body.poll-theme-newyear .streak-progress-bar {
+    background: linear-gradient(90deg, 
+        var(--newyear-red) 0%, 
+        var(--newyear-gold) 50%, 
+        var(--newyear-green) 100%);
+}
+
+/* === КАРТОЧКИ ФИЛЬМОВ === */
+body.poll-theme-newyear .poll-movie-card {
+    background: linear-gradient(180deg, 
+        rgba(26, 95, 42, 0.3) 0%, 
+        rgba(13, 13, 26, 0.9) 100%);
+    border: none;
+    box-shadow: 
+        0 10px 30px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 215, 0, 0.15);
+    transition: all 0.3s ease;
+}
+
+body.poll-theme-newyear .poll-movie-card:hover {
+    box-shadow: 
+        0 15px 45px rgba(0, 0, 0, 0.6),
+        0 0 25px rgba(255, 215, 0, 0.2),
+        inset 0 1px 0 rgba(255, 215, 0, 0.25);
+    transform: translateY(-5px);
+}
+
+body.poll-theme-newyear .poll-movie-info h3 {
+    color: var(--newyear-white);
+}
+
+body.poll-theme-newyear .poll-movie-points,
+body.poll-theme-newyear .vote-confirm-points,
+body.poll-theme-newyear .poll-voted-points {
+    color: var(--newyear-gold);
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+/* Бейдж баллов на карточке */
+body.poll-theme-newyear .poll-movie-points-badge {
+    background: linear-gradient(135deg, var(--newyear-green), var(--newyear-dark-green));
+    color: var(--newyear-gold);
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+body.poll-theme-newyear .poll-movie-points-badge--max {
+    background: linear-gradient(135deg, var(--newyear-gold), #b8860b);
+    color: #1a0a0a;
+}
+
+/* === КНОПКИ === */
+body.poll-theme-newyear .cta-button {
+    background: linear-gradient(135deg, 
+        var(--newyear-red) 0%, 
+        var(--newyear-dark-red) 100%);
+    border: none;
+    box-shadow: 
+        0 8px 25px rgba(196, 30, 58, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+body.poll-theme-newyear .cta-button:hover {
+    background: linear-gradient(135deg, 
+        #d62547 0%, 
+        var(--newyear-red) 100%);
+    box-shadow: 
+        0 12px 35px rgba(196, 30, 58, 0.6),
+        0 0 20px rgba(255, 215, 0, 0.25);
+}
+
+body.poll-theme-newyear .secondary-button {
+    background: linear-gradient(135deg, 
+        rgba(26, 95, 42, 0.7) 0%, 
+        rgba(13, 61, 26, 0.9) 100%);
+    border: none;
+    color: var(--newyear-white);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+body.poll-theme-newyear .secondary-button:hover {
+    background: linear-gradient(135deg, 
+        rgba(26, 95, 42, 0.9) 0%, 
+        rgba(26, 95, 42, 1) 100%);
+    box-shadow: 
+        0 6px 20px rgba(0, 0, 0, 0.4),
+        0 0 15px rgba(255, 215, 0, 0.15);
+}
+
+body.poll-theme-newyear .custom-vote-btn {
+    background: linear-gradient(135deg, 
+        var(--newyear-green) 0%, 
+        var(--newyear-dark-green) 100%);
+    border: none;
+    box-shadow: 0 10px 30px rgba(26, 95, 42, 0.5);
+}
+
+body.poll-theme-newyear .custom-vote-btn:hover {
+    background: linear-gradient(135deg, 
+        #1f7534 0%, 
+        var(--newyear-green) 100%);
+    box-shadow: 
+        0 12px 35px rgba(26, 95, 42, 0.6),
+        0 0 20px rgba(255, 215, 0, 0.25);
+}
+
+/* === МОДАЛЬНЫЕ ОКНА === */
+body.poll-theme-newyear .modal-overlay {
+    background-color: rgba(10, 15, 10, 0.95);
+    backdrop-filter: blur(10px);
+}
+
+body.poll-theme-newyear .modal-content {
+    background: linear-gradient(180deg, 
+        rgba(13, 26, 15, 0.98) 0%, 
+        rgba(26, 10, 15, 0.98) 100%);
+    border: none;
+    box-shadow: 
+        0 25px 60px rgba(0, 0, 0, 0.7),
+        0 0 50px rgba(255, 215, 0, 0.15),
+        inset 0 1px 0 rgba(255, 215, 0, 0.15);
+}
+
+body.poll-theme-newyear .modal-content h2 {
+    color: var(--newyear-gold);
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+}
+
+/* Модальное окно подтверждения голосования */
+body.poll-theme-newyear .vote-confirm-content {
+    border: none;
+}
+
+body.poll-theme-newyear .vote-confirm-header .vote-confirm-icon {
+    background: linear-gradient(135deg, var(--newyear-green), var(--newyear-dark-green));
+    color: var(--newyear-gold);
+    box-shadow: 0 0 20px rgba(26, 95, 42, 0.5);
+}
+
+body.poll-theme-newyear .vote-confirm-submit {
+    background: linear-gradient(135deg, 
+        var(--newyear-red) 0%, 
+        var(--newyear-dark-red) 100%);
+}
+
+body.poll-theme-newyear .vote-confirm-submit:hover {
+    background: linear-gradient(135deg, 
+        #d62547 0%, 
+        var(--newyear-red) 100%);
+}
+
+/* Модальное окно бана */
+body.poll-theme-newyear .ban-modal-content {
+    border: none;
+}
+
+body.poll-theme-newyear .ban-preset-btn {
+    background: rgba(26, 95, 42, 0.4);
+    border: none;
+    box-shadow: inset 0 1px 0 rgba(255, 215, 0, 0.1);
+}
+
+body.poll-theme-newyear .ban-preset-btn:hover {
+    background: rgba(26, 95, 42, 0.6);
+    box-shadow: 
+        inset 0 1px 0 rgba(255, 215, 0, 0.2),
+        0 0 10px rgba(255, 215, 0, 0.1);
+}
+
+body.poll-theme-newyear .ban-total-cost {
+    color: var(--newyear-gold);
+}
+
+/* Модальное окно пользовательского голосования */
+body.poll-theme-newyear .custom-vote-content {
+    border: none;
+}
+
+body.poll-theme-newyear .custom-vote-input {
+    background: rgba(13, 26, 15, 0.7);
+    border: none;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+body.poll-theme-newyear .custom-vote-input:focus {
+    box-shadow: 
+        inset 0 2px 5px rgba(0, 0, 0, 0.3),
+        0 0 12px rgba(255, 215, 0, 0.3);
+}
+
+body.poll-theme-newyear .custom-vote-result-card {
+    background: rgba(26, 95, 42, 0.25);
+    border: none;
+    box-shadow: inset 0 1px 0 rgba(255, 215, 0, 0.1);
+}
+
+/* Модальное окно смены пользователя */
+body.poll-theme-newyear .user-switch-content {
+    border: none;
+}
+
+body.poll-theme-newyear .user-switch-input {
+    background: rgba(13, 26, 15, 0.7);
+    border: none;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+body.poll-theme-newyear .user-switch-input:focus {
+    box-shadow: 
+        inset 0 2px 5px rgba(0, 0, 0, 0.3),
+        0 0 12px rgba(255, 215, 0, 0.3);
+}
+
+body.poll-theme-newyear .user-switch-suggestions-list button {
+    background: rgba(26, 95, 42, 0.4);
+    border: none;
+}
+
+body.poll-theme-newyear .user-switch-suggestions-list button:hover {
+    background: rgba(26, 95, 42, 0.6);
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.1);
+}
+
+/* Модальное окно трейлера */
+body.poll-theme-newyear .trailer-fullscreen-modal .trailer-fullscreen-content {
+    background: linear-gradient(180deg, 
+        rgba(13, 26, 15, 0.98) 0%, 
+        rgba(13, 13, 26, 0.98) 100%);
+    border: none;
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+}
+
+body.poll-theme-newyear .trailer-player-header {
+    border-bottom: 1px solid rgba(255, 215, 0, 0.15);
+}
+
+body.poll-theme-newyear .trailer-player-title {
+    color: var(--newyear-gold);
+}
+
+/* === БАННЕР ПОБЕДИТЕЛЯ === */
+body.poll-theme-newyear .poll-winner-banner {
+    background: linear-gradient(135deg, 
+        rgba(26, 95, 42, 0.4) 0%, 
+        rgba(196, 30, 58, 0.3) 100%);
+    border: none;
+    color: var(--newyear-gold);
+    box-shadow: 
+        0 8px 30px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 215, 0, 0.15);
+}
+
+body.poll-theme-newyear .poll-winner-banner strong {
+    color: var(--newyear-gold);
+    text-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+}
+
+/* === КНОПКА LOGOUT === */
+body.poll-theme-newyear .logout-button {
+    background: rgba(196, 30, 58, 0.7);
+    border: none;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+body.poll-theme-newyear .logout-button:hover {
+    background: rgba(196, 30, 58, 0.9);
+    box-shadow: 
+        0 6px 20px rgba(0, 0, 0, 0.4),
+        0 0 15px rgba(255, 215, 0, 0.2);
+}
+
+/* === КАРТОЧКА ПРОГОЛОСОВАННОГО ФИЛЬМА === */
+body.poll-theme-newyear .poll-voted {
+    background: linear-gradient(135deg, 
+        rgba(26, 95, 42, 0.5) 0%, 
+        rgba(13, 26, 15, 0.7) 100%);
+    border: none;
+    box-shadow: 
+        0 10px 35px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 215, 0, 0.15);
+}
+
+body.poll-theme-newyear .poll-voted h2 {
+    color: var(--newyear-gold);
+}
+
+body.poll-theme-newyear .poll-voted-card {
+    background: rgba(13, 26, 15, 0.6);
+    border: none;
+    box-shadow: inset 0 1px 0 rgba(255, 215, 0, 0.1);
+}
+
+/* === ОВЕРЛЕЙ ПОДТВЕРЖДЕНИЯ ПРОСМОТРА ТРЕЙЛЕРА === */
+body.poll-theme-newyear .hold-confirm-overlay {
+    background: radial-gradient(ellipse at center, 
+        rgba(26, 95, 42, 0.95) 0%, 
+        rgba(13, 13, 26, 0.98) 100%);
+}
+
+body.poll-theme-newyear .hold-confirm-circle-progress {
+    stroke: var(--newyear-gold);
+}
+
+body.poll-theme-newyear .hold-confirm-icon {
+    color: var(--newyear-gold);
+}
+
+body.poll-theme-newyear .hold-confirm-cost {
+    color: var(--newyear-gold);
+}
+
+/* === АДАПТИВНОСТЬ === */
+@media (max-width: 640px) {
+    body.poll-theme-newyear .poll-container::before,
+    body.poll-theme-newyear .poll-container::after {
+        font-size: 40px;
+        bottom: 10px;
+    }
+    
+    body.poll-theme-newyear .poll-container::before {
+        left: 5px;
+    }
+    
+    body.poll-theme-newyear .poll-container::after {
+        right: 5px;
+    }
+    
+    body.poll-theme-newyear.poll-body::before {
+        background-size: 200px 100px;
+    }
+    
+    body.poll-theme-newyear .poll-title {
+        font-size: 22px;
+    }
+    
+    body.poll-theme-newyear .poll-header-text::before {
+        font-size: 10px;
+        letter-spacing: 4px;
+    }
+}
+
+/* === СКРОЛЛБАР === */
+body.poll-theme-newyear ::-webkit-scrollbar {
+    width: 10px;
+}
+
+body.poll-theme-newyear ::-webkit-scrollbar-track {
+    background: rgba(13, 26, 15, 0.6);
+}
+
+body.poll-theme-newyear ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, 
+        var(--newyear-red) 0%, 
+        var(--newyear-green) 100%);
+    border-radius: 5px;
+    border: 2px solid rgba(13, 26, 15, 0.6);
+}
+
+body.poll-theme-newyear ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, 
+        #d62547 0%, 
+        #1f7534 100%);
+}
+
+/* === ДОПОЛНИТЕЛЬНЫЕ УКРАШЕНИЯ === */
+
+/* Снежинки-эмодзи - одна НАД постерами, одна ПОД */
+
+/* Снежинка 1 - НАД постерами (высокий z-index) */
+body.poll-theme-newyear .poll-grid::before {
+    content: '❄️';
+    position: fixed;
+    top: 0;
+    font-size: 22px;
+    pointer-events: none;
+    z-index: 9999;
+    animation: 
+        snowflakeY1 8s linear infinite,
+        snowflakeX1 48s steps(1) infinite,
+        snowflakeOpacity1 8s linear infinite;
+}
+
+/* Снежинка 2 - ПОД постерами (низкий z-index, за карточками) */
+body.poll-theme-newyear .poll-grid::after {
+    content: '❄️';
+    position: fixed;
+    top: 0;
+    font-size: 18px;
+    pointer-events: none;
+    z-index: -1;
+    animation: 
+        snowflakeY2 10s linear infinite,
+        snowflakeX2 70s steps(1) infinite,
+        snowflakeOpacity2 10s linear infinite;
+}
+
+/* Вертикальное падение - снежинка 1 (8 сек цикл) */
+@keyframes snowflakeY1 {
+    0% { transform: translateY(-30px); }
+    100% { transform: translateY(100vh); }
+}
+
+/* Вертикальное падение - снежинка 2 (10 сек цикл) */
+@keyframes snowflakeY2 {
+    0% { transform: translateY(-30px); }
+    100% { transform: translateY(100vh); }
+}
+
+/* Горизонтальная позиция - снежинка 1 (меняется мгновенно каждые 8 сек) */
+@keyframes snowflakeX1 {
+    0% { left: 12%; }
+    16.67% { left: 78%; }
+    33.33% { left: 35%; }
+    50% { left: 62%; }
+    66.67% { left: 8%; }
+    83.33% { left: 88%; }
+}
+
+/* Горизонтальная позиция - снежинка 2 (меняется мгновенно каждые 10 сек) */
+@keyframes snowflakeX2 {
+    0% { left: 82%; }
+    14.29% { left: 18%; }
+    28.57% { left: 55%; }
+    42.86% { left: 5%; }
+    57.14% { left: 72%; }
+    71.43% { left: 28%; }
+    85.71% { left: 92%; }
+}
+
+/* Прозрачность - снежинка 1 */
+@keyframes snowflakeOpacity1 {
+    0% { opacity: 0; }
+    5% { opacity: 0.6; }
+    95% { opacity: 0.6; }
+    100% { opacity: 0; }
+}
+
+/* Прозрачность - снежинка 2 */
+@keyframes snowflakeOpacity2 {
+    0% { opacity: 0; }
+    5% { opacity: 0.4; }
+    95% { opacity: 0.4; }
+    100% { opacity: 0; }
+}
+
+/* Новогодние декорации на панели баллов */
+body.poll-theme-newyear .poll-points-panel::before {
+    content: '🎁';
+    position: absolute;
+    top: -8px;
+    left: 8px;
+    font-size: 18px;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+    z-index: 1;
+}
+
+body.poll-theme-newyear .poll-points-panel::after {
+    content: '🎅';
+    position: absolute;
+    top: -10px;
+    right: 8px;
+    font-size: 20px;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+    z-index: 1;
+}

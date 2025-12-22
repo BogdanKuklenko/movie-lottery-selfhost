@@ -332,6 +332,12 @@ function createWinnerCardHTML(movieData, isLibrary) {
                                 </svg>
                                 RuTracker
                             </button>
+                            <button class="action-button-youtube search-youtube-btn" title="Найти трейлер на YouTube">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                                </svg>
+                                YouTube
+                            </button>
                         </div>
                     </div>` : '<p class="meta-info">Kinopoisk ID не указан, работа с magnet-ссылкой недоступна.</p>'}
 
@@ -602,6 +608,22 @@ export class ModalManager {
                 // Показываем уведомление
                 if (window.showToast) {
                     window.showToast(`Открыт поиск на RuTracker: "${searchQuery}"`, 'info');
+                }
+            });
+        }
+
+        // Кнопка "Найти трейлер на YouTube"
+        const searchYoutubeBtn = this.body.querySelector('.search-youtube-btn');
+        if (searchYoutubeBtn) {
+            searchYoutubeBtn.addEventListener('click', () => {
+                const movieName = movieData.name || '';
+                const year = movieData.year ? ` (${movieData.year})` : '';
+                const searchQuery = `${movieName}${year} русский трейлер hd 1080`;
+                const encodedQuery = encodeURIComponent(searchQuery);
+                const youtubeUrl = `https://www.youtube.com/results?search_query=${encodedQuery}`;
+                window.open(youtubeUrl, '_blank');
+                if (window.showToast) {
+                    window.showToast(`Открыт поиск на YouTube: "${searchQuery}"`, 'info');
                 }
             });
         }

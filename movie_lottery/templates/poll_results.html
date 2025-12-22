@@ -34,6 +34,18 @@
                 <a id="open-poll-link" class="secondary-button" href="{{ poll_url }}" target="_blank" rel="noopener">Открыть опрос</a>
                 <a id="open-library-link" class="secondary-button" href="{{ url_for('main.library') }}">Мои опросы</a>
             </div>
+            <div class="poll-notifications-toggle" id="poll-notifications-wrapper" style="display: none;">
+                <button 
+                    id="poll-notifications-btn"
+                    class="poll-notifications-btn"
+                    data-poll-id="{{ poll.id }}"
+                    data-enabled="false"
+                    title="Переключить уведомления о новых голосах"
+                >
+                    <span class="notifications-icon">🔕</span>
+                    <span class="notifications-text">Уведомления выкл.</span>
+                </button>
+            </div>
         </div>
 
         <div id="poll-results-message" class="poll-message" style="display: none;"></div>

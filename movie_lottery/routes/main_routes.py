@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template, current_app, request
+import os
+
+from flask import Blueprint, render_template, current_app, request, send_file, Response
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from .. import db
@@ -27,6 +29,27 @@ def _get_custom_vote_cost():
 def health():
     """Health check endpoint for Render.com monitoring"""
     return {"status": "ok"}, 200
+
+
+@main_bp.route('/push-worker.js')
+def service_worker():
+    """Serve Service Worker from root for push notifications.
+    
+    Service Worker must be served from root to have scope='/' access.
+    Renamed from sw.js to avoid ad-blocker false positives.
+    """
+    sw_path = os.path.join(current_app.static_folder, 'push-worker.js')
+    try:
+        with open(sw_path, 'r', encoding='utf-8') as f:
+            sw_content = f.read()
+        response = Response(sw_content, mimetype='application/javascript')
+        response.headers['Service-Worker-Allowed'] = '/'
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+        return response
+    except FileNotFoundError:
+        return Response('// Service Worker not found', status=404, mimetype='application/javascript')
+
 
 @main_bp.route('/')
 def index():
@@ -235,9 +258,18 @@ def play_lottery(lottery_id):
 @main_bp.route('/p/<poll_id>')
 def view_poll(poll_id):
     poll = Poll.query.get_or_404(poll_id)
+    
+    # Тема берётся из самого опроса (устанавливается создателем)
+    # Безопасный доступ на случай, если колонка ещё не создана в БД
+    try:
+        poll_theme = poll.theme or 'default'
+    except Exception:
+        poll_theme = 'default'
+    
     return render_template(
         'poll.html',
         poll=poll,
+        poll_theme=poll_theme,
         custom_vote_cost=_get_custom_vote_cost(),
         background_photos=get_background_photos()
     )

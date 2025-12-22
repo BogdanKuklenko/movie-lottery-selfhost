@@ -5,6 +5,7 @@ import * as movieApi from '../api/movies.js';
 import { downloadTorrentToClient, deleteTorrentFromClient } from '../api/torrents.js';
 import { buildPollApiUrl, loadMyPolls } from '../utils/polls.js';
 import { formatDate as formatVladivostokDate, formatDateTimeShort as formatVladivostokDateTime } from '../utils/timeFormat.js';
+import PushNotificationManager from '../utils/pushNotifications.js';
 
 const escapeHtml = (unsafeValue) => {
     const value = unsafeValue == null ? '' : String(unsafeValue);
@@ -85,6 +86,65 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (modalElement.style.display === 'flex') {
             modal.close();
         }
+    };
+
+    // Инициализация менеджера уведомлений
+    const pushNotificationManager = new PushNotificationManager();
+    await pushNotificationManager.init();
+
+    // Загружаем настройку уведомлений из localStorage (по умолчанию включено)
+    const getNotificationsEnabled = () => {
+        const stored = localStorage.getItem('pollNotificationsEnabled');
+        return stored === null ? true : stored === 'true';
+    };
+
+    const setNotificationsEnabled = (enabled) => {
+        localStorage.setItem('pollNotificationsEnabled', String(enabled));
+    };
+
+    /**
+     * Включает уведомления для опроса в фоне (не блокирует UI).
+     * Также подписывается на push-уведомления, если нужно.
+     * @param {string} pollId - ID созданного опроса
+     */
+    const enablePollNotificationsInBackground = (pollId) => {
+        if (!pollId) return;
+        
+        const notificationsEnabled = getNotificationsEnabled();
+        if (!notificationsEnabled) return;
+
+        // Выполняем всё в фоне без await
+        (async () => {
+            try {
+                // Включаем уведомления для опроса
+                const notifResponse = await fetch(buildPollApiUrl(`/api/polls/${pollId}/notifications`), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: true }),
+                    credentials: 'include'
+                });
+
+                if (!notifResponse.ok) {
+                    const notifData = await notifResponse.json();
+                    console.error('[Push] Не удалось включить уведомления для опроса:', notifData.error || notifResponse.status);
+                } else {
+                    const notifData = await notifResponse.json();
+                    console.log('[Push] Уведомления включены для опроса:', notifData.notifications_enabled);
+                }
+
+                // Подписываемся на push-уведомления, если еще не подписаны
+                if (pushNotificationManager.isAvailable() && !pushNotificationManager.isEnabled) {
+                    const subscribed = await pushNotificationManager.subscribe();
+                    if (subscribed) {
+                        console.log('[Push] Подписка на push-уведомления создана');
+                    } else {
+                        console.warn('[Push] Не удалось подписаться на push-уведомления');
+                    }
+                }
+            } catch (error) {
+                console.error('[Push] Ошибка при включении уведомлений для опроса:', error);
+            }
+        })();
     };
 
     // --- Система уведомлений о запланированных фильмах ---
@@ -392,11 +452,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
+        // Получаем выбранную тему
+        const themeSelect = document.getElementById('poll-theme-select');
+        const selectedTheme = themeSelect ? themeSelect.value : 'default';
+
         try {
             const response = await fetch(buildPollApiUrl('/api/polls/create'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ movies: moviesData }),
+                body: JSON.stringify({ movies: moviesData, theme: selectedTheme }),
                 credentials: 'include'
             });
 
@@ -406,10 +470,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 throw new Error(data.error || 'Не удалось создать опрос');
             }
 
+            // Включаем уведомления для опроса в фоне (не блокирует UI)
+            enablePollNotificationsInBackground(data.poll_id);
+
             // Показываем модальное окно с результатом
             showPollCreatedModal({
                 pollUrl: data.poll_url,
                 resultsUrl: data.results_url,
+                pollId: data.poll_id,
             });
 
             // Сбрасываем выбор
@@ -425,7 +493,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    function showPollCreatedModal({ pollUrl, resultsUrl }) {
+    function showPollCreatedModal({ pollUrl, resultsUrl, pollId }) {
+        const notificationsEnabled = getNotificationsEnabled();
         const modalContent = `
             <h2>Опрос создан!</h2>
             <p>Поделитесь этой ссылкой с друзьями:</p>
@@ -443,6 +512,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                class="action-button-tg" target="_blank">
                 Поделиться в Telegram
             </a>
+            <div class="poll-notifications-toggle" style="margin-top: 20px; padding: 15px; background: rgba(255, 255, 255, 0.05); border-radius: 8px;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                    <input type="checkbox" id="poll-notifications-checkbox" ${notificationsEnabled ? 'checked' : ''} style="width: 20px; height: 20px; cursor: pointer;">
+                    <span style="font-size: 16px;">
+                        <span id="notifications-icon">${notificationsEnabled ? '🔔' : '🔕'}</span>
+                        <span id="notifications-text">${notificationsEnabled ? 'Уведомления включены' : 'Уведомления выключены'}</span>
+                    </span>
+                </label>
+                <p style="margin: 8px 0 0 30px; font-size: 13px; color: rgba(255, 255, 255, 0.7);">
+                    Получать уведомления о новых голосах даже когда браузер свернут или открыта другая страница
+                </p>
+            </div>
             <p class="poll-info">Результаты появятся в "Мои опросы" после первого голоса</p>
         `;
         const isModalOpen = modalElement.style.display === 'flex';
@@ -483,6 +564,55 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             });
         });
+
+        // Обработчик переключателя уведомлений
+        const notificationsCheckbox = modalBody.querySelector('#poll-notifications-checkbox');
+        const notificationsIcon = modalBody.querySelector('#notifications-icon');
+        const notificationsText = modalBody.querySelector('#notifications-text');
+
+        if (notificationsCheckbox && pollId) {
+            notificationsCheckbox.addEventListener('change', async () => {
+                const enabled = notificationsCheckbox.checked;
+                setNotificationsEnabled(enabled);
+
+                // Обновляем UI
+                notificationsIcon.textContent = enabled ? '🔔' : '🔕';
+                notificationsText.textContent = enabled ? 'Уведомления включены' : 'Уведомления выключены';
+
+                try {
+                    // Включаем/выключаем уведомления для опроса
+                    const response = await fetch(buildPollApiUrl(`/api/polls/${pollId}/notifications`), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ enabled }),
+                        credentials: 'include'
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Не удалось изменить настройки уведомлений');
+                    }
+
+                    // Если включаем уведомления, подписываемся на push
+                    if (enabled && pushNotificationManager.isAvailable() && !pushNotificationManager.isEnabled) {
+                        const subscribed = await pushNotificationManager.subscribe();
+                        if (subscribed) {
+                            showToast('Уведомления включены. Вы будете получать уведомления о новых голосах.', 'success');
+                        } else {
+                            showToast('Не удалось подписаться на push-уведомления. Проверьте настройки браузера.', 'warning');
+                        }
+                    } else if (!enabled) {
+                        showToast('Уведомления выключены', 'info');
+                    }
+                } catch (error) {
+                    // Откатываем состояние чекбокса при ошибке
+                    notificationsCheckbox.checked = !enabled;
+                    notificationsIcon.textContent = !enabled ? '🔔' : '🔕';
+                    notificationsText.textContent = !enabled ? 'Уведомления включены' : 'Уведомления выключены';
+                    setNotificationsEnabled(!enabled);
+                    showToast(error.message || 'Не удалось изменить настройки уведомлений', 'error');
+                }
+            });
+        }
     }
 
     myPollsBtn.addEventListener('click', () => {
@@ -546,6 +676,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
             ` : '';
 
+            const notificationsEnabled = Boolean(poll.notifications_enabled);
+            const notificationsClass = notificationsEnabled ? 'notifications-enabled' : '';
+            const notificationsIcon = notificationsEnabled ? '🔔' : '🔕';
+            const notificationsText = notificationsEnabled ? 'Уведомления вкл.' : 'Уведомления выкл.';
+
             pollsHtml += `
                 <div class="poll-result-item">
                     <div class="poll-result-header">
@@ -568,6 +703,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                             Создать опрос из победителей
                         </button>
                     ` : ''}
+                    <div class="poll-notifications-toggle">
+                        <button 
+                            class="poll-notifications-btn ${notificationsClass}"
+                            data-poll-id="${poll.poll_id}"
+                            data-enabled="${notificationsEnabled}"
+                            title="Переключить уведомления о новых голосах"
+                        >
+                            <span class="notifications-icon">${notificationsIcon}</span>
+                            <span class="notifications-text">${notificationsText}</span>
+                        </button>
+                    </div>
                     <div class="poll-actions">
                         <button class="secondary-button search-winner-btn" data-movie-name="${winnerNameAttr}" data-movie-year="${winnerYearAttr}" data-movie-search-name="${winnerSearchNameAttr}" data-movie-countries="${winnerCountriesAttr}">
                             Найти на RuTracker
@@ -648,12 +794,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                         throw new Error(data.error || 'Не удалось создать опрос');
                     }
 
+                    // Включаем уведомления для опроса в фоне (не блокирует UI)
+                    enablePollNotificationsInBackground(data.poll_id);
+
                     closeModalIfOpen();
                     reopenedWithResult = true;
 
                     showPollCreatedModal({
                         pollUrl: data.poll_url,
                         resultsUrl: data.results_url,
+                        pollId: data.poll_id,
                     });
                     await refreshMyPolls();
 
@@ -665,6 +815,52 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (!reopenedWithResult) {
                         closeModalIfOpen();
                     }
+                }
+            });
+        });
+
+        // Обработчик для переключения уведомлений на опросе
+        document.querySelectorAll('.poll-notifications-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const pollId = btn.dataset.pollId;
+                const currentEnabled = btn.dataset.enabled === 'true';
+                
+                btn.disabled = true;
+                
+                try {
+                    const response = await fetch(buildPollApiUrl(`/api/polls/${pollId}/notifications`), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ enabled: !currentEnabled }),
+                        credentials: 'include'
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Не удалось переключить уведомления');
+                    }
+                    
+                    // Обновляем состояние кнопки
+                    const newEnabled = data.notifications_enabled;
+                    btn.dataset.enabled = newEnabled;
+                    
+                    if (newEnabled) {
+                        btn.classList.add('notifications-enabled');
+                        btn.querySelector('.notifications-icon').textContent = '🔔';
+                        btn.querySelector('.notifications-text').textContent = 'Уведомления вкл.';
+                        showToast('Уведомления для этого опроса включены', 'success');
+                    } else {
+                        btn.classList.remove('notifications-enabled');
+                        btn.querySelector('.notifications-icon').textContent = '🔕';
+                        btn.querySelector('.notifications-text').textContent = 'Уведомления выкл.';
+                        showToast('Уведомления для этого опроса выключены', 'info');
+                    }
+                    
+                } catch (error) {
+                    showToast(error.message, 'error');
+                } finally {
+                    btn.disabled = false;
                 }
             });
         });
@@ -758,6 +954,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <h3 style="margin: 10px 0;">${badgeName}</h3>
                 </div>
                 <p>Вы действительно хотите создать опрос со всеми фильмами, имеющими бейдж "${badgeName}"?</p>
+                <div class="badge-poll-theme-selector" style="display: flex; align-items: center; justify-content: center; gap: 10px; margin: 15px 0;">
+                    <label for="badge-poll-theme-select" style="color: #adb5bd;">Тема опроса:</label>
+                    <select id="badge-poll-theme-select" class="poll-theme-select" style="padding: 8px 12px; border-radius: 6px; background: #2a2a3e; color: #fff; border: 1px solid #3a3a5e;">
+                        <option value="default">🎬 Обычная</option>
+                        <option value="newyear">❄️ Новогодняя</option>
+                    </select>
+                </div>
                 <p style="font-size: 14px; color: #adb5bd; margin-top: 10px;">
                     Опрос будет доступен друзьям по ссылке в течение 24 часов.
                 </p>
@@ -796,11 +999,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                         showToast(`Внимание: в опрос добавлены только первые 25 фильмов из ${data.total}`, 'warning');
                     }
 
+                    // Получаем выбранную тему
+                    const themeSelect = document.getElementById('badge-poll-theme-select');
+                    const selectedTheme = themeSelect ? themeSelect.value : 'default';
+
                     // Создаём опрос
                     const createResponse = await fetch(buildPollApiUrl('/api/polls/create'), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ movies: data.movies }),
+                        body: JSON.stringify({ movies: data.movies, theme: selectedTheme }),
                         credentials: 'include'
                     });
 
@@ -810,9 +1017,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         throw new Error(createData.error || 'Не удалось создать опрос');
                     }
 
+                    // Включаем уведомления для опроса в фоне (не блокирует UI)
+                    enablePollNotificationsInBackground(createData.poll_id);
+
                     showPollCreatedModal({
                         pollUrl: createData.poll_url,
                         resultsUrl: createData.results_url,
+                        pollId: createData.poll_id,
                     });
 
                     // Обновляем кнопку "Мои опросы"
@@ -1526,10 +1737,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                             throw new Error(data.error || 'Не удалось получить фильмы');
                         }
 
-                        const pollResponse = await fetch(buildPollApiUrl('/polls'), {
+                        const pollResponse = await fetch(buildPollApiUrl('/api/polls/create'), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ movies: data.movies })
+                            body: JSON.stringify({ movies: data.movies }),
+                            credentials: 'include'
                         });
 
                         const pollData = await pollResponse.json();
@@ -1537,9 +1749,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                             throw new Error(pollData.error || 'Не удалось создать опрос');
                         }
 
+                        // Включаем уведомления для опроса в фоне (не блокирует UI)
+                        enablePollNotificationsInBackground(pollData.poll_id);
+
+                        showPollCreatedModal({
+                            pollUrl: pollData.poll_url,
+                            resultsUrl: pollData.results_url,
+                            pollId: pollData.poll_id,
+                        });
+
                         showToast('Опрос успешно создан!', 'success');
                         await refreshMyPolls();
-                        modal.close();
                     } catch (error) {
                         showToast(error.message, 'error');
                         confirmBtn.disabled = false;

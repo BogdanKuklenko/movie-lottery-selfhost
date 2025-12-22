@@ -581,7 +581,7 @@ def get_custom_vote_cost():
         return default_cost
 
 
-def update_poll_settings(*, custom_vote_cost=None):
+def update_poll_settings(*, custom_vote_cost=None, poll_duration_hours=None):
     settings = get_poll_settings(create_if_missing=True)
     if not settings:
         return None
@@ -591,11 +591,32 @@ def update_poll_settings(*, custom_vote_cost=None):
         settings.custom_vote_cost = max(0, int(custom_vote_cost))
         updated = True
 
+    if poll_duration_hours is not None:
+        # Минимум 1 час, максимум 87600 часов (10 лет)
+        settings.poll_duration_hours = max(1, min(87600, int(poll_duration_hours)))
+        updated = True
+
     if updated:
         settings.updated_at = vladivostok_now()
         db.session.commit()
 
     return settings
+
+
+def get_poll_duration_hours():
+    """Вернуть актуальную продолжительность опроса в часах."""
+    DEFAULT_DURATION = 24
+    settings = get_poll_settings(create_if_missing=True)
+    if not settings:
+        return DEFAULT_DURATION
+
+    try:
+        duration = getattr(settings, 'poll_duration_hours', DEFAULT_DURATION)
+        if duration is None:
+            return DEFAULT_DURATION
+        return max(1, int(duration))
+    except (TypeError, ValueError, AttributeError):
+        return DEFAULT_DURATION
 
 
 def get_background_photos():

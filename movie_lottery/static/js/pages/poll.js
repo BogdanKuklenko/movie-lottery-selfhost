@@ -3,7 +3,6 @@
 import { buildPollApiUrl } from '../utils/polls.js';
 import { fetchMovieInfo } from '../api/movies.js';
 import { lockScroll, unlockScroll } from '../utils/scrollLock.js';
-
 document.addEventListener('DOMContentLoaded', async () => {
     const pollGrid = document.getElementById('poll-grid');
     const pollMessage = document.getElementById('poll-message');

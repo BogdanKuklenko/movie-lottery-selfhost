@@ -22,10 +22,37 @@
     </header>
 
     <div class="calendar-container">
+        <div class="calendar-mode-toggle">
+            <button class="mode-btn active" data-mode="schedules">📅 Запланированные</button>
+            <button class="mode-btn" data-mode="releases">🎬 Релизы</button>
+        </div>
+        
         <div class="calendar-header">
-            <button type="button" class="calendar-nav-btn" id="prev-month">&larr;</button>
+            <div class="calendar-nav">
+                <button type="button" class="calendar-nav-btn" id="prev-month">&larr;</button>
+                <button type="button" class="today-btn" id="today-btn" style="display: none;">Сегодня</button>
+                <button type="button" class="calendar-nav-btn" id="next-month">&rarr;</button>
+            </div>
             <h2 class="calendar-title" id="calendar-title">Загрузка...</h2>
-            <button type="button" class="calendar-nav-btn" id="next-month">&rarr;</button>
+            <div class="calendar-nav">
+                <!-- Пустой блок для выравнивания -->
+            </div>
+        </div>
+        
+        <div class="genre-filter-container" id="genre-filter-container" style="display: none;">
+            <label>Фильтр по жанру:</label>
+            <div class="custom-select" id="genre-filter-wrapper">
+                <div class="custom-select-trigger" id="genre-filter-trigger">
+                    <span>Все жанры</span>
+                    <svg class="custom-select-arrow" viewBox="0 0 24 24" width="16" height="16">
+                        <path fill="currentColor" d="M7 10l5 5 5-5z"/>
+                    </svg>
+                </div>
+                <div class="custom-select-options" id="genre-filter-options">
+                    <div class="custom-select-option selected" data-value="">Все жанры</div>
+                </div>
+            </div>
+            <input type="hidden" id="genre-filter" value="">
         </div>
         
         <div class="calendar-weekdays">
@@ -42,7 +69,7 @@
             <!-- Ячейки календаря будут генерироваться JS -->
         </div>
         
-        <div class="calendar-legend">
+        <div class="calendar-legend" id="calendar-legend-schedules">
             <div class="legend-item">
                 <span class="legend-dot legend-pending"></span>
                 <span>Запланировано</span>
@@ -52,10 +79,39 @@
                 <span>Просмотрено</span>
             </div>
         </div>
+        
+        <div class="calendar-legend" id="calendar-legend-releases" style="display: none;">
+            <div class="release-type-filters">
+                <label class="release-type-filter">
+                    <input type="checkbox" id="russia-releases-toggle" checked>
+                    <span class="filter-dot filter-russia"></span>
+                    <span>Премьеры в России</span>
+                </label>
+                <label class="release-type-filter">
+                    <input type="checkbox" id="world-releases-toggle">
+                    <span class="filter-dot filter-world"></span>
+                    <span>Мировые премьеры</span>
+                </label>
+                <label class="release-type-filter">
+                    <input type="checkbox" id="digital-releases-toggle">
+                    <span class="filter-dot filter-digital"></span>
+                    <span>Цифровые релизы</span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="calendar-loading" id="calendar-loading" style="display: none;">
+            <div class="loading-spinner"></div>
+            <span>Загрузка релизов...</span>
+        </div>
     </div>
 
     <p class="no-history calendar-empty-message" id="calendar-empty" style="display: none;">
         В календаре пока нет запланированных фильмов.
+    </p>
+    
+    <p class="no-history calendar-empty-message" id="calendar-releases-empty" style="display: none;">
+        Нет релизов для этого месяца.
     </p>
 
     <script>

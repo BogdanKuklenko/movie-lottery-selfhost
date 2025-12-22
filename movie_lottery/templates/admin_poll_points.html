@@ -29,13 +29,17 @@
             <div class="filters-header">
                 <div>
                     <h2>Настройки опросов</h2>
-                    <p class="admin-hint">Стоимость кастомного голосования хранится на сервере и применяется ко всем опросам и API-ответам.</p>
+                    <p class="admin-hint">Настройки хранятся на сервере и применяются ко всем новым опросам. Время жизни фиксируется при создании опроса.</p>
                     <p class="admin-hint" id="poll-settings-updated">Обновлено: —</p>
                 </div>
                 <form id="poll-settings-form" class="filters-grid" novalidate>
                     <label>
                         <span>Стоимость кастомного голоса</span>
                         <input type="number" id="custom-vote-cost" min="0" step="1" required>
+                    </label>
+                    <label>
+                        <span>Время жизни опроса (часов)</span>
+                        <input type="number" id="poll-duration-hours" min="1" max="87600" step="1" required>
                     </label>
                     <div class="filters-actions">
                         <button type="submit" class="cta-button">Сохранить</button>

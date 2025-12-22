@@ -6,3 +6,6 @@ requests
 Flask-Migrate
 APScheduler
 Flask-Cors
+pywebpush
+py-vapid
+diskcache
