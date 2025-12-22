@@ -56,15 +56,16 @@ export const buildPollApiUrl = (path = '') => {
 };
 
 const toggleMyPollsUi = ({ polls, myPollsButton, myPollsBadgeElement }) => {
-    const hasPolls = polls.length > 0;
+    // Кнопка всегда видима
     if (myPollsButton) {
-        myPollsButton.style.display = hasPolls ? 'inline-block' : 'none';
+        myPollsButton.style.display = 'inline-block';
     }
 
     if (!myPollsBadgeElement) {
         return;
     }
 
+    const hasPolls = polls.length > 0;
     if (!hasPolls) {
         myPollsBadgeElement.style.display = 'none';
         myPollsBadgeElement.textContent = '';
@@ -99,8 +100,9 @@ export async function loadMyPolls({ myPollsButton, myPollsBadgeElement } = {}) {
         return polls;
     } catch (error) {
         console.error('Ошибка загрузки опросов:', error);
+        // Кнопка всегда видима, даже при ошибке
         if (myPollsButton) {
-            myPollsButton.style.display = 'none';
+            myPollsButton.style.display = 'inline-block';
         }
         if (myPollsBadgeElement) {
             myPollsBadgeElement.style.display = 'none';
