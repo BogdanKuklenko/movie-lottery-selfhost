@@ -820,6 +820,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </button>
                         <a href="${poll.poll_url}" class="secondary-button" target="_blank">Открыть опрос</a>
                         ${poll.results_url ? `<a href="${poll.results_url}" class="secondary-button" target="_blank" rel="noopener">Результаты</a>` : ''}
+                        <button class="secondary-button delete-poll-btn" data-poll-id="${poll.poll_id}" title="Удалить опрос">
+                            🗑️ Удалить
+                        </button>
                     </div>
                     <a href="https://t.me/share/url?url=${encodeURIComponent(poll.poll_url)}&text=${encodeURIComponent('Приглашаю принять участие в опросе')}"
                        class="action-button-tg" target="_blank">
@@ -961,6 +964,56 @@ document.addEventListener('DOMContentLoaded', async () => {
                     showToast(error.message, 'error');
                 } finally {
                     btn.disabled = false;
+                }
+            });
+        });
+
+        // Обработчик для удаления опроса
+        document.querySelectorAll('.delete-poll-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const pollId = btn.dataset.pollId;
+                
+                // Подтверждение удаления
+                if (!confirm('Вы уверены, что хотите удалить этот опрос? Это действие нельзя отменить.')) {
+                    return;
+                }
+                
+                btn.disabled = true;
+                btn.textContent = 'Удаление...';
+                
+                try {
+                    const response = await fetch(buildPollApiUrl(`/api/polls/${pollId}`), {
+                        method: 'DELETE',
+                        credentials: 'include'
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Не удалось удалить опрос');
+                    }
+                    
+                    // Удаляем элемент опроса из DOM
+                    const pollItem = btn.closest('.poll-result-item');
+                    if (pollItem) {
+                        pollItem.remove();
+                    }
+                    
+                    showToast('Опрос успешно удалён', 'success');
+                    
+                    // Обновляем список опросов
+                    await refreshMyPolls();
+                    
+                    // Проверяем, остались ли ещё опросы в модальном окне
+                    const remainingPolls = document.querySelectorAll('.poll-result-item');
+                    if (remainingPolls.length === 0) {
+                        modal.renderCustomContent('<h2>Мои опросы</h2><p>У вас пока нет активных опросов с голосами.</p>');
+                    }
+                    
+                } catch (error) {
+                    showToast(error.message, 'error');
+                    btn.disabled = false;
+                    btn.textContent = '🗑️ Удалить';
                 }
             });
         });

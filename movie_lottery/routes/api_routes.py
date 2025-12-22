@@ -2060,6 +2060,29 @@ def get_poll(poll_id):
     return _set_voter_cookies(response, voter_token, user_id)
 
 
+@api_bp.route('/polls/<poll_id>', methods=['DELETE'])
+def delete_poll(poll_id):
+    """Удаление опроса (только для создателя)"""
+    poll = Poll.query.get_or_404(poll_id)
+
+    creator_token = _read_creator_token_from_request()
+    if not creator_token:
+        return jsonify({"error": "Не авторизован"}), 401
+
+    if poll.creator_token != creator_token:
+        return jsonify({"error": "Вы не являетесь создателем этого опроса"}), 403
+
+    poll_id_deleted = poll.id
+    db.session.delete(poll)
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": "Опрос успешно удалён",
+        "poll_id": poll_id_deleted
+    })
+
+
 @api_bp.route('/polls/streak-info', methods=['GET'])
 def get_streak_info():
     """Получение информации о streak текущего пользователя"""
