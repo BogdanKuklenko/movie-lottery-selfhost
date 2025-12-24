@@ -68,6 +68,8 @@
         window.appConfig = window.appConfig || {};
         window.appConfig.pollApiBaseUrl = {{ poll_api_base_url|tojson }};
     </script>
+    <!-- Socket.IO клиент для WebSocket уведомлений -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
     <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
     

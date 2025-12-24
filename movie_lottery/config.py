@@ -85,6 +85,10 @@ class Config:
     # Глобальный переключатель уведомлений о голосах
     VOTE_NOTIFICATIONS_ENABLED = os.environ.get('VOTE_NOTIFICATIONS_ENABLED', 'true').lower() == 'true'
 
+    # Переключатели методов доставки уведомлений
+    WEBSOCKET_NOTIFICATIONS_ENABLED = os.environ.get('WEBSOCKET_NOTIFICATIONS_ENABLED', 'true').lower() == 'true'
+    WEBPUSH_NOTIFICATIONS_ENABLED = os.environ.get('WEBPUSH_NOTIFICATIONS_ENABLED', 'true').lower() == 'true'
+
     # Кэширование релизов фильмов
     RELEASES_CACHE_DIR = os.path.join(instance_dir, 'cache', 'releases')
     try:

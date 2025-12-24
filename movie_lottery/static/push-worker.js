@@ -54,6 +54,7 @@ self.addEventListener('push', (event) => {
         badge: notificationData.badge,
         tag: notificationData.tag,
         requireInteraction: true,
+        renotify: true,  // Заменяет существующее уведомление с тем же tag
         vibrate: [200, 100, 200],
         data: notificationData.data,
         actions: [
@@ -104,6 +105,31 @@ self.addEventListener('notificationclick', (event) => {
 // Обработка закрытия уведомления (свайп или таймаут)
 self.addEventListener('notificationclose', (event) => {
     console.log('[SW] Уведомление закрыто');
+});
+
+// Обработка сообщений от WebSocket (для показа уведомлений через единый канал)
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
+        console.log('[SW] Получен запрос на показ уведомления от WebSocket');
+        const data = event.data.payload;
+        
+        const options = {
+            body: data.body,
+            icon: data.icon || '/static/icons/icon128.png',
+            badge: data.badge || '/static/icons/icon32.png',
+            tag: data.tag || `vote-${data.poll_id}`,
+            requireInteraction: true,
+            renotify: true,  // Заменяет существующее уведомление с тем же tag
+            vibrate: [200, 100, 200],
+            data: data.data || {},
+            actions: [
+                { action: 'open', title: 'Открыть' },
+                { action: 'dismiss', title: 'Закрыть' },
+            ],
+        };
+        
+        self.registration.showNotification(data.title || '🗳️ Новый голос!', options);
+    }
 });
 
 

@@ -394,13 +394,16 @@
     </div>
 
     <script>
-        const pollId = {{ poll.id|tojson }};
+        const pollId = {{ (poll.id if poll else '')|tojson }};
+        const pollNotFound = {{ poll_not_found|default(false)|tojson }};
     </script>
     <div id="poll-config" data-custom-vote-cost="{{ custom_vote_cost }}" hidden></div>
     <script>
         window.appConfig = window.appConfig || {};
         window.appConfig.pollApiBaseUrl = {{ poll_api_base_url|tojson }};
     </script>
+    <!-- Socket.IO клиент для WebSocket уведомлений -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
     <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet">
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>

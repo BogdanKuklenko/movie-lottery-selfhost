@@ -256,6 +256,8 @@ class Poll(db.Model):
     forced_winner_movie_id = db.Column(db.Integer, nullable=True)
     notifications_enabled = db.Column(db.Boolean, nullable=False, default=False, server_default=db.text('FALSE'))
     theme = db.Column(db.String(30), nullable=False, default='default', server_default='default')  # Тема оформления опроса
+    winner_badge = db.Column(db.String(30), nullable=True)  # Бейдж победителя, сохраняется при создании опроса
+    finalized = db.Column(db.Boolean, nullable=False, default=False, server_default=db.text('FALSE'))  # True после применения бейджа
     movies = db.relationship('PollMovie', backref='poll', lazy=True, cascade="all, delete-orphan")
     votes = db.relationship('Vote', backref='poll', lazy=True, cascade="all, delete-orphan")
 

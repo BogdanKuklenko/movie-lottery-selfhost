@@ -9,3 +9,4 @@ Flask-Cors
 pywebpush
 py-vapid
 diskcache
+flask-socketio

@@ -5,16 +5,19 @@ from flask import Flask
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.date import DateTrigger
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from werkzeug.middleware.proxy_fix import ProxyFix
+from flask_socketio import SocketIO
 
 from .diagnostic_middleware import start_diagnostics, checkpoint, finish_diagnostics
 
 _diag = start_diagnostics()
 db = SQLAlchemy()
 scheduler = BackgroundScheduler()
+socketio = SocketIO(cors_allowed_origins="*", async_mode='threading')
 
 
 def _configure_cors(app):
@@ -105,6 +108,9 @@ def create_app():
     app.register_blueprint(api_bp)
     checkpoint("Blueprints registered")
 
+    socketio.init_app(app, cors_allowed_origins="*", async_mode='threading')
+    checkpoint("SocketIO initialized")
+
     from .cli import register_cli
 
     register_cli(app)
@@ -149,14 +155,8 @@ def create_app():
             return False
     
     if not scheduler.running and _should_start_scheduler():
-        from .utils.helpers import cleanup_expired_polls
-        from .models import MovieSchedule
-        
-        def cleanup_job():
-            with app.app_context():
-                count = cleanup_expired_polls()
-                if count > 0:
-                    app.logger.info("Удалено истёкших опросов: %d", count)
+        from .utils.helpers import finalize_poll, vladivostok_now
+        from .models import MovieSchedule, Poll
         
         def cleanup_schedules_job():
             with app.app_context():
@@ -165,23 +165,45 @@ def create_app():
                     app.logger.info("Удалено истёкших таймеров: %d", count)
         
         scheduler.add_job(
-            func=cleanup_job,
-            trigger=IntervalTrigger(minutes=5),  # Запускаем каждые 5 минут для быстрой обработки коротких опросов
-            id='cleanup_polls',
-            name='Cleanup expired polls',
-            replace_existing=True
-        )
-        
-        scheduler.add_job(
             func=cleanup_schedules_job,
-            trigger=IntervalTrigger(hours=1),  # Запускаем каждый час
+            trigger=IntervalTrigger(hours=1),
             id='cleanup_schedules',
             name='Cleanup expired movie schedules',
             replace_existing=True
         )
         
+        # Периодическая проверка истёкших опросов и присвоение бейджей
+        # Проверяем каждые 10 секунд для быстрого срабатывания
+        def finalize_expired_polls_job():
+            with app.app_context():
+                try:
+                    now = vladivostok_now()
+                    
+                    # Находим все истёкшие опросы, которые ещё не были финализированы
+                    expired_polls = Poll.query.filter(
+                        Poll.expires_at <= now,
+                        Poll.finalized == False  # noqa: E712
+                    ).all()
+                    
+                    for poll in expired_polls:
+                        if finalize_poll(poll.id):
+                            app.logger.info("Финализирован опрос %s", poll.id)
+                except Exception as e:
+                    app.logger.warning("Ошибка проверки истёкших опросов: %s", e)
+        
+        scheduler.add_job(
+            func=finalize_expired_polls_job,
+            trigger=IntervalTrigger(seconds=10),  # Проверяем каждые 10 секунд
+            id='finalize_expired_polls',
+            name='Finalize expired polls and apply winner badges',
+            replace_existing=True
+        )
+        
         scheduler.start()
         checkpoint("Scheduler started (single instance with file lock)")
+        
+        # При старте сразу финализируем пропущенные опросы
+        finalize_expired_polls_job()
         
         # Останавливаем scheduler при завершении приложения
         atexit.register(lambda: scheduler.shutdown() if scheduler.running else None)

@@ -3,6 +3,13 @@
 
 import { buildPollApiUrl } from './polls.js';
 
+// Socket.IO клиент - используем глобальный объект io, если доступен
+// Ожидается, что Socket.IO подключен через CDN в HTML шаблоне
+let io = null;
+if (typeof window !== 'undefined' && window.io) {
+    io = window.io;
+}
+
 const SW_PATH = '/push-worker.js';
 
 /**
@@ -18,6 +25,9 @@ class PushNotificationManager {
         this.isLoading = false;
         this.isInitialized = false;
         this.globallyEnabled = true;
+        this.websocketEnabled = false;
+        this.socket = null;
+        this.websocketSupported = io !== null;
     }
 
     /**
@@ -59,6 +69,9 @@ class PushNotificationManager {
 
             // Синхронизируем с сервером
             await this.syncWithServer();
+
+            // Инициализируем WebSocket если включен
+            await this.initWebSocket();
 
             this.isInitialized = true;
             return true;
@@ -104,6 +117,10 @@ class PushNotificationManager {
                 // isEnabled = есть подписка в браузере И есть подписка на сервере
                 this.isEnabled = !!this.subscription && data.has_push_subscription;
                 this.globallyEnabled = data.globally_enabled !== false;
+                // Обновляем статус WebSocket если доступен
+                if (data.has_websocket_connection !== undefined) {
+                    this.websocketEnabled = data.has_websocket_connection;
+                }
             }
         } catch (error) {
             console.error('[Push] Ошибка синхронизации:', error);
@@ -258,6 +275,87 @@ class PushNotificationManager {
      */
     isAvailable() {
         return this.isSupported && this.globallyEnabled && !!this.vapidPublicKey;
+    }
+
+    /**
+     * Инициализация WebSocket соединения
+     */
+    async initWebSocket() {
+        if (!this.websocketSupported) {
+            console.log('[WebSocket] Socket.IO не доступен');
+            return;
+        }
+
+        try {
+            const baseUrl = window.location.origin;
+            this.socket = io(baseUrl, {
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionDelay: 1000,
+                reconnectionAttempts: 5,
+                reconnectionDelayMax: 5000,
+            });
+
+            this.socket.on('connect', () => {
+                console.log('[WebSocket] Подключено');
+                this.websocketEnabled = true;
+            });
+
+            this.socket.on('disconnect', () => {
+                console.log('[WebSocket] Отключено');
+                this.websocketEnabled = false;
+            });
+
+            this.socket.on('vote_notification', (data) => {
+                console.log('[WebSocket] Получено уведомление о голосе:', data);
+                // Показываем уведомление через браузерный API
+                this.showBrowserNotification(data);
+            });
+
+            this.socket.on('connected', (data) => {
+                console.log('[WebSocket] Соединение подтверждено:', data);
+            });
+
+            this.socket.on('connect_error', (error) => {
+                console.error('[WebSocket] Ошибка подключения:', error);
+                this.websocketEnabled = false;
+            });
+        } catch (error) {
+            console.error('[WebSocket] Ошибка инициализации:', error);
+        }
+    }
+
+    /**
+     * Показать браузерное уведомление (используется для WebSocket)
+     * Отправляет данные в Service Worker для унифицированного показа
+     */
+    async showBrowserNotification(data) {
+        // Отправляем в Service Worker для показа (гарантирует дедупликацию и единообразное поведение)
+        try {
+            if (this.registration) {
+                // Ждём готовности SW если он ещё не активен
+                const registration = await navigator.serviceWorker.ready;
+                if (registration.active) {
+                    registration.active.postMessage({
+                        type: 'SHOW_NOTIFICATION',
+                        payload: data
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('[Push] Ошибка отправки уведомления в Service Worker:', error);
+        }
+    }
+
+    /**
+     * Отключить WebSocket
+     */
+    disconnectWebSocket() {
+        if (this.socket) {
+            this.socket.disconnect();
+            this.socket = null;
+            this.websocketEnabled = false;
+        }
     }
 }
 

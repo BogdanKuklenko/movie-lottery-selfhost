@@ -257,7 +257,18 @@ def play_lottery(lottery_id):
 
 @main_bp.route('/p/<poll_id>')
 def view_poll(poll_id):
-    poll = Poll.query.get_or_404(poll_id)
+    poll = Poll.query.get(poll_id)
+    
+    # Если опрос не найден - всё равно рендерим страницу, JS покажет заглушку
+    if poll is None:
+        return render_template(
+            'poll.html',
+            poll=None,
+            poll_not_found=True,
+            poll_theme='default',
+            custom_vote_cost=_get_custom_vote_cost(),
+            background_photos=get_background_photos()
+        )
     
     # Тема берётся из самого опроса (устанавливается создателем)
     # Безопасный доступ на случай, если колонка ещё не создана в БД
@@ -269,6 +280,7 @@ def view_poll(poll_id):
     return render_template(
         'poll.html',
         poll=poll,
+        poll_not_found=False,
         poll_theme=poll_theme,
         custom_vote_cost=_get_custom_vote_cost(),
         background_photos=get_background_photos()

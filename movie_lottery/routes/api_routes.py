@@ -11,8 +11,17 @@ from datetime import datetime, time, timedelta, timezone
 from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
+from flask_socketio import emit, disconnect
 
-from .. import db
+from .. import db, socketio
+from ..utils.websocket_manager import (
+    register_websocket_connection,
+    unregister_websocket_connection,
+    has_active_websocket,
+    send_websocket_notification,
+    get_connection_count,
+    get_all_voter_tokens,
+)
 from ..models import (
     CustomBadge,
     Movie,
@@ -37,6 +46,7 @@ from ..utils.helpers import (
     ensure_poll_tables,
     ensure_voter_profile,
     ensure_voter_profile_for_user,
+    finalize_poll,
     generate_unique_id,
     generate_unique_poll_id,
     get_custom_vote_cost,
@@ -45,6 +55,8 @@ from ..utils.helpers import (
     get_voter_streak_info,
     get_voter_transactions,
     get_voter_transactions_summary,
+    get_badge_label,
+    get_winner_badge,
     log_points_transaction,
     prevent_caching,
     rotate_voter_token,
@@ -474,7 +486,11 @@ def _resolve_voter_identity():
         profile = None
 
         if voter_token:
-            profile = ensure_voter_profile(voter_token, device_label=device_label)
+            # Ищем существующий профиль, но НЕ создаём новый
+            try:
+                profile = PollVoterProfile.query.get(voter_token)
+            except (ProgrammingError, OperationalError):
+                profile = None
         elif device_label:
             try:
                 profile = (
@@ -488,9 +504,7 @@ def _resolve_voter_identity():
             if profile:
                 voter_token = profile.token
 
-        if profile is None:
-            voter_token = voter_token or secrets.token_hex(16)
-            profile = ensure_voter_profile(voter_token, device_label=device_label)
+        # Профиль не найден - возвращаем None, регистрация через auth endpoint
 
     return {
         'voter_token': voter_token,
@@ -683,28 +697,12 @@ def register_user_id():
         response = prevent_caching(jsonify(payload))
         return _set_voter_cookies(response, profile.token, profile.user_id)
 
-    desired_token = request.cookies.get(VOTER_TOKEN_COOKIE) or secrets.token_hex(16)
-    profile = ensure_voter_profile(desired_token, device_label=device_label)
-
-    if profile.user_id and profile.user_id != user_id:
-        desired_token = secrets.token_hex(16)
-        profile = ensure_voter_profile(desired_token, device_label=device_label)
-
-    profile.user_id = user_id
-    profile.updated_at = vladivostok_now()
-
+    # Создаём профиль сразу с user_id (user_id ещё не занят, проверено выше)
     try:
+        profile = ensure_voter_profile_for_user(user_id, device_label=device_label)
         db.session.commit()
-    except IntegrityError:
-        db.session.rollback()
-        try:
-            profile = ensure_voter_profile_for_user(user_id, device_label=device_label)
-            db.session.commit()
-        except ValueError:
-            return jsonify({'error': 'user_id обязателен'}), 400
-        except (ProgrammingError, OperationalError):
-            db.session.rollback()
-            return jsonify({'error': 'Сервис временно недоступен'}), 503
+    except ValueError:
+        return jsonify({'error': 'user_id обязателен'}), 400
     except (ProgrammingError, OperationalError):
         db.session.rollback()
         return jsonify({'error': 'Сервис временно недоступен'}), 503
@@ -1945,12 +1943,16 @@ def create_poll():
     # Получаем время жизни опроса из настроек (фиксируем на момент создания)
     poll_duration_mins = get_poll_duration_minutes()
     expires_at = vladivostok_now() + timedelta(minutes=poll_duration_mins)
+    
+    # Получаем бейдж победителя из настроек (сохраняем при создании!)
+    winner_badge = get_winner_badge()
 
     new_poll = Poll(
         id=generate_unique_poll_id(),
         creator_token=creator_token,
         theme=poll_theme,
-        expires_at=expires_at
+        expires_at=expires_at,
+        winner_badge=winner_badge
     )
     db.session.add(new_poll)
 
@@ -1973,6 +1975,9 @@ def create_poll():
             ensure_background_photo(poster)
 
     db.session.commit()
+
+    # Финализация опроса (применение бейджа победителю) теперь выполняется
+    # периодической задачей scheduler'а каждые 10 секунд
 
     poll_url = build_external_url('main.view_poll', poll_id=new_poll.id)
     results_url = build_external_url('main.view_poll_results', poll_id=new_poll.id)
@@ -2650,6 +2655,12 @@ def get_my_polls():
             if m.ban_status == 'active'
         ]
         
+        # Безопасно получаем winner_badge (может отсутствовать до миграции)
+        try:
+            poll_winner_badge = poll.winner_badge
+        except Exception:
+            poll_winner_badge = None
+        
         polls_data.append({
             "poll_id": poll.id,
             "created_at": poll.created_at.isoformat(),
@@ -2659,6 +2670,8 @@ def get_my_polls():
             "total_votes": len(poll.votes),
             "movies_count": len(poll.movies),
             "notifications_enabled": bool(poll.notifications_enabled),
+            "winner_badge": poll_winner_badge,
+            "winner_badge_label": get_badge_label(poll_winner_badge) if poll_winner_badge else None,
             "winners": [
                 {
                     "id": w.id,
@@ -2678,26 +2691,6 @@ def get_my_polls():
         })
 
     return prevent_caching(jsonify({"polls": polls_data}))
-
-
-@api_bp.route('/polls/cleanup-expired', methods=['POST'])
-def cleanup_expired_polls_api():
-    """Удаление истёкших опросов (можно вызывать по cron или вручную).
-    
-    Перед удалением проверяет настройку winner_badge:
-    - Если бейдж победителя настроен и победитель ровно один,
-      применяет бейдж к соответствующему фильму в библиотеке.
-    
-    Использует ту же функцию что и scheduler.
-    """
-    from ..utils.helpers import cleanup_expired_polls as do_cleanup
-    
-    count = do_cleanup()
-    
-    return jsonify({
-        "success": True,
-        "deleted_count": count,
-    })
 
 
 @api_bp.route('/polls/<poll_id>/watch-trailer', methods=['POST'])
@@ -3920,10 +3913,14 @@ def send_vote_notifications(poll_id, voted_movie_name, total_votes):
     """
     Отправляет push-уведомления админу о новом голосе в опросе.
     
+    Поддерживает два метода доставки:
+    1. Web Push через Google FCM (работает когда сайт закрыт)
+    2. WebSocket (работает когда сайт открыт, прямая доставка)
+    
     Уведомления отправляются только если:
     1. Глобально включены (VOTE_NOTIFICATIONS_ENABLED)
     2. Для конкретного опроса включены (poll.notifications_enabled)
-    3. Есть активные подписки админа
+    3. Есть активные подписки админа (Web Push или WebSocket)
     
     Args:
         poll_id: ID опроса
@@ -3950,92 +3947,125 @@ def send_vote_notifications(poll_id, voted_movie_name, total_votes):
         current_app.logger.debug(f'[Push] Уведомления отключены для опроса {poll_id} (notifications_enabled={poll.notifications_enabled}). Пропуск отправки.')
         return
     
-    vapid_private_key = current_app.config.get('VAPID_PRIVATE_KEY')
-    vapid_claims_email = current_app.config.get('VAPID_CLAIMS_EMAIL', 'mailto:admin@example.com')
-    
-    if not vapid_private_key:
-        current_app.logger.debug('VAPID_PRIVATE_KEY не настроен, push-уведомления отключены')
-        return
-    
-    try:
-        from pywebpush import webpush, WebPushException
-    except ImportError:
-        current_app.logger.warning('pywebpush не установлен, push-уведомления недоступны')
-        return
-    
-    # Получаем все подписки админа (без фильтрации по voter_token)
-    subscriptions = PushSubscription.query.all()
-    
-    if not subscriptions:
-        current_app.logger.debug(f'[Push] Нет активных подписок для отправки уведомлений о голосе в опросе {poll_id}')
-        return
-    
-    current_app.logger.info(f'[Push] Отправка уведомлений для опроса {poll_id}: найдено {len(subscriptions)} подписок')
-    
     # Формируем payload для уведомления
-    payload = json.dumps({
+    notification_data = {
         'title': '🗳️ Новый голос!',
         'body': f'За «{voted_movie_name}» проголосовали. Всего: {total_votes}',
         'icon': '/static/icons/icon128.png',
         'badge': '/static/icons/icon32.png',
         'tag': f'vote-{poll_id}',
+        'poll_id': poll_id,
+        'url': f'/p/{poll_id}/results',
         'data': {
             'poll_id': poll_id,
             'url': f'/p/{poll_id}/results',
         },
-    })
+    }
     
-    failed_endpoints = []
+    # Определяем, какие методы использовать
+    use_websocket = current_app.config.get('WEBSOCKET_NOTIFICATIONS_ENABLED', True)
+    use_webpush = current_app.config.get('WEBPUSH_NOTIFICATIONS_ENABLED', True)
     
-    success_count = 0
-    for sub in subscriptions:
+    websocket_count = 0
+    webpush_count = 0
+    
+    # Отправка через WebSocket (если включен)
+    if use_websocket:
         try:
-            webpush(
-                subscription_info={
-                    'endpoint': sub.endpoint,
-                    'keys': {
-                        'p256dh': sub.p256dh_key,
-                        'auth': sub.auth_key,
-                    },
-                },
-                data=payload,
-                vapid_private_key=vapid_private_key,
-                vapid_claims={'sub': vapid_claims_email},
-            )
-            success_count += 1
-            current_app.logger.debug(f'[Push] Уведомление успешно отправлено на {sub.endpoint[:50]}...')
-        except WebPushException as e:
-            current_app.logger.warning(f'[Push] Ошибка отправки на {sub.endpoint[:50]}: {e}')
-            # Если подписка больше не действительна (404, 410), удаляем её
-            # Проверяем и через response, и через сообщение (для разных версий pywebpush)
-            should_remove = False
-            if e.response is not None and hasattr(e.response, 'status_code'):
-                if e.response.status_code in (404, 410):
-                    should_remove = True
-            else:
-                # Fallback: проверяем код статуса в сообщении исключения
-                error_msg = str(e)
-                if '410' in error_msg or '404' in error_msg or 'Gone' in error_msg:
-                    should_remove = True
+            # Получаем все voter_token с активными WebSocket соединениями
+            # Это включает как пользователей с подписками, так и без них
+            websocket_voter_tokens = get_all_voter_tokens()
             
-            if should_remove:
-                failed_endpoints.append(sub.endpoint)
-                current_app.logger.info(f'[Push] Подписка {sub.endpoint[:50]}... помечена для удаления (expired/gone)')
+            if websocket_voter_tokens:
+                current_app.logger.debug(f'[WebSocket] Найдено {len(websocket_voter_tokens)} активных WebSocket соединений для опроса {poll_id}')
+            
+            for voter_token in websocket_voter_tokens:
+                count = send_websocket_notification(voter_token, notification_data)
+                websocket_count += count
         except Exception as e:
-            current_app.logger.error(f'[Push] Неожиданная ошибка при отправке: {e}')
+            current_app.logger.error(f'[WebSocket] Ошибка отправки уведомлений: {e}', exc_info=True)
     
-    current_app.logger.info(f'[Push] Отправлено {success_count} из {len(subscriptions)} уведомлений для опроса {poll_id}')
+    # Отправка через Web Push (если включен)
+    if use_webpush:
+        vapid_private_key = current_app.config.get('VAPID_PRIVATE_KEY')
+        vapid_claims_email = current_app.config.get('VAPID_CLAIMS_EMAIL', 'mailto:admin@example.com')
+        
+        if not vapid_private_key:
+            current_app.logger.debug('VAPID_PRIVATE_KEY не настроен, Web Push отключен')
+        else:
+            try:
+                from pywebpush import webpush, WebPushException
+            except ImportError:
+                current_app.logger.warning('pywebpush не установлен, Web Push недоступен')
+            else:
+                # Получаем все подписки админа
+                subscriptions = PushSubscription.query.all()
+                
+                if subscriptions:
+                    current_app.logger.info(f'[Push] Отправка Web Push уведомлений для опроса {poll_id}: найдено {len(subscriptions)} подписок')
+                    
+                    payload = json.dumps(notification_data)
+                    failed_endpoints = []
+                    
+                    for sub in subscriptions:
+                        # Пропускаем подписку, если у пользователя есть активное WebSocket соединение
+                        if has_active_websocket(sub.voter_token):
+                            current_app.logger.debug(f'[Push] Пропуск Web Push для {sub.voter_token[:8]}... (есть активное WebSocket соединение)')
+                            continue
+                        
+                        try:
+                            webpush(
+                                subscription_info={
+                                    'endpoint': sub.endpoint,
+                                    'keys': {
+                                        'p256dh': sub.p256dh_key,
+                                        'auth': sub.auth_key,
+                                    },
+                                },
+                                data=payload,
+                                vapid_private_key=vapid_private_key,
+                                vapid_claims={'sub': vapid_claims_email},
+                            )
+                            webpush_count += 1
+                            current_app.logger.debug(f'[Push] Уведомление успешно отправлено на {sub.endpoint[:50]}...')
+                        except WebPushException as e:
+                            current_app.logger.warning(f'[Push] Ошибка отправки на {sub.endpoint[:50]}: {e}')
+                            # Если подписка больше не действительна (404, 410), удаляем её
+                            should_remove = False
+                            if e.response is not None and hasattr(e.response, 'status_code'):
+                                if e.response.status_code in (404, 410):
+                                    should_remove = True
+                            else:
+                                # Fallback: проверяем код статуса в сообщении исключения
+                                error_msg = str(e)
+                                if '410' in error_msg or '404' in error_msg or 'Gone' in error_msg:
+                                    should_remove = True
+                            
+                            if should_remove:
+                                failed_endpoints.append(sub.endpoint)
+                                current_app.logger.info(f'[Push] Подписка {sub.endpoint[:50]}... помечена для удаления (expired/gone)')
+                        except Exception as e:
+                            current_app.logger.error(f'[Push] Неожиданная ошибка при отправке: {e}')
+                    
+                    # Удаляем недействительные подписки
+                    if failed_endpoints:
+                        try:
+                            PushSubscription.query.filter(
+                                PushSubscription.endpoint.in_(failed_endpoints)
+                            ).delete(synchronize_session=False)
+                            db.session.commit()
+                        except Exception as e:
+                            current_app.logger.error('Error deleting invalid subscriptions: %s', e)
+                            db.session.rollback()
+                else:
+                    current_app.logger.debug(f'[Push] Нет активных Web Push подписок для опроса {poll_id}')
     
-    # Удаляем недействительные подписки
-    if failed_endpoints:
-        try:
-            PushSubscription.query.filter(
-                PushSubscription.endpoint.in_(failed_endpoints)
-            ).delete(synchronize_session=False)
-            db.session.commit()
-        except Exception as e:
-            current_app.logger.error('Error deleting invalid subscriptions: %s', e)
-            db.session.rollback()
+    # Логируем итоги
+    total_sent = websocket_count + webpush_count
+    if total_sent > 0:
+        current_app.logger.info(f'[Push] Отправлено уведомлений для опроса {poll_id}: WebSocket={websocket_count}, WebPush={webpush_count}, Всего={total_sent}')
+    else:
+        current_app.logger.debug(f'[Push] Нет активных подписок для отправки уведомлений о голосе в опросе {poll_id}')
 
 
 @api_bp.route('/polls/push/vapid-key', methods=['GET'])
@@ -4147,10 +4177,23 @@ def get_notifications_settings():
     vapid_configured = bool(current_app.config.get('VAPID_PUBLIC_KEY'))
     globally_enabled = current_app.config.get('VOTE_NOTIFICATIONS_ENABLED', True)
     
+    websocket_enabled = current_app.config.get('WEBSOCKET_NOTIFICATIONS_ENABLED', True)
+    webpush_enabled = current_app.config.get('WEBPUSH_NOTIFICATIONS_ENABLED', True)
+    
+    try:
+        identity = _resolve_voter_identity()
+        voter_token = identity['voter_token']
+        has_websocket = has_active_websocket(voter_token)
+    except Exception:
+        has_websocket = False
+    
     return jsonify({
         'has_push_subscription': has_subscription,
         'vapid_configured': vapid_configured,
         'globally_enabled': globally_enabled,
+        'websocket_enabled': websocket_enabled,
+        'webpush_enabled': webpush_enabled,
+        'has_websocket_connection': has_websocket,
     })
 
 
@@ -4206,3 +4249,60 @@ def toggle_poll_notifications(poll_id):
         'poll_id': poll_id,
         'notifications_enabled': poll.notifications_enabled,
     })
+
+
+# ============================================================================
+# WebSocket Notifications API
+# ============================================================================
+
+@socketio.on('connect')
+def handle_websocket_connect(auth):
+    """Обработка подключения WebSocket клиента."""
+    try:
+        identity = _resolve_voter_identity()
+        voter_token = identity['voter_token']
+        session_id = request.sid
+        
+        register_websocket_connection(voter_token, session_id)
+        current_app.logger.debug(f'[WebSocket] Клиент подключен: {voter_token[:8]}... (session: {session_id[:8]}...)')
+        
+        emit('connected', {'status': 'ok', 'voter_token': voter_token[:8] + '...'})
+    except Exception as e:
+        current_app.logger.error(f'[WebSocket] Ошибка подключения: {e}', exc_info=True)
+        disconnect()
+
+
+@socketio.on('disconnect')
+def handle_websocket_disconnect():
+    """Обработка отключения WebSocket клиента."""
+    try:
+        identity = _resolve_voter_identity()
+        voter_token = identity['voter_token']
+        session_id = request.sid
+        
+        unregister_websocket_connection(voter_token, session_id)
+        current_app.logger.debug(f'[WebSocket] Клиент отключен: {voter_token[:8]}... (session: {session_id[:8]}...)')
+    except Exception as e:
+        current_app.logger.error(f'[WebSocket] Ошибка отключения: {e}', exc_info=True)
+
+
+@api_bp.route('/polls/notifications/websocket-status', methods=['GET'])
+def get_websocket_status():
+    """Получить статус WebSocket соединений."""
+    try:
+        identity = _resolve_voter_identity()
+        voter_token = identity['voter_token']
+        
+        user_connections = 1 if has_active_websocket(voter_token) else 0
+        total_connections = get_connection_count()
+        
+        return jsonify({
+            'websocket_enabled': current_app.config.get('WEBSOCKET_NOTIFICATIONS_ENABLED', True),
+            'webpush_enabled': current_app.config.get('WEBPUSH_NOTIFICATIONS_ENABLED', True),
+            'user_has_websocket': has_active_websocket(voter_token),
+            'user_connections': user_connections,
+            'total_connections': total_connections,
+        })
+    except Exception as e:
+        current_app.logger.error(f'Ошибка получения статуса WebSocket: {e}')
+        return jsonify({'error': 'Ошибка получения статуса'}), 500

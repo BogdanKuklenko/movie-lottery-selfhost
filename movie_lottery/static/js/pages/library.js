@@ -7,6 +7,8 @@ import { buildPollApiUrl, loadMyPolls } from '../utils/polls.js';
 import { formatDate as formatVladivostokDate, formatDateTimeShort as formatVladivostokDateTime } from '../utils/timeFormat.js';
 import PushNotificationManager from '../utils/pushNotifications.js';
 
+const POLL_THEME_STORAGE_KEY = 'lastPollTheme';
+
 const escapeHtml = (unsafeValue) => {
     const value = unsafeValue == null ? '' : String(unsafeValue);
     return value
@@ -429,6 +431,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cancelSelectionBtn = document.getElementById('cancel-selection-btn');
     const myPollsBtn = document.getElementById('my-polls-btn');
     const myPollsBadge = document.getElementById('my-polls-badge');
+    const pollThemeSelect = document.getElementById('poll-theme-select');
+
+    // Восстанавливаем сохранённую тему опроса
+    const savedPollTheme = localStorage.getItem(POLL_THEME_STORAGE_KEY);
+    if (savedPollTheme && pollThemeSelect) {
+        const option = pollThemeSelect.querySelector(`option[value="${savedPollTheme}"]`);
+        if (option) pollThemeSelect.value = savedPollTheme;
+    }
 
     let selectionMode = false;
     let selectedMovies = new Set();
@@ -545,6 +555,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Получаем выбранную тему
         const themeSelect = document.getElementById('poll-theme-select');
         const selectedTheme = themeSelect ? themeSelect.value : 'default';
+
+        // Сохраняем выбранную тему для следующего раза
+        localStorage.setItem(POLL_THEME_STORAGE_KEY, selectedTheme);
 
         try {
             const response = await fetch(buildPollApiUrl('/api/polls/create'), {
@@ -781,6 +794,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             const notificationsIcon = notificationsEnabled ? '🔔' : '🔕';
             const notificationsText = notificationsEnabled ? 'Уведомления вкл.' : 'Уведомления выкл.';
 
+            // Информация о бейдже победителя
+            const winnerBadgeLabel = poll.winner_badge_label || null;
+            const badgeInfoHtml = winnerBadgeLabel 
+                ? `<p class="poll-winner-badge-info">🏅 Бейдж победителя: <strong>${escapeHtml(winnerBadgeLabel)}</strong></p>`
+                : '';
+
             pollsHtml += `
                 <div class="poll-result-item">
                     <div class="poll-result-header">
@@ -792,6 +811,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             Всего голосов: ${poll.total_votes} | Фильмов: ${poll.movies_count}
                             ${expiresDate ? `| Действует до: ${expiresDate}` : ''}
                         </p>
+                        ${badgeInfoHtml}
                     </div>
                     <div class="poll-winners">
                         ${poll.winners.length > 1 ? '<p><strong>Победители (равное количество голосов):</strong></p>' : '<p><strong>Победитель:</strong></p>'}
@@ -1099,6 +1119,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Закрываем меню
             badgePollDropdown.classList.remove('active');
 
+            // Получаем сохранённую тему для модального окна
+            const savedTheme = localStorage.getItem(POLL_THEME_STORAGE_KEY) || 'default';
+
             // Показываем модальное окно подтверждения
             const confirmHtml = `
                 <h2>Создать опрос по бейджу</h2>
@@ -1110,8 +1133,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div class="badge-poll-theme-selector" style="display: flex; align-items: center; justify-content: center; gap: 10px; margin: 15px 0;">
                     <label for="badge-poll-theme-select" style="color: #adb5bd;">Тема опроса:</label>
                     <select id="badge-poll-theme-select" class="poll-theme-select" style="padding: 8px 12px; border-radius: 6px; background: #2a2a3e; color: #fff; border: 1px solid #3a3a5e;">
-                        <option value="default">🎬 Обычная</option>
-                        <option value="newyear">❄️ Новогодняя</option>
+                        <option value="default" ${savedTheme === 'default' ? 'selected' : ''}>🎬 Обычная</option>
+                        <option value="newyear" ${savedTheme === 'newyear' ? 'selected' : ''}>❄️ Новогодняя</option>
                     </select>
                 </div>
                 <p style="font-size: 14px; color: #adb5bd; margin-top: 10px;">
@@ -1158,6 +1181,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // Получаем выбранную тему
                     const themeSelect = document.getElementById('badge-poll-theme-select');
                     const selectedTheme = themeSelect ? themeSelect.value : 'default';
+
+                    // Сохраняем выбранную тему для следующего раза
+                    localStorage.setItem(POLL_THEME_STORAGE_KEY, selectedTheme);
 
                     // Создаём опрос
                     const createResponse = await fetch(buildPollApiUrl('/api/polls/create'), {
@@ -1857,6 +1883,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 badgePollDropdown.classList.remove('active');
 
+                // Получаем сохранённую тему для модального окна
+                const savedThemeCustom = localStorage.getItem(POLL_THEME_STORAGE_KEY) || 'default';
+
                 const confirmHtml = `
                     <h2>Создать опрос по бейджу</h2>
                     <div style="text-align: center; margin: 20px 0;">
@@ -1867,8 +1896,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <div class="badge-poll-theme-selector" style="display: flex; align-items: center; justify-content: center; gap: 10px; margin: 15px 0;">
                         <label for="badge-poll-theme-select-custom" style="color: #adb5bd;">Тема опроса:</label>
                         <select id="badge-poll-theme-select-custom" class="poll-theme-select" style="padding: 8px 12px; border-radius: 6px; background: #2a2a3e; color: #fff; border: 1px solid #3a3a5e;">
-                            <option value="default">🎬 Обычная</option>
-                            <option value="newyear">❄️ Новогодняя</option>
+                            <option value="default" ${savedThemeCustom === 'default' ? 'selected' : ''}>🎬 Обычная</option>
+                            <option value="newyear" ${savedThemeCustom === 'newyear' ? 'selected' : ''}>❄️ Новогодняя</option>
                         </select>
                     </div>
                     <p style="font-size: 14px; color: #adb5bd; margin-top: 10px;">
@@ -1906,6 +1935,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         // Получаем выбранную тему
                         const themeSelect = document.getElementById('badge-poll-theme-select-custom');
                         const selectedTheme = themeSelect ? themeSelect.value : 'default';
+
+                        // Сохраняем выбранную тему для следующего раза
+                        localStorage.setItem(POLL_THEME_STORAGE_KEY, selectedTheme);
 
                         const pollResponse = await fetch(buildPollApiUrl('/api/polls/create'), {
                             method: 'POST',

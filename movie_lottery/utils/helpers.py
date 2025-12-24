@@ -634,10 +634,9 @@ def get_winner_badge():
         return None
 
 
-def get_winner_badge_display():
-    """Вернуть красивое название бейджа победителя с эмодзи."""
-    winner_badge = get_winner_badge()
-    if not winner_badge:
+def get_badge_label(badge_key):
+    """Вернуть красивое название бейджа с эмодзи по его ключу."""
+    if not badge_key:
         return None
     
     # Стандартные бейджи с эмодзи
@@ -649,13 +648,13 @@ def get_winner_badge_display():
         'new': '🔥 Новинка'
     }
     
-    if winner_badge in BADGE_LABELS:
-        return BADGE_LABELS[winner_badge]
+    if badge_key in BADGE_LABELS:
+        return BADGE_LABELS[badge_key]
     
     # Кастомный бейдж
-    if winner_badge.startswith('custom_'):
+    if badge_key.startswith('custom_'):
         try:
-            custom_id = int(winner_badge.split('_')[1])
+            custom_id = int(badge_key.split('_')[1])
             custom_badge = CustomBadge.query.get(custom_id)
             if custom_badge:
                 return f'{custom_badge.emoji} {custom_badge.name}'
@@ -663,7 +662,13 @@ def get_winner_badge_display():
             pass
         return '🏷️ Кастомный бейдж'
     
-    return winner_badge
+    return badge_key
+
+
+def get_winner_badge_display():
+    """Вернуть красивое название бейджа победителя из настроек с эмодзи."""
+    winner_badge = get_winner_badge()
+    return get_badge_label(winner_badge)
 
 
 def get_poll_duration_minutes():
@@ -790,87 +795,52 @@ def _apply_winner_badge_to_library_movie(poll, winner_badge):
     return library_movie.name
 
 
-def cleanup_expired_polls():
+def finalize_poll(poll_id):
     """
-    Удаляет истёкшие опросы из базы данных.
-    Эту функцию можно вызывать периодически через scheduler или cron.
+    Финализирует опрос: применяет бейдж победителю.
+    Вызывается scheduler'ом при истечении опроса.
     
-    Перед удалением проверяет настройку winner_badge:
-    - Если бейдж победителя настроен и победитель ровно один,
-      применяет бейдж к соответствующему фильму в библиотеке.
-    - Бейдж применяется ТОЛЬКО если опрос истёк недавно (в пределах 30 минут),
-      чтобы избежать массового применения к старым опросам.
+    Бейдж берётся из poll.winner_badge (сохранённый при создании опроса),
+    а не из текущих настроек PollSettings.
+    
+    Устанавливает poll.finalized = True после применения, чтобы
+    scheduler не применял бейдж повторно.
+    
+    Args:
+        poll_id: ID опроса для финализации
+        
+    Returns:
+        bool: True если бейдж был применён, False если уже применён или ошибка
     """
-    try:
-        now = vladivostok_now()
-        expired_polls = Poll.query.filter(Poll.expires_at <= now).all()
-        count = len(expired_polls)
-        
-        if count == 0:
-            return 0
-        
-        # Получаем настройку бейджа победителя
-        winner_badge = get_winner_badge()
-        badges_applied = []
-        poll_ids_to_delete = []
-        
-        # Максимальное время после истечения для применения бейджа (30 минут)
-        MAX_BADGE_APPLY_WINDOW = timedelta(minutes=30)
-        
-        # ШАГ 1: Применяем бейджи победителям (до удаления опросов!)
-        for poll in expired_polls:
-            poll_ids_to_delete.append(poll.id)
-            
-            # Применяем бейдж ТОЛЬКО если опрос истёк недавно (защита от массового применения)
-            if winner_badge:
-                time_since_expiry = now - poll.expires_at
-                if time_since_expiry <= MAX_BADGE_APPLY_WINDOW:
-                    movie_name = _apply_winner_badge_to_library_movie(poll, winner_badge)
-                    if movie_name:
-                        badges_applied.append({
-                            'poll_id': poll.id,
-                            'movie_name': movie_name,
-                            'badge': winner_badge
-                        })
-                else:
-                    logger = getattr(current_app, 'logger', None)
-                    if logger:
-                        logger.info(
-                            'Poll %s expired %s ago, skipping badge application (max window: %s)',
-                            poll.id, time_since_expiry, MAX_BADGE_APPLY_WINDOW
-                        )
-        
-        # ШАГ 2: Коммитим изменения бейджей ПЕРЕД удалением опросов
-        if badges_applied:
-            db.session.commit()
-            logger = getattr(current_app, 'logger', None)
-            if logger:
-                logger.info(
-                    'Applied winner badges to %d movies: %s',
-                    len(badges_applied),
-                    ', '.join(f'{b["movie_name"]} ({b["badge"]})' for b in badges_applied)
-                )
-        
-        # ШАГ 3: Удаляем опросы (голоса и фильмы опроса удалятся каскадно)
-        for poll_id in poll_ids_to_delete:
-            # Удаляем голоса явно (для старых записей без CASCADE)
-            Vote.query.filter_by(poll_id=poll_id).delete()
-            # Удаляем опрос
-            poll = Poll.query.get(poll_id)
-            if poll:
-                db.session.delete(poll)
-        
-        db.session.commit()
-        
-        return count
-    except Exception as e:
-        db.session.rollback()
+    poll = Poll.query.get(poll_id)
+    if not poll:
         logger = getattr(current_app, 'logger', None)
         if logger:
-            logger.error(f"Ошибка при очистке опросов: {e}")
+            logger.warning('finalize_poll: Poll %s not found', poll_id)
+        return False
+    
+    # Если уже финализирован - пропускаем
+    if poll.finalized:
+        return False
+    
+    movie_name = None
+    
+    # Применяем бейдж к победителю (если задан)
+    if poll.winner_badge:
+        movie_name = _apply_winner_badge_to_library_movie(poll, poll.winner_badge)
+    
+    # Отмечаем опрос как финализированный
+    poll.finalized = True
+    db.session.commit()
+    
+    logger = getattr(current_app, 'logger', None)
+    if logger:
+        if movie_name:
+            logger.info('finalize_poll: Poll %s finalized, badge "%s" applied to "%s"', poll_id, poll.winner_badge, movie_name)
         else:
-            print(f"Ошибка при очистке опросов: {e}")
-        return 0
+            logger.info('finalize_poll: Poll %s finalized (no winner to apply badge to)', poll_id)
+    
+    return True
 
 
 def ensure_voter_profile(voter_token, device_label=None, user_id=None):

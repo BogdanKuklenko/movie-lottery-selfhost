@@ -422,7 +422,7 @@ body.poll-theme-newyear .trailer-fullscreen-modal .trailer-fullscreen-content {
 }
 
 body.poll-theme-newyear .trailer-player-header {
-    border-bottom: 1px solid rgba(255, 215, 0, 0.15);
+    border-bottom: none;
 }
 
 body.poll-theme-newyear .trailer-player-title {
@@ -462,13 +462,9 @@ body.poll-theme-newyear .logout-button:hover {
 
 /* === КАРТОЧКА ПРОГОЛОСОВАННОГО ФИЛЬМА === */
 body.poll-theme-newyear .poll-voted {
-    background: linear-gradient(135deg, 
-        rgba(26, 95, 42, 0.5) 0%, 
-        rgba(13, 26, 15, 0.7) 100%);
+    background: none;
     border: none;
-    box-shadow: 
-        0 10px 35px rgba(0, 0, 0, 0.5),
-        inset 0 1px 0 rgba(255, 215, 0, 0.15);
+    box-shadow: none;
 }
 
 body.poll-theme-newyear .poll-voted h2 {

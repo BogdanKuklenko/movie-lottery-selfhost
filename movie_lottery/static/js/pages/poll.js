@@ -3,6 +3,8 @@
 import { buildPollApiUrl } from '../utils/polls.js';
 import { fetchMovieInfo } from '../api/movies.js';
 import { lockScroll, unlockScroll } from '../utils/scrollLock.js';
+import PushNotificationManager from '../utils/pushNotifications.js';
+
 document.addEventListener('DOMContentLoaded', async () => {
     const pollGrid = document.getElementById('poll-grid');
     const pollMessage = document.getElementById('poll-message');
@@ -187,6 +189,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     updateCustomVoteCostLabels(customVoteCost);
 
+    // Инициализация менеджера уведомлений для WebSocket
+    const pushNotificationManager = new PushNotificationManager();
+    await pushNotificationManager.init();
+
     const getMoviePoints = (movie) => {
         const rawPoints = movie?.points;
         const parsed = Number.parseInt(rawPoints, 10);
@@ -251,6 +257,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (!response.ok) {
                 const errorMessage = pollData?.error || 'Не удалось загрузить опрос';
+                
+                // Обработка специфических ошибок с заглушкой
+                if (response.status === 410) {
+                    showPollUnavailablePlaceholder('expired');
+                    throw new Error(errorMessage);
+                }
+                if (response.status === 404) {
+                    showPollUnavailablePlaceholder('not_found');
+                    throw new Error(errorMessage);
+                }
+                
                 if (showErrors) {
                     showMessage(errorMessage, 'error');
                     markPointsAsUnavailable();
@@ -320,14 +337,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    try {
-        await fetchPollData();
-    } catch (error) {
-        console.error('Ошибка загрузки опроса:', error);
-    }
-
-    if (shouldRequestUserId) {
-        openUserOnboardingModal({ suggestedId: lastKnownUserId });
+    // Проверяем флаг pollNotFound (опрос удалён на уровне сервера)
+    if (typeof pollNotFound !== 'undefined' && pollNotFound === true) {
+        showPollUnavailablePlaceholder('not_found');
+    } else {
+        try {
+            await fetchPollData();
+            
+            // Показываем модальное окно только если опрос доступен
+            if (shouldRequestUserId) {
+                openUserOnboardingModal({ suggestedId: lastKnownUserId });
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки опроса:', error);
+            // Не показываем модальное окно при ошибке загрузки
+        }
     }
 
     function renderMovies(movies) {
@@ -1049,6 +1073,60 @@ document.addEventListener('DOMContentLoaded', async () => {
         pollMessage.textContent = text;
         pollMessage.className = `poll-message poll-message-${type}`;
         pollMessage.style.display = 'block';
+    }
+
+    /**
+     * Показывает заглушку для недоступного опроса (истёкший или удалённый)
+     * @param {'expired' | 'not_found'} reason - причина недоступности
+     */
+    function showPollUnavailablePlaceholder(reason) {
+        // Скрываем ненужные элементы
+        const pointsPanel = document.querySelector('.poll-points-panel');
+        if (pointsPanel) pointsPanel.style.display = 'none';
+        
+        if (logoutButton) logoutButton.style.display = 'none';
+        if (votedMovieWrapper) votedMovieWrapper.style.display = 'none';
+        if (pollMessage) pollMessage.style.display = 'none';
+        
+        // Скрываем модальные окна
+        if (userOnboardingModal) userOnboardingModal.style.display = 'none';
+        if (userSwitchModal) userSwitchModal.style.display = 'none';
+        
+        // Предотвращаем открытие модальных окон
+        shouldRequestUserId = false;
+        isUserOnboardingModalOpen = false;
+
+        // Определяем контент в зависимости от причины
+        const content = {
+            expired: {
+                icon: `<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>`,
+                title: 'Опрос завершён',
+                subtitle: 'Голосование больше недоступно'
+            },
+            not_found: {
+                icon: `<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    <line x1="8" y1="11" x2="14" y2="11"></line>
+                </svg>`,
+                title: 'Опрос не найден',
+                subtitle: 'Возможно, он был удалён'
+            }
+        };
+
+        const { icon, title, subtitle } = content[reason] || content.expired;
+
+        // Создаём заглушку
+        pollGrid.innerHTML = `
+            <div class="poll-unavailable-placeholder">
+                <div class="poll-unavailable-icon">${icon}</div>
+                <h2 class="poll-unavailable-title">${title}</h2>
+                <p class="poll-unavailable-subtitle">${subtitle}</p>
+            </div>
+        `;
     }
 
     function escapeHtml(text) {
