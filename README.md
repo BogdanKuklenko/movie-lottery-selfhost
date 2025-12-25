@@ -64,6 +64,28 @@
 
 **Важно:** Push-уведомления требуют HTTPS (кроме localhost для разработки).
 
+#### Настройка HTTPS с Cloudflare Tunnel (рекомендуется)
+
+Web Push уведомления не работают через HTTP (кроме localhost). Самый простой способ получить HTTPS — использовать бесплатный Cloudflare Tunnel:
+
+1. Зарегистрируйтесь на [Cloudflare](https://dash.cloudflare.com/)
+2. Добавьте домен (можно бесплатный) или используйте существующий
+3. Перейдите в **Zero Trust → Networks → Tunnels** и создайте новый туннель
+4. В настройках туннеля добавьте Public Hostname:
+   - Subdomain: `movies` (или любой другой)
+   - Domain: ваш домен
+   - Service: `http://app:8000`
+5. Скопируйте токен туннеля и добавьте в `.env`:
+   ```env
+   CLOUDFLARE_TUNNEL_TOKEN=<ваш_токен>
+   PUBLIC_BASE_URL=https://movies.yourdomain.com
+   ```
+6. Раскомментируйте сервис `cloudflared` в `docker-compose.yml`
+7. Перезапустите контейнеры: `docker-compose up -d`
+8. Откройте браузер по новому HTTPS адресу и переподпишитесь на уведомления
+
+После этого Web Push уведомления будут работать корректно из любой сети.
+
 ## API пользовательских голосов в опросах
 
 - `GET /api/polls/<poll_id>` — возвращает данные опроса и баланс пользователя. В ответ добавлены поля:

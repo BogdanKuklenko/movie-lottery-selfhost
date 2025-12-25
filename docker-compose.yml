@@ -43,6 +43,20 @@ services:
     networks:
       - appnet
 
+  # Cloudflare Tunnel для HTTPS (необходим для Web Push уведомлений)
+  # Раскомментируйте и добавьте CLOUDFLARE_TUNNEL_TOKEN в .env
+  # cloudflared:
+  #   image: cloudflare/cloudflared:latest
+  #   container_name: movie_lottery_tunnel
+  #   restart: unless-stopped
+  #   command: tunnel run
+  #   environment:
+  #     - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+  #   networks:
+  #     - appnet
+  #   depends_on:
+  #     - app
+
   # Удобная веб-админка базы (опционально)
   adminer:
     image: adminer:4

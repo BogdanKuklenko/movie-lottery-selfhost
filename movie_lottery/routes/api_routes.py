@@ -21,6 +21,12 @@ from ..utils.websocket_manager import (
     send_websocket_notification,
     get_connection_count,
     get_all_voter_tokens,
+    # Admin-клиенты (notification_client.py)
+    register_admin_connection,
+    unregister_admin_connection,
+    has_admin_connections,
+    get_admin_connection_count,
+    send_admin_notification,
 )
 from ..models import (
     CustomBadge,
@@ -3966,10 +3972,21 @@ def send_vote_notifications(poll_id, voted_movie_name, total_votes):
     use_websocket = current_app.config.get('WEBSOCKET_NOTIFICATIONS_ENABLED', True)
     use_webpush = current_app.config.get('WEBPUSH_NOTIFICATIONS_ENABLED', True)
     
+    admin_count = 0
     websocket_count = 0
     webpush_count = 0
     
-    # Отправка через WebSocket (если включен)
+    # 1. Отправка admin-клиентам (notification_client.py) - приоритет
+    # Работает без браузера, показывает Windows Toast уведомления
+    if use_websocket:
+        try:
+            admin_count = send_admin_notification(notification_data)
+            if admin_count > 0:
+                current_app.logger.info(f'[Admin] Отправлено {admin_count} уведомлений admin-клиентам для опроса {poll_id}')
+        except Exception as e:
+            current_app.logger.error(f'[Admin] Ошибка отправки уведомлений: {e}', exc_info=True)
+    
+    # 2. Отправка через WebSocket браузерным клиентам (если включен)
     if use_websocket:
         try:
             # Получаем все voter_token с активными WebSocket соединениями
@@ -4061,9 +4078,9 @@ def send_vote_notifications(poll_id, voted_movie_name, total_votes):
                     current_app.logger.debug(f'[Push] Нет активных Web Push подписок для опроса {poll_id}')
     
     # Логируем итоги
-    total_sent = websocket_count + webpush_count
+    total_sent = admin_count + websocket_count + webpush_count
     if total_sent > 0:
-        current_app.logger.info(f'[Push] Отправлено уведомлений для опроса {poll_id}: WebSocket={websocket_count}, WebPush={webpush_count}, Всего={total_sent}')
+        current_app.logger.info(f'[Push] Отправлено уведомлений для опроса {poll_id}: Admin={admin_count}, WebSocket={websocket_count}, WebPush={webpush_count}, Всего={total_sent}')
     else:
         current_app.logger.debug(f'[Push] Нет активных подписок для отправки уведомлений о голосе в опросе {poll_id}')
 
@@ -4258,32 +4275,51 @@ def toggle_poll_notifications(poll_id):
 @socketio.on('connect')
 def handle_websocket_connect(auth):
     """Обработка подключения WebSocket клиента."""
+    session_id = request.sid
+    
     try:
         identity = _resolve_voter_identity()
-        voter_token = identity['voter_token']
-        session_id = request.sid
+        voter_token = identity.get('voter_token') if identity else None
         
-        register_websocket_connection(voter_token, session_id)
-        current_app.logger.debug(f'[WebSocket] Клиент подключен: {voter_token[:8]}... (session: {session_id[:8]}...)')
-        
-        emit('connected', {'status': 'ok', 'voter_token': voter_token[:8] + '...'})
+        if voter_token:
+            register_websocket_connection(voter_token, session_id)
+            current_app.logger.debug(f'[WebSocket] Клиент подключен: {voter_token[:8]}... (session: {session_id[:8]}...)')
+            emit('connected', {'status': 'ok', 'voter_token': voter_token[:8] + '...'})
+        else:
+            # Клиент без voter_token (например, notification_client.py)
+            current_app.logger.debug(f'[WebSocket] Клиент подключен без voter_token (session: {session_id[:8]}...), ожидает регистрации как admin')
+            emit('connected', {'status': 'ok', 'type': 'anonymous'})
     except Exception as e:
         current_app.logger.error(f'[WebSocket] Ошибка подключения: {e}', exc_info=True)
-        disconnect()
+        # Не отключаем — возможно это admin-клиент без cookies
+        emit('connected', {'status': 'ok', 'type': 'anonymous'})
 
 
 @socketio.on('disconnect')
 def handle_websocket_disconnect():
     """Обработка отключения WebSocket клиента."""
+    session_id = request.sid
+    
+    # Удаляем из admin-клиентов (если был)
+    unregister_admin_connection(session_id)
+    
+    # Удаляем из обычных клиентов
     try:
         identity = _resolve_voter_identity()
         voter_token = identity['voter_token']
-        session_id = request.sid
         
         unregister_websocket_connection(voter_token, session_id)
         current_app.logger.debug(f'[WebSocket] Клиент отключен: {voter_token[:8]}... (session: {session_id[:8]}...)')
     except Exception as e:
-        current_app.logger.error(f'[WebSocket] Ошибка отключения: {e}', exc_info=True)
+        current_app.logger.debug(f'[WebSocket] Отключение без voter_token (возможно admin-клиент): {e}')
+
+
+@socketio.on('register_admin_client')
+def handle_register_admin_client():
+    """Регистрация admin-клиента (notification_client.py) для получения уведомлений."""
+    session_id = request.sid
+    register_admin_connection(session_id)
+    emit('admin_registered', {'status': 'ok', 'session_id': session_id[:8] + '...'})
 
 
 @api_bp.route('/polls/notifications/websocket-status', methods=['GET'])
