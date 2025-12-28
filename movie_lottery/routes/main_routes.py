@@ -1,6 +1,6 @@
 import os
 
-from flask import Blueprint, render_template, current_app, request, send_file, Response
+from flask import Blueprint, render_template, current_app, request, send_file, Response, send_from_directory
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from .. import db
@@ -49,6 +49,16 @@ def service_worker():
         return response
     except FileNotFoundError:
         return Response('// Service Worker not found', status=404, mimetype='application/javascript')
+
+
+@main_bp.route('/favicon.ico')
+def favicon():
+    """Serve favicon from static directory for better browser compatibility."""
+    return send_from_directory(
+        os.path.join(current_app.static_folder, 'icons'),
+        '20251226_2324_Киноглобус в 3D_simple_compose_01kddd9ayde1786ddxmj8k2fm5-round.png',
+        mimetype='image/png'
+    )
 
 
 @main_bp.route('/')

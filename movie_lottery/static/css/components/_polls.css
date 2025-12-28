@@ -1838,6 +1838,17 @@
     flex: 1;
 }
 
+/* Сообщение "Голосов пока нет" */
+.no-votes-yet {
+    padding: 20px;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.6);
+    font-style: italic;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+}
+
 .poll-winner-actions {
     display: flex;
     align-items: center;

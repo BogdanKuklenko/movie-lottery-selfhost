@@ -737,7 +737,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (allPolls.length === 0) {
             modal.open();
-            modal.renderCustomContent('<h2>Мои опросы</h2><p>У вас пока нет активных опросов с голосами.</p>');
+            modal.renderCustomContent('<h2>Мои опросы</h2><p>У вас пока нет созданных опросов.</p>');
             return;
         }
 
@@ -758,16 +758,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             const statusBadge = isExpired
                 ? '<span class="poll-status poll-status-expired">Опрос завершён</span>'
                 : '<span class="poll-status poll-status-active">Опрос активен</span>';
-            const winnersHtml = poll.winners.map(w => `
-                <div class="poll-winner">
-                    <img src="${w.poster || 'https://via.placeholder.com/100x150.png?text=No+Image'}" alt="${w.name}">
-                    <div class="poll-winner-info">
-                        <h4>${w.name}</h4>
-                        <p>${w.year || ''}</p>
-                        <p class="vote-count">Голосов: ${w.votes}</p>
+            const hasVotes = poll.total_votes > 0;
+            const winnersHtml = hasVotes 
+                ? poll.winners.map(w => `
+                    <div class="poll-winner">
+                        <img src="${w.poster || 'https://via.placeholder.com/100x150.png?text=No+Image'}" alt="${w.name}">
+                        <div class="poll-winner-info">
+                            <h4>${w.name}</h4>
+                            <p>${w.year || ''}</p>
+                            <p class="vote-count">Голосов: ${w.votes}</p>
+                        </div>
                     </div>
-                </div>
-            `).join('');
+                `).join('')
+                : '<p class="no-votes-yet">Голосов пока нет. Поделитесь ссылкой на опрос!</p>';
 
             const bannedMovies = poll.banned_movies || [];
             const bannedHtml = bannedMovies.length > 0 ? `
@@ -814,11 +817,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         ${badgeInfoHtml}
                     </div>
                     <div class="poll-winners">
-                        ${poll.winners.length > 1 ? '<p><strong>Победители (равное количество голосов):</strong></p>' : '<p><strong>Победитель:</strong></p>'}
+                        ${hasVotes 
+                            ? (poll.winners.length > 1 ? '<p><strong>Победители (равное количество голосов):</strong></p>' : '<p><strong>Лидер:</strong></p>')
+                            : ''}
                         ${winnersHtml}
                     </div>
                     ${bannedHtml}
-                    ${poll.winners.length > 1 ? `
+                    ${hasVotes && poll.winners.length > 1 ? `
                         <button class="secondary-button create-poll-from-winners" data-winners='${JSON.stringify(poll.winners)}'>
                             Создать опрос из победителей
                         </button>
@@ -835,9 +840,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </button>
                     </div>
                     <div class="poll-actions">
-                        <button class="secondary-button search-winner-btn" data-movie-name="${winnerNameAttr}" data-movie-year="${winnerYearAttr}" data-movie-search-name="${winnerSearchNameAttr}" data-movie-countries="${winnerCountriesAttr}">
-                            Найти на RuTracker
-                        </button>
+                        ${hasVotes ? `
+                            <button class="secondary-button search-winner-btn" data-movie-name="${winnerNameAttr}" data-movie-year="${winnerYearAttr}" data-movie-search-name="${winnerSearchNameAttr}" data-movie-countries="${winnerCountriesAttr}">
+                                Найти на RuTracker
+                            </button>
+                        ` : ''}
                         <a href="${poll.poll_url}" class="secondary-button" target="_blank">Открыть опрос</a>
                         ${poll.results_url ? `<a href="${poll.results_url}" class="secondary-button" target="_blank" rel="noopener">Результаты</a>` : ''}
                         <button class="secondary-button delete-poll-btn" data-poll-id="${poll.poll_id}" title="Удалить опрос">
@@ -1740,16 +1747,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Загрузка кастомных бейджей
     async function loadCustomBadges() {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/bd2413cd-f628-48dc-9916-33464f198af7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'library.js:1749',message:'loadCustomBadges called',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         try {
             const response = await fetch('/api/custom-badges');
             if (!response.ok) throw new Error('Не удалось загрузить кастомные бейджи');
             const data = await response.json();
             customBadges = data.badges || [];
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/bd2413cd-f628-48dc-9916-33464f198af7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'library.js:1754',message:'customBadges loaded',data:{count:customBadges.length,badges:customBadges.map(b=>({id:b.id,key:b.badge_key,name:b.name}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
             // Обновляем кастомные бейджи в модальном окне
             setModalCustomBadges(customBadges);
             renderCustomBadgesUI();
             updateAllCustomBadgeIcons();
         } catch (error) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/bd2413cd-f628-48dc-9916-33464f198af7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'library.js:1760',message:'loadCustomBadges error',data:{error:error.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
             console.error('Ошибка загрузки кастомных бейджей:', error);
         }
     }
@@ -1776,8 +1792,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Рендеринг кастомных бейджей в селекторе
     function renderCustomBadgesInSelector() {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/bd2413cd-f628-48dc-9916-33464f198af7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'library.js:1785',message:'renderCustomBadgesInSelector called',data:{customBadgesCount:customBadges.length,currentBadgeCard:currentBadgeCard?currentBadgeCard.dataset.movieId:null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         const container = document.getElementById('badge-options-custom');
-        if (!container) return;
+        if (!container) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/bd2413cd-f628-48dc-9916-33464f198af7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'library.js:1787',message:'container not found',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            // #endregion
+            return;
+        }
 
         container.innerHTML = customBadges.map(badge => `
             <div class="badge-option badge-option-custom" data-badge="${badge.badge_key}">
@@ -1787,13 +1811,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
         `).join('');
 
+        const options = container.querySelectorAll('.badge-option-custom');
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/bd2413cd-f628-48dc-9916-33464f198af7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'library.js:1797',message:'options rendered',data:{optionsCount:options.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+
         // Добавляем обработчики для кастомных опций
-        container.querySelectorAll('.badge-option-custom').forEach(option => {
+        options.forEach(option => {
             option.addEventListener('click', async (e) => {
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/bd2413cd-f628-48dc-9916-33464f198af7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'library.js:1799',message:'custom badge option clicked',data:{badgeType:option.dataset.badge,currentBadgeCard:currentBadgeCard?currentBadgeCard.dataset.movieId:null,clickTarget:e.target.className},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                // #endregion
                 // Игнорируем клик по кнопке удаления
                 if (e.target.classList.contains('badge-delete-btn')) return;
                 
-                if (!currentBadgeCard) return;
+                if (!currentBadgeCard) {
+                    // #region agent log
+                    fetch('http://127.0.0.1:7242/ingest/bd2413cd-f628-48dc-9916-33464f198af7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'library.js:1803',message:'currentBadgeCard is null',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                    // #endregion
+                    return;
+                }
                 const badgeType = option.dataset.badge;
                 const movieId = currentBadgeCard.dataset.movieId;
 
@@ -2000,6 +2037,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         submitBtn.addEventListener('click', async () => {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/bd2413cd-f628-48dc-9916-33464f198af7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'library.js:2009',message:'create badge button clicked',data:{currentBadgeCard:currentBadgeCard?currentBadgeCard.dataset.movieId:null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+            // #endregion
             const emoji = emojiInput.value.trim();
             const name = nameInput.value.trim();
 
@@ -2027,10 +2067,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.message || 'Не удалось создать бейдж');
 
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/bd2413cd-f628-48dc-9916-33464f198af7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'library.js:2037',message:'badge created successfully',data:{badgeId:data.badge?.id,badgeKey:data.badge?.badge_key,currentBadgeCard:currentBadgeCard?currentBadgeCard.dataset.movieId:null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+                // #endregion
                 showToast('Бейдж создан', 'success');
                 form.style.display = 'none';
                 toggleBtn.style.display = 'block';
                 await loadCustomBadges();
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/bd2413cd-f628-48dc-9916-33464f198af7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'library.js:2041',message:'after loadCustomBadges',data:{currentBadgeCard:currentBadgeCard?currentBadgeCard.dataset.movieId:null,customBadgesCount:customBadges.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+                // #endregion
                 updateBadgeFilterStats();
             } catch (error) {
                 showToast(error.message, 'error');
@@ -2061,6 +2107,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const badgeIcons = standardBadgeIcons;
 
     function openBadgeSelector(card) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/bd2413cd-f628-48dc-9916-33464f198af7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'library.js:2070',message:'openBadgeSelector called',data:{movieId:card.dataset.movieId,currentBadge:card.dataset.badge,customBadgesCount:customBadges.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
         currentBadgeCard = card;
         const currentBadge = card.dataset.badge;
 
@@ -2068,7 +2117,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         badgeOptions.forEach(opt => opt.classList.remove('selected'));
         const customOptionsContainer = document.getElementById('badge-options-custom');
         if (customOptionsContainer) {
-            customOptionsContainer.querySelectorAll('.badge-option-custom').forEach(opt => opt.classList.remove('selected'));
+            const customOptions = customOptionsContainer.querySelectorAll('.badge-option-custom');
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/bd2413cd-f628-48dc-9916-33464f198af7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'library.js:2078',message:'custom options found',data:{customOptionsCount:customOptions.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+            // #endregion
+            customOptions.forEach(opt => opt.classList.remove('selected'));
         }
 
         // Выделяем текущий бейдж, если есть

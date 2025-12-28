@@ -5,7 +5,9 @@ import os
 bind = f"0.0.0.0:{os.environ.get('PORT', '8000')}"
 
 # Worker processes
-workers = int(os.environ.get('GUNICORN_WORKERS', 2))
+# Используем 1 worker для корректной работы WebSocket уведомлений
+# (admin_connections хранятся в памяти worker'а)
+workers = int(os.environ.get('GUNICORN_WORKERS', 1))
 threads = int(os.environ.get('GUNICORN_THREADS', 4))
 worker_class = "gthread"  # Threaded workers для лучшего стриминга
 worker_connections = 100

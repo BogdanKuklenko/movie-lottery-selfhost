@@ -2014,11 +2014,17 @@ def get_poll(poll_id):
     voter_token = identity['voter_token']
     profile = identity['profile']
     user_id = identity['user_id']
-    points_balance = profile.total_points or 0
+    
+    # Безопасный доступ к данным профиля (может быть None если пользователь не авторизован)
+    if profile:
+        points_balance = profile.total_points or 0
+        points_earned_total = profile.points_accrued_total or 0
+        streak_info = get_voter_streak_info(profile)
+    else:
+        points_balance = 0
+        points_earned_total = 0
+        streak_info = None
     db.session.commit()
-
-    points_earned_total = profile.points_accrued_total or 0
-    streak_info = get_voter_streak_info(profile)
 
     # Проверяем, голосовал ли уже этот пользователь
     existing_vote = Vote.query.filter_by(poll_id=poll_id, voter_token=voter_token).first()
@@ -2205,30 +2211,19 @@ def vote_in_poll(poll_id):
 
     db.session.commit()
 
-    # Отправляем push-уведомления о новом голосе в фоновом потоке (не блокирует ответ)
+    # Отправляем push-уведомления о новом голосе (синхронно для стабильности WebSocket)
     try:
         total_votes = Vote.query.filter_by(poll_id=poll_id).count()
         voted_movie_name = movie.name
-        current_app.logger.info(f'[Push] Голос получен в опросе {poll_id}, запуск отправки уведомлений в фоне...')
+        current_app.logger.info(f'[Push] Голос получен в опросе {poll_id}, отправка уведомлений...')
         
-        # Запускаем отправку в отдельном потоке с копией app context
-        app = current_app._get_current_object()
-        
-        def send_notifications_async():
-            with app.app_context():
-                try:
-                    send_vote_notifications(
-                        poll_id=poll_id,
-                        voted_movie_name=voted_movie_name,
-                        total_votes=total_votes,
-                    )
-                except Exception as e:
-                    app.logger.error(f'[Push] Ошибка в фоновом потоке отправки push-уведомлений: {e}', exc_info=True)
-        
-        thread = threading.Thread(target=send_notifications_async, daemon=True)
-        thread.start()
+        send_vote_notifications(
+            poll_id=poll_id,
+            voted_movie_name=voted_movie_name,
+            total_votes=total_votes,
+        )
     except Exception as e:
-        current_app.logger.error(f'[Push] Ошибка запуска фоновой отправки push-уведомлений для опроса {poll_id}: {e}', exc_info=True)
+        current_app.logger.error(f'[Push] Ошибка отправки push-уведомлений для опроса {poll_id}: {e}', exc_info=True)
 
     # Fetch updated profile to get current points_accrued_total
     profile = ensure_voter_profile(voter_token, device_label=device_label)
@@ -2641,10 +2636,6 @@ def get_my_polls():
     
     polls_data = []
     for poll in polls:
-        # Проверяем, есть ли голоса или форсированный победитель
-        if len(poll.votes) == 0 and not poll.forced_winner_movie_id:
-            continue
-        
         vote_counts = poll.get_vote_counts()
         winners = poll.winners
         
@@ -3919,22 +3910,19 @@ def send_vote_notifications(poll_id, voted_movie_name, total_votes):
     """
     Отправляет push-уведомления админу о новом голосе в опросе.
     
-    Поддерживает два метода доставки:
-    1. Web Push через Google FCM (работает когда сайт закрыт)
-    2. WebSocket (работает когда сайт открыт, прямая доставка)
+    Использует единственный канал доставки:
+    - Windows Toast через notification_client.py (работает независимо от браузера)
     
     Уведомления отправляются только если:
     1. Глобально включены (VOTE_NOTIFICATIONS_ENABLED)
     2. Для конкретного опроса включены (poll.notifications_enabled)
-    3. Есть активные подписки админа (Web Push или WebSocket)
+    3. Есть активное соединение notification_client.py
     
     Args:
         poll_id: ID опроса
         voted_movie_name: Название фильма, за который проголосовали
         total_votes: Общее количество голосов
     """
-    import json
-    
     # Проверяем, включены ли уведомления глобально
     globally_enabled = current_app.config.get('VOTE_NOTIFICATIONS_ENABLED', True)
     if not globally_enabled:
@@ -3953,6 +3941,26 @@ def send_vote_notifications(poll_id, voted_movie_name, total_votes):
         current_app.logger.debug(f'[Push] Уведомления отключены для опроса {poll_id} (notifications_enabled={poll.notifications_enabled}). Пропуск отправки.')
         return
     
+    # Получаем текущего лидера опроса (фильм с максимальным количеством голосов)
+    leader_data = None
+    try:
+        vote_counts = poll.get_vote_counts()
+        if vote_counts:
+            leader_id = max(vote_counts, key=vote_counts.get)
+            leader_movie = PollMovie.query.get(leader_id)
+            if leader_movie:
+                leader_data = {
+                    'name': leader_movie.name,
+                    'search_name': leader_movie.search_name,
+                    'year': leader_movie.year,
+                    'countries': leader_movie.countries,
+                    'votes': vote_counts[leader_id],
+                    'poster': leader_movie.poster,  # URL постера для Hero-изображения
+                }
+                current_app.logger.debug(f'[Push] Лидер опроса {poll_id}: {leader_movie.name} ({vote_counts[leader_id]} голосов)')
+    except Exception as e:
+        current_app.logger.warning(f'[Push] Ошибка получения лидера опроса: {e}')
+    
     # Формируем payload для уведомления
     notification_data = {
         'title': '🗳️ Новый голос!',
@@ -3966,121 +3974,23 @@ def send_vote_notifications(poll_id, voted_movie_name, total_votes):
             'poll_id': poll_id,
             'url': f'/p/{poll_id}/results',
         },
+        'leader': leader_data,  # Данные о лидере для кнопки RuTracker
     }
     
-    # Определяем, какие методы использовать
-    use_websocket = current_app.config.get('WEBSOCKET_NOTIFICATIONS_ENABLED', True)
-    use_webpush = current_app.config.get('WEBPUSH_NOTIFICATIONS_ENABLED', True)
-    
     admin_count = 0
-    websocket_count = 0
-    webpush_count = 0
     
-    # 1. Отправка admin-клиентам (notification_client.py) - приоритет
-    # Работает без браузера, показывает Windows Toast уведомления
-    if use_websocket:
-        try:
-            admin_count = send_admin_notification(notification_data)
-            if admin_count > 0:
-                current_app.logger.info(f'[Admin] Отправлено {admin_count} уведомлений admin-клиентам для опроса {poll_id}')
-        except Exception as e:
-            current_app.logger.error(f'[Admin] Ошибка отправки уведомлений: {e}', exc_info=True)
-    
-    # 2. Отправка через WebSocket браузерным клиентам (если включен)
-    if use_websocket:
-        try:
-            # Получаем все voter_token с активными WebSocket соединениями
-            # Это включает как пользователей с подписками, так и без них
-            websocket_voter_tokens = get_all_voter_tokens()
-            
-            if websocket_voter_tokens:
-                current_app.logger.debug(f'[WebSocket] Найдено {len(websocket_voter_tokens)} активных WebSocket соединений для опроса {poll_id}')
-            
-            for voter_token in websocket_voter_tokens:
-                count = send_websocket_notification(voter_token, notification_data)
-                websocket_count += count
-        except Exception as e:
-            current_app.logger.error(f'[WebSocket] Ошибка отправки уведомлений: {e}', exc_info=True)
-    
-    # Отправка через Web Push (если включен)
-    if use_webpush:
-        vapid_private_key = current_app.config.get('VAPID_PRIVATE_KEY')
-        vapid_claims_email = current_app.config.get('VAPID_CLAIMS_EMAIL', 'mailto:admin@example.com')
-        
-        if not vapid_private_key:
-            current_app.logger.debug('VAPID_PRIVATE_KEY не настроен, Web Push отключен')
-        else:
-            try:
-                from pywebpush import webpush, WebPushException
-            except ImportError:
-                current_app.logger.warning('pywebpush не установлен, Web Push недоступен')
-            else:
-                # Получаем все подписки админа
-                subscriptions = PushSubscription.query.all()
-                
-                if subscriptions:
-                    current_app.logger.info(f'[Push] Отправка Web Push уведомлений для опроса {poll_id}: найдено {len(subscriptions)} подписок')
-                    
-                    payload = json.dumps(notification_data)
-                    failed_endpoints = []
-                    
-                    for sub in subscriptions:
-                        # Пропускаем подписку, если у пользователя есть активное WebSocket соединение
-                        if has_active_websocket(sub.voter_token):
-                            current_app.logger.debug(f'[Push] Пропуск Web Push для {sub.voter_token[:8]}... (есть активное WebSocket соединение)')
-                            continue
-                        
-                        try:
-                            webpush(
-                                subscription_info={
-                                    'endpoint': sub.endpoint,
-                                    'keys': {
-                                        'p256dh': sub.p256dh_key,
-                                        'auth': sub.auth_key,
-                                    },
-                                },
-                                data=payload,
-                                vapid_private_key=vapid_private_key,
-                                vapid_claims={'sub': vapid_claims_email},
-                            )
-                            webpush_count += 1
-                            current_app.logger.debug(f'[Push] Уведомление успешно отправлено на {sub.endpoint[:50]}...')
-                        except WebPushException as e:
-                            current_app.logger.warning(f'[Push] Ошибка отправки на {sub.endpoint[:50]}: {e}')
-                            # Если подписка больше не действительна (404, 410), удаляем её
-                            should_remove = False
-                            if e.response is not None and hasattr(e.response, 'status_code'):
-                                if e.response.status_code in (404, 410):
-                                    should_remove = True
-                            else:
-                                # Fallback: проверяем код статуса в сообщении исключения
-                                error_msg = str(e)
-                                if '410' in error_msg or '404' in error_msg or 'Gone' in error_msg:
-                                    should_remove = True
-                            
-                            if should_remove:
-                                failed_endpoints.append(sub.endpoint)
-                                current_app.logger.info(f'[Push] Подписка {sub.endpoint[:50]}... помечена для удаления (expired/gone)')
-                        except Exception as e:
-                            current_app.logger.error(f'[Push] Неожиданная ошибка при отправке: {e}')
-                    
-                    # Удаляем недействительные подписки
-                    if failed_endpoints:
-                        try:
-                            PushSubscription.query.filter(
-                                PushSubscription.endpoint.in_(failed_endpoints)
-                            ).delete(synchronize_session=False)
-                            db.session.commit()
-                        except Exception as e:
-                            current_app.logger.error('Error deleting invalid subscriptions: %s', e)
-                            db.session.rollback()
-                else:
-                    current_app.logger.debug(f'[Push] Нет активных Web Push подписок для опроса {poll_id}')
+    # Отправка admin-клиентам (notification_client.py)
+    # Это единственный канал доставки - Windows Toast уведомления
+    try:
+        admin_count = send_admin_notification(notification_data)
+        if admin_count > 0:
+            current_app.logger.info(f'[Admin] Отправлено {admin_count} уведомлений admin-клиентам для опроса {poll_id}')
+    except Exception as e:
+        current_app.logger.error(f'[Admin] Ошибка отправки уведомлений: {e}', exc_info=True)
     
     # Логируем итоги
-    total_sent = admin_count + websocket_count + webpush_count
-    if total_sent > 0:
-        current_app.logger.info(f'[Push] Отправлено уведомлений для опроса {poll_id}: Admin={admin_count}, WebSocket={websocket_count}, WebPush={webpush_count}, Всего={total_sent}')
+    if admin_count > 0:
+        current_app.logger.info(f'[Push] Отправлено уведомлений для опроса {poll_id}: Admin={admin_count}')
     else:
         current_app.logger.debug(f'[Push] Нет активных подписок для отправки уведомлений о голосе в опросе {poll_id}')
 

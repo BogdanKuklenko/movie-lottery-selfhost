@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
-    <Description>Movie Lottery Notification Client - Auto-start. Checks every 5 minutes if client is running and starts if needed.</Description>
+    <Description>Movie Lottery Notification Client - Auto-start. Checks every 1 minute if client is running and starts if needed.</Description>
     <Author>MovieLottery</Author>
   </RegistrationInfo>
   <Triggers>
     <BootTrigger>
       <Enabled>true</Enabled>
-      <Delay>PT1M</Delay>
+      <Delay>PT30S</Delay>
     </BootTrigger>
     <TimeTrigger>
       <Repetition>
-        <Interval>PT5M</Interval>
+        <Interval>PT1M</Interval>
         <StopAtDurationEnd>false</StopAtDurationEnd>
       </Repetition>
       <StartBoundary>2025-01-01T00:00:00</StartBoundary>

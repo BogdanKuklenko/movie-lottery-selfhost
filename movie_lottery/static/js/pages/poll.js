@@ -918,6 +918,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         selectedMovie = movie;
+        
+        // Сбрасываем состояние кнопки при открытии
+        if (voteConfirmBtn) {
+            voteConfirmBtn.disabled = false;
+            voteConfirmBtn.textContent = 'Да, проголосовать';
+        }
+        
         voteConfirmPoster.src = movie.poster || PLACEHOLDER_POSTER;
         voteConfirmTitle.textContent = movie.name;
         voteConfirmYear.textContent = movie.year || '';
@@ -1416,6 +1423,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function closeUserSwitchModal(options = {}) {
         const { fromPopState = false } = options;
+        
+        // Если пользователь вышел и нужно запросить ID, не закрываем модальное окно
+        // а просто открываем его заново (не даём закрыть пока не войдёт)
+        if (shouldRequestUserId) {
+            openUserSwitchModal({ suggestedId: userSwitchInput?.value || lastKnownUserId });
+            return;
+        }
+        
         const wasTracked = modalHistoryStack.includes('user-switch');
         if (userSwitchModal) {
             userSwitchModal.style.display = 'none';
@@ -2044,6 +2059,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             resetVoterSessionState();
             deleteCookie(VOTER_TOKEN_COOKIE);
             deleteCookie(VOTER_USER_ID_COOKIE);
+            // Устанавливаем флаг, что нужно запросить ID (так как токен удалён)
+            shouldRequestUserId = true;
             const successMessage = payload.user_id
                 ? 'Сеанс сброшен. Выберите ID заново.'
                 : 'Сеанс сброшен. Можно выбрать новый ID.';
@@ -2094,6 +2111,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 voterToken = payload.voter_token;
             }
 
+            // Успешный вход - сбрасываем флаг запроса ID
+            shouldRequestUserId = false;
             closeUserSwitchModal();
             showToast('Профиль обновлён. Загружаем данные...', 'success');
             await fetchPollData({ skipVoteHandling: false, showErrors: true });
